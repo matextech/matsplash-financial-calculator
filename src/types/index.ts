@@ -3,9 +3,10 @@ export interface Employee {
   name: string;
   email: string;
   phone?: string;
+  role?: 'Driver' | 'Packers' | 'Manager' | 'General';
   salaryType: 'fixed' | 'commission' | 'both';
   fixedSalary?: number;
-  commissionRate?: number; // Percentage per bag
+  commissionRate?: number; // Fixed amount per bag (e.g., ₦15 for drivers, ₦4 for packers)
   createdAt?: Date;
   updatedAt?: Date;
 }

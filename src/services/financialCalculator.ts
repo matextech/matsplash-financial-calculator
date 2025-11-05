@@ -105,10 +105,8 @@ export class FinancialCalculator {
 
     if (employee.salaryType === 'commission' || employee.salaryType === 'both') {
       if (employee.commissionRate) {
-        // Assuming commission is calculated per bag
-        // You might need to adjust this based on your pricing
-        const pricePerBag = 50; // Default price - should be configurable
-        const commission = (bagsSold * pricePerBag * employee.commissionRate) / 100;
+        // Commission is now a fixed rate per bag (e.g., ₦15 per bag for drivers, ₦4 per bag for packers)
+        const commission = bagsSold * employee.commissionRate;
         total += commission;
       }
     }

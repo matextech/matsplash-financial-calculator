@@ -10,9 +10,7 @@ import {
   Card,
   CardContent,
 } from '@mui/material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+// Using HTML5 date input to fix bundling issue
 import {
   LineChart,
   Line,
@@ -205,20 +203,24 @@ export default function Reports() {
           <MenuItem value="quarterly">Quarterly</MenuItem>
           <MenuItem value="yearly">Yearly</MenuItem>
         </TextField>
-        <LocalizationProvider dateAdapter={AdapterDateFns}>
-          <DatePicker
-            label="Start Date"
-            value={startDate}
-            onChange={(newValue) => newValue && setStartDate(newValue)}
-            slotProps={{ textField: { size: 'small' } }}
-          />
-          <DatePicker
-            label="End Date"
-            value={endDate}
-            onChange={(newValue) => newValue && setEndDate(newValue)}
-            slotProps={{ textField: { size: 'small' } }}
-          />
-        </LocalizationProvider>
+        <TextField
+          label="Start Date"
+          type="date"
+          size="small"
+          value={startDate.toISOString().split('T')[0]}
+          onChange={(e) => setStartDate(new Date(e.target.value))}
+          InputLabelProps={{ shrink: true }}
+          sx={{ mr: 1 }}
+        />
+        <TextField
+          label="End Date"
+          type="date"
+          size="small"
+          value={endDate.toISOString().split('T')[0]}
+          onChange={(e) => setEndDate(new Date(e.target.value))}
+          InputLabelProps={{ shrink: true }}
+          sx={{ mr: 1 }}
+        />
         <Button variant="contained" onClick={loadReport}>
           Refresh
         </Button>

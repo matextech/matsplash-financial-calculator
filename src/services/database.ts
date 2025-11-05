@@ -71,6 +71,7 @@ class DatabaseService {
       const store = transaction.objectStore('employees');
       const request = store.add({
         ...employee,
+        role: employee.role || 'General', // Default to 'General' if not specified
         createdAt: new Date(),
         updatedAt: new Date()
       });
@@ -85,7 +86,15 @@ class DatabaseService {
       const transaction = db.transaction(['employees'], 'readonly');
       const store = transaction.objectStore('employees');
       const request = store.getAll();
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = () => {
+        const employees = request.result;
+        // Ensure all employees have a role (default to 'General' for existing employees)
+        const employeesWithRoles = employees.map((emp: Employee) => ({
+          ...emp,
+          role: emp.role || 'General'
+        }));
+        resolve(employeesWithRoles);
+      };
       request.onerror = () => reject(request.error);
     });
   }
@@ -107,6 +116,7 @@ class DatabaseService {
         const updated = {
           ...existing,
           ...employee,
+          role: employee.role || existing.role || 'General', // Preserve existing role or default to 'General'
           updatedAt: new Date()
         };
         
@@ -158,8 +168,53 @@ class DatabaseService {
       
       request.onsuccess = () => {
         const expenses = request.result;
-        resolve(expenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        // Normalize dates - ensure they're Date objects
+        const normalizedExpenses = expenses.map((expense: Expense) => ({
+          ...expense,
+          date: expense.date instanceof Date ? expense.date : new Date(expense.date)
+        }));
+        resolve(normalizedExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async updateExpense(id: number, expense: Partial<Expense>): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise(async (resolve, reject) => {
+      const transaction = db.transaction(['expenses'], 'readwrite');
+      const store = transaction.objectStore('expenses');
+      const getRequest = store.get(id);
+      
+      getRequest.onsuccess = () => {
+        const existing = getRequest.result;
+        if (!existing) {
+          reject(new Error('Expense not found'));
+          return;
+        }
+        
+        // Ensure date is a Date object if provided
+        const updated = { 
+          ...existing, 
+          ...expense,
+          date: expense.date ? (expense.date instanceof Date ? expense.date : new Date(expense.date)) : existing.date
+        };
+        const putRequest = store.put(updated);
+        putRequest.onsuccess = () => resolve();
+        putRequest.onerror = () => reject(putRequest.error);
+      };
+      
+      getRequest.onerror = () => reject(getRequest.error);
+    });
+  }
+
+  async deleteExpense(id: number): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['expenses'], 'readwrite');
+      const store = transaction.objectStore('expenses');
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
   }
@@ -192,8 +247,53 @@ class DatabaseService {
       
       request.onsuccess = () => {
         const purchases = request.result;
-        resolve(purchases.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        // Normalize dates - ensure they're Date objects
+        const normalizedPurchases = purchases.map((purchase: MaterialPurchase) => ({
+          ...purchase,
+          date: purchase.date instanceof Date ? purchase.date : new Date(purchase.date)
+        }));
+        resolve(normalizedPurchases.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async updateMaterialPurchase(id: number, purchase: Partial<MaterialPurchase>): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise(async (resolve, reject) => {
+      const transaction = db.transaction(['materialPurchases'], 'readwrite');
+      const store = transaction.objectStore('materialPurchases');
+      const getRequest = store.get(id);
+      
+      getRequest.onsuccess = () => {
+        const existing = getRequest.result;
+        if (!existing) {
+          reject(new Error('Material purchase not found'));
+          return;
+        }
+        
+        // Ensure date is a Date object if provided
+        const updated = { 
+          ...existing, 
+          ...purchase,
+          date: purchase.date ? (purchase.date instanceof Date ? purchase.date : new Date(purchase.date)) : existing.date
+        };
+        const putRequest = store.put(updated);
+        putRequest.onsuccess = () => resolve();
+        putRequest.onerror = () => reject(putRequest.error);
+      };
+      
+      getRequest.onerror = () => reject(getRequest.error);
+    });
+  }
+
+  async deleteMaterialPurchase(id: number): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['materialPurchases'], 'readwrite');
+      const store = transaction.objectStore('materialPurchases');
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
   }
@@ -226,8 +326,53 @@ class DatabaseService {
       
       request.onsuccess = () => {
         const sales = request.result;
-        resolve(sales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        // Normalize dates - ensure they're Date objects
+        const normalizedSales = sales.map((sale: Sale) => ({
+          ...sale,
+          date: sale.date instanceof Date ? sale.date : new Date(sale.date)
+        }));
+        resolve(normalizedSales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async updateSale(id: number, sale: Partial<Sale>): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise(async (resolve, reject) => {
+      const transaction = db.transaction(['sales'], 'readwrite');
+      const store = transaction.objectStore('sales');
+      const getRequest = store.get(id);
+      
+      getRequest.onsuccess = () => {
+        const existing = getRequest.result;
+        if (!existing) {
+          reject(new Error('Sale not found'));
+          return;
+        }
+        
+        // Ensure date is a Date object if provided
+        const updated = { 
+          ...existing, 
+          ...sale,
+          date: sale.date ? (sale.date instanceof Date ? sale.date : new Date(sale.date)) : existing.date
+        };
+        const putRequest = store.put(updated);
+        putRequest.onsuccess = () => resolve();
+        putRequest.onerror = () => reject(putRequest.error);
+      };
+      
+      getRequest.onerror = () => reject(getRequest.error);
+    });
+  }
+
+  async deleteSale(id: number): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['sales'], 'readwrite');
+      const store = transaction.objectStore('sales');
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
   }
@@ -260,8 +405,57 @@ class DatabaseService {
       
       request.onsuccess = () => {
         const payments = request.result;
-        resolve(payments.sort((a, b) => new Date(b.paidDate).getTime() - new Date(a.paidDate).getTime()));
+        // Normalize dates - ensure they're Date objects
+        const normalizedPayments = payments.map((payment: SalaryPayment) => ({
+          ...payment,
+          periodStart: payment.periodStart instanceof Date ? payment.periodStart : new Date(payment.periodStart),
+          periodEnd: payment.periodEnd instanceof Date ? payment.periodEnd : new Date(payment.periodEnd),
+          paidDate: payment.paidDate instanceof Date ? payment.paidDate : new Date(payment.paidDate)
+        }));
+        resolve(normalizedPayments.sort((a, b) => new Date(b.paidDate).getTime() - new Date(a.paidDate).getTime()));
       };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async updateSalaryPayment(id: number, payment: Partial<SalaryPayment>): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise(async (resolve, reject) => {
+      const transaction = db.transaction(['salaryPayments'], 'readwrite');
+      const store = transaction.objectStore('salaryPayments');
+      const getRequest = store.get(id);
+      
+      getRequest.onsuccess = () => {
+        const existing = getRequest.result;
+        if (!existing) {
+          reject(new Error('Salary payment not found'));
+          return;
+        }
+        
+        // Ensure dates are Date objects if provided
+        const updated = { 
+          ...existing, 
+          ...payment,
+          periodStart: payment.periodStart ? (payment.periodStart instanceof Date ? payment.periodStart : new Date(payment.periodStart)) : existing.periodStart,
+          periodEnd: payment.periodEnd ? (payment.periodEnd instanceof Date ? payment.periodEnd : new Date(payment.periodEnd)) : existing.periodEnd,
+          paidDate: payment.paidDate ? (payment.paidDate instanceof Date ? payment.paidDate : new Date(payment.paidDate)) : existing.paidDate
+        };
+        const putRequest = store.put(updated);
+        putRequest.onsuccess = () => resolve();
+        putRequest.onerror = () => reject(putRequest.error);
+      };
+      
+      getRequest.onerror = () => reject(getRequest.error);
+    });
+  }
+
+  async deleteSalaryPayment(id: number): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['salaryPayments'], 'readwrite');
+      const store = transaction.objectStore('salaryPayments');
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
   }

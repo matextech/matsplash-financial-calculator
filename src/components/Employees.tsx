@@ -18,31 +18,85 @@ import {
   IconButton,
   MenuItem,
   Chip,
+  InputAdornment,
+  Tooltip,
 } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { 
+  Add as AddIcon, 
+  Edit as EditIcon, 
+  Delete as DeleteIcon,
+  Search as SearchIcon,
+  FilterList as FilterIcon,
+  Clear as ClearIcon
+} from '@mui/icons-material';
 import { Employee } from '../types';
 import { dbService } from '../services/database';
 
 export default function Employees() {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
   const [open, setOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
+    role: 'General' as 'Driver' | 'Packers' | 'Manager' | 'General',
     salaryType: 'fixed' as 'fixed' | 'commission' | 'both',
     fixedSalary: '',
     commissionRate: '',
   });
 
+  // Filters
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterRole, setFilterRole] = useState<string>('all');
+  const [filterSalaryType, setFilterSalaryType] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState(false);
+
   useEffect(() => {
     loadEmployees();
   }, []);
 
+  useEffect(() => {
+    applyFilters();
+  }, [employees, searchTerm, filterRole, filterSalaryType]);
+
   const loadEmployees = async () => {
     const data = await dbService.getEmployees();
     setEmployees(data);
+    setFilteredEmployees(data);
+  };
+
+  const applyFilters = () => {
+    let filtered = [...employees];
+
+    // Search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter(e => 
+        e.name.toLowerCase().includes(search) ||
+        e.email.toLowerCase().includes(search) ||
+        (e.phone && e.phone.toLowerCase().includes(search))
+      );
+    }
+
+    // Role filter
+    if (filterRole !== 'all') {
+      filtered = filtered.filter(e => e.role === filterRole);
+    }
+
+    // Salary type filter
+    if (filterSalaryType !== 'all') {
+      filtered = filtered.filter(e => e.salaryType === filterSalaryType);
+    }
+
+    setFilteredEmployees(filtered);
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setFilterRole('all');
+    setFilterSalaryType('all');
   };
 
   const handleOpen = (employee?: Employee) => {
@@ -52,6 +106,7 @@ export default function Employees() {
         name: employee.name,
         email: employee.email,
         phone: employee.phone || '',
+        role: employee.role || 'General',
         salaryType: employee.salaryType,
         fixedSalary: employee.fixedSalary?.toString() || '',
         commissionRate: employee.commissionRate?.toString() || '',
@@ -62,6 +117,7 @@ export default function Employees() {
         name: '',
         email: '',
         phone: '',
+        role: 'General',
         salaryType: 'fixed',
         fixedSalary: '',
         commissionRate: '',
@@ -80,6 +136,7 @@ export default function Employees() {
       name: formData.name,
       email: formData.email,
       phone: formData.phone || undefined,
+      role: formData.role || 'General',
       salaryType: formData.salaryType,
       fixedSalary: formData.fixedSalary ? parseFloat(formData.fixedSalary) : undefined,
       commissionRate: formData.commissionRate ? parseFloat(formData.commissionRate) : undefined,
@@ -122,16 +179,89 @@ export default function Employees() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Typography variant="h4">Employees</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpen()}
-        >
-          Add Employee
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="outlined"
+            startIcon={<FilterIcon />}
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            Filters
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpen()}
+          >
+            Add Employee
+          </Button>
+        </Box>
       </Box>
+
+      {/* Filters */}
+      {showFilters && (
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            <TextField
+              placeholder="Search employees..."
+              size="small"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ minWidth: 250 }}
+            />
+            <TextField
+              label="Role"
+              size="small"
+              select
+              value={filterRole}
+              onChange={(e) => setFilterRole(e.target.value)}
+              sx={{ minWidth: 150 }}
+            >
+              <MenuItem value="all">All Roles</MenuItem>
+              <MenuItem value="General">General</MenuItem>
+              <MenuItem value="Driver">Driver</MenuItem>
+              <MenuItem value="Packers">Packers</MenuItem>
+              <MenuItem value="Manager">Manager</MenuItem>
+            </TextField>
+            <TextField
+              label="Salary Type"
+              size="small"
+              select
+              value={filterSalaryType}
+              onChange={(e) => setFilterSalaryType(e.target.value)}
+              sx={{ minWidth: 150 }}
+            >
+              <MenuItem value="all">All Types</MenuItem>
+              <MenuItem value="fixed">Fixed Salary</MenuItem>
+              <MenuItem value="commission">Commission Only</MenuItem>
+              <MenuItem value="both">Fixed + Commission</MenuItem>
+            </TextField>
+            {(searchTerm || filterRole !== 'all' || filterSalaryType !== 'all') && (
+              <Button
+                size="small"
+                startIcon={<ClearIcon />}
+                onClick={clearFilters}
+              >
+                Clear
+              </Button>
+            )}
+          </Box>
+        </Paper>
+      )}
+
+      <Paper sx={{ p: 2, mb: 3, backgroundColor: 'info.light', color: 'info.contrastText' }}>
+        <Typography variant="h6">
+          Total Employees: {filteredEmployees.length} ({employees.length} total)
+        </Typography>
+      </Paper>
 
       <TableContainer component={Paper}>
         <Table>
@@ -140,25 +270,43 @@ export default function Employees() {
               <TableCell>Name</TableCell>
               <TableCell>Email</TableCell>
               <TableCell>Phone</TableCell>
+              <TableCell>Role</TableCell>
               <TableCell>Salary Type</TableCell>
               <TableCell>Fixed Salary</TableCell>
-              <TableCell>Commission Rate</TableCell>
+              <TableCell>Commission Rate (₦ per bag)</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {employees.length === 0 ? (
+            {filteredEmployees.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center">
-                  <Typography color="text.secondary">No employees found</Typography>
+                <TableCell colSpan={8} align="center">
+                  <Typography color="text.secondary">
+                    {employees.length === 0 ? 'No employees found' : 'No employees match your filters'}
+                  </Typography>
                 </TableCell>
               </TableRow>
             ) : (
-              employees.map((employee) => (
-                <TableRow key={employee.id}>
+              filteredEmployees.map((employee) => (
+                <TableRow key={employee.id} hover>
                   <TableCell>{employee.name}</TableCell>
                   <TableCell>{employee.email}</TableCell>
                   <TableCell>{employee.phone || 'N/A'}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={employee.role || 'General'}
+                      size="small"
+                      color={
+                        employee.role === 'Manager'
+                          ? 'primary'
+                          : employee.role === 'Driver'
+                          ? 'secondary'
+                          : employee.role === 'Packers'
+                          ? 'info'
+                          : 'default'
+                      }
+                    />
+                  </TableCell>
                   <TableCell>
                     <Chip
                       label={employee.salaryType}
@@ -174,15 +322,19 @@ export default function Employees() {
                   </TableCell>
                   <TableCell>{formatCurrency(employee.fixedSalary)}</TableCell>
                   <TableCell>
-                    {employee.commissionRate ? `${employee.commissionRate}%` : 'N/A'}
+                    {employee.commissionRate ? `₦${employee.commissionRate.toFixed(2)}/bag` : 'N/A'}
                   </TableCell>
-                  <TableCell>
-                    <IconButton size="small" onClick={() => handleOpen(employee)}>
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton size="small" onClick={() => employee.id && handleDelete(employee.id)}>
-                      <DeleteIcon />
-                    </IconButton>
+                  <TableCell align="center">
+                    <Tooltip title="Edit">
+                      <IconButton size="small" onClick={() => handleOpen(employee)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete">
+                      <IconButton size="small" onClick={() => employee.id && handleDelete(employee.id)} color="error">
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               ))
@@ -217,6 +369,18 @@ export default function Employees() {
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             />
             <TextField
+              label="Role"
+              fullWidth
+              select
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
+            >
+              <MenuItem value="General">General</MenuItem>
+              <MenuItem value="Driver">Driver</MenuItem>
+              <MenuItem value="Packers">Packers</MenuItem>
+              <MenuItem value="Manager">Manager</MenuItem>
+            </TextField>
+            <TextField
               label="Salary Type"
               fullWidth
               select
@@ -238,12 +402,12 @@ export default function Employees() {
             )}
             {(formData.salaryType === 'commission' || formData.salaryType === 'both') && (
               <TextField
-                label="Commission Rate (%)"
+                label="Commission Rate (₦ per bag)"
                 fullWidth
                 type="number"
                 value={formData.commissionRate}
                 onChange={(e) => setFormData({ ...formData, commissionRate: e.target.value })}
-                helperText="Percentage commission per bag sold"
+                helperText="Fixed amount per bag (e.g., ₦15 for drivers, ₦4 for packers)"
               />
             )}
           </Box>

@@ -1,21 +1,28 @@
 import { useEffect, useState } from 'react';
-import { Box, Grid, Paper, Typography, Card, CardContent } from '@mui/material';
+import { Box, Grid, Paper, Typography, Card, CardContent, Button, SpeedDial, SpeedDialAction, SpeedDialIcon, Fab } from '@mui/material';
 import { 
   TrendingUp, 
   TrendingDown, 
   AccountBalance, 
   ShoppingCart,
   LocalGasStation,
-  People
+  People,
+  Add as AddIcon,
+  AttachMoney as MoneyIcon,
+  Inventory as MaterialsIcon,
+  AccountBalance as SalariesIcon
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { FinancialCalculator } from '../services/financialCalculator';
 import { FinancialReport } from '../types';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [todayReport, setTodayReport] = useState<FinancialReport | null>(null);
   const [yesterdayReport, setYesterdayReport] = useState<FinancialReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [speedDialOpen, setSpeedDialOpen] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -175,19 +182,90 @@ export default function Dashboard() {
             <Typography variant="h6" gutterBottom>
               Quick Actions
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-              Use the navigation menu to:
-            </Typography>
-            <Box component="ul" sx={{ mt: 1, pl: 2 }}>
-              <li>Record daily sales</li>
-              <li>Add expenses (fuel, driver payments)</li>
-              <li>Track material purchases</li>
-              <li>Manage employee salaries</li>
-              <li>View detailed reports</li>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2 }}>
+              <Button
+                variant="outlined"
+                startIcon={<ShoppingCart />}
+                onClick={() => navigate('/sales')}
+                fullWidth
+                sx={{ justifyContent: 'flex-start' }}
+              >
+                Record Sale
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<MoneyIcon />}
+                onClick={() => navigate('/expenses')}
+                fullWidth
+                sx={{ justifyContent: 'flex-start' }}
+              >
+                Add Expense
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<MaterialsIcon />}
+                onClick={() => navigate('/materials')}
+                fullWidth
+                sx={{ justifyContent: 'flex-start' }}
+              >
+                Record Material Purchase
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<SalariesIcon />}
+                onClick={() => navigate('/salaries')}
+                fullWidth
+                sx={{ justifyContent: 'flex-start' }}
+              >
+                Record Salary Payment
+              </Button>
             </Box>
           </Paper>
         </Grid>
       </Grid>
+
+      {/* Speed Dial for Quick Actions */}
+      <SpeedDial
+        ariaLabel="Quick Actions"
+        sx={{ position: 'fixed', bottom: 16, right: 16 }}
+        icon={<SpeedDialIcon />}
+        open={speedDialOpen}
+        onClose={() => setSpeedDialOpen(false)}
+        onOpen={() => setSpeedDialOpen(true)}
+      >
+        <SpeedDialAction
+          icon={<ShoppingCart />}
+          tooltipTitle="Record Sale"
+          onClick={() => {
+            setSpeedDialOpen(false);
+            navigate('/sales');
+          }}
+        />
+        <SpeedDialAction
+          icon={<MoneyIcon />}
+          tooltipTitle="Add Expense"
+          onClick={() => {
+            setSpeedDialOpen(false);
+            navigate('/expenses');
+          }}
+        />
+        <SpeedDialAction
+          icon={<MaterialsIcon />}
+          tooltipTitle="Add Material"
+          onClick={() => {
+            setSpeedDialOpen(false);
+            navigate('/materials');
+          }}
+        />
+        <SpeedDialAction
+          icon={<SalariesIcon />}
+          tooltipTitle="Record Salary"
+          onClick={() => {
+            setSpeedDialOpen(false);
+            navigate('/salaries');
+          }}
+        />
+      </SpeedDial>
     </Box>
   );
 }
