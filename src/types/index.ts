@@ -13,7 +13,7 @@ export interface Employee {
 
 export interface Expense {
   id?: number;
-  type: 'fuel' | 'driver_payment' | 'material' | 'other';
+  type: 'fuel' | 'driver_payment' | 'other';
   description: string;
   amount: number;
   date: Date;

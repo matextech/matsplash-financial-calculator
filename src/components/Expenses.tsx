@@ -9,115 +9,135 @@ import {
   TextField,
   Typography,
   Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
+  Grid,
+  Card,
+  CardContent,
   IconButton,
-  MenuItem,
+  Divider,
   Chip,
   InputAdornment,
   Tooltip,
+  ToggleButton,
+  ToggleButtonGroup,
+  Stack,
 } from '@mui/material';
 import { 
   Add as AddIcon, 
   Edit as EditIcon, 
   Delete as DeleteIcon,
-  Search as SearchIcon,
-  FilterList as FilterIcon,
-  Clear as ClearIcon
+  CalendarToday as CalendarIcon,
+  LocalGasStation as FuelIcon,
+  DirectionsCar as DriverIcon,
+  Receipt as OtherIcon,
+  ChevronLeft,
+  ChevronRight,
 } from '@mui/icons-material';
 import { Expense } from '../types';
 import { dbService } from '../services/database';
-import { format, startOfDay, endOfDay, subDays } from 'date-fns';
+import { format, startOfDay, endOfDay, isSameDay, parseISO, isToday, addDays, subDays } from 'date-fns';
 
 export default function Expenses() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [filteredExpenses, setFilteredExpenses] = useState<Expense[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [viewMode, setViewMode] = useState<'day' | 'range'>('day');
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
+    start: new Date(),
+    end: new Date(),
+  });
   const [open, setOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  
+  // Multi-entry form data
   const [formData, setFormData] = useState({
-    type: 'fuel' as 'fuel' | 'driver_payment' | 'material' | 'other',
-    description: '',
-    amount: '',
     date: new Date(),
-    reference: '',
+    fuel: {
+      amount: '',
+      description: '',
+      reference: '',
+    },
+    driverPayment: {
+      amount: '',
+      description: '',
+      reference: '',
+    },
+    other: {
+      amount: '',
+      description: '',
+      reference: '',
+    },
   });
-
-  // Filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<string>('all');
-  const [dateFilter, setDateFilter] = useState<string>('all');
-  const [showFilters, setShowFilters] = useState(false);
-
-  // Smart defaults - remember last inputs
-  const [lastExpenseType, setLastExpenseType] = useState<string>('fuel');
-  const [lastAmounts, setLastAmounts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadExpenses();
   }, []);
 
-  useEffect(() => {
-    applyFilters();
-  }, [expenses, searchTerm, filterType, dateFilter]);
-
   const loadExpenses = async () => {
     const data = await dbService.getExpenses();
     setExpenses(data);
-    setFilteredExpenses(data);
   };
 
-  const applyFilters = () => {
-    let filtered = [...expenses];
-
-    // Search filter
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase();
-      filtered = filtered.filter(e => 
-        e.description.toLowerCase().includes(search) ||
-        (e.reference && e.reference.toLowerCase().includes(search)) ||
-        e.amount.toString().includes(search)
-      );
-    }
-
-    // Type filter
-    if (filterType !== 'all') {
-      filtered = filtered.filter(e => e.type === filterType);
-    }
-
-    // Date filter
-    if (dateFilter !== 'all') {
-      const today = new Date();
-      let startDate: Date;
-      let endDate: Date = endOfDay(today);
-
-      switch (dateFilter) {
-        case 'today':
-          startDate = startOfDay(today);
-          break;
-        case 'week':
-          startDate = startOfDay(subDays(today, 7));
-          break;
-        case 'month':
-          startDate = startOfDay(subDays(today, 30));
-          break;
-        default:
-          startDate = startOfDay(subDays(today, 365));
-      }
-
-      filtered = filtered.filter(e => {
-        const expenseDate = new Date(e.date);
-        return expenseDate >= startDate && expenseDate <= endDate;
-      });
-    }
-
-    setFilteredExpenses(filtered);
+  const getExpensesForDate = (date: Date): Expense[] => {
+    return expenses.filter(expense => {
+      const expenseDate = expense.date instanceof Date ? expense.date : new Date(expense.date);
+      return isSameDay(expenseDate, date);
+    });
   };
 
-  // Helper function to format date for input (YYYY-MM-DD) without timezone issues
+  const getExpensesForRange = (start: Date, end: Date): Expense[] => {
+    const startDay = startOfDay(start);
+    const endDay = endOfDay(end);
+    return expenses.filter(expense => {
+      const expenseDate = expense.date instanceof Date ? expense.date : new Date(expense.date);
+      return expenseDate >= startDay && expenseDate <= endDay;
+    });
+  };
+
+  const currentExpenses = viewMode === 'day' 
+    ? getExpensesForDate(selectedDate)
+    : getExpensesForRange(dateRange.start, dateRange.end);
+
+  const groupedExpenses = {
+    fuel: currentExpenses.filter(e => {
+      const type = e.type || (e as any).type;
+      return type === 'fuel' || type === 'generator_fuel' || type === 'driver_fuel';
+    }),
+    driverPayment: currentExpenses.filter(e => {
+      const type = e.type || (e as any).type;
+      return type === 'driver_payment';
+    }),
+    other: currentExpenses.filter(e => {
+      const type = e.type || (e as any).type;
+      return type === 'other';
+    }),
+  };
+  
+
+  const totalByType = {
+    fuel: groupedExpenses.fuel.reduce((sum, e) => sum + (e.amount || 0), 0),
+    driverPayment: groupedExpenses.driverPayment.reduce((sum, e) => sum + (e.amount || 0), 0),
+    other: groupedExpenses.other.reduce((sum, e) => sum + (e.amount || 0), 0),
+  };
+
+  const totalExpenses = totalByType.fuel + totalByType.driverPayment + totalByType.other;
+  
+  // Debug: Log expenses on load
+  useEffect(() => {
+    console.log('All expenses loaded:', expenses.length);
+    console.log('Expenses by type:', {
+      fuel: expenses.filter(e => e.type === 'fuel' || (e as any).type === 'generator_fuel' || (e as any).type === 'driver_fuel').length,
+      driverPayment: expenses.filter(e => e.type === 'driver_payment').length,
+      other: expenses.filter(e => e.type === 'other').length,
+    });
+  }, [expenses]);
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
   const formatDateForInput = (date: Date | string): string => {
     const d = typeof date === 'string' ? new Date(date) : date;
     const year = d.getFullYear();
@@ -126,33 +146,59 @@ export default function Expenses() {
     return `${year}-${month}-${day}`;
   };
 
-  // Helper function to parse date from input (YYYY-MM-DD) without timezone issues
   const parseDateFromInput = (dateString: string): Date => {
     const [year, month, day] = dateString.split('-').map(Number);
     return new Date(year, month - 1, day);
   };
 
-  const handleOpen = (expense?: Expense) => {
+  const handleDateChange = (direction: 'prev' | 'next' | 'today') => {
+    if (direction === 'today') {
+      setSelectedDate(new Date());
+    } else if (direction === 'prev') {
+      setSelectedDate(prev => subDays(prev, 1));
+    } else {
+      setSelectedDate(prev => addDays(prev, 1));
+    }
+  };
+
+  const handleOpen = (expense?: Expense, date?: Date) => {
     if (expense) {
       setEditingExpense(expense);
-      // Ensure date is properly parsed from database
       const expenseDate = expense.date instanceof Date ? expense.date : new Date(expense.date);
+      const expenseType = expense.type || (expense as any).type;
+      
+      console.log('Opening expense for editing:', {
+        id: expense.id,
+        type: expenseType,
+        amount: expense.amount,
+        description: expense.description
+      });
+      
       setFormData({
-        type: expense.type,
-        description: expense.description,
-        amount: expense.amount.toString(),
         date: expenseDate,
-        reference: expense.reference || '',
+        fuel: expenseType === 'fuel' || expenseType === 'generator_fuel' || expenseType === 'driver_fuel'
+          ? { amount: expense.amount.toString(), description: expense.description, reference: expense.reference || '' }
+          : { amount: '', description: '', reference: '' },
+        driverPayment: expenseType === 'driver_payment'
+          ? { amount: expense.amount.toString(), description: expense.description, reference: expense.reference || '' }
+          : { amount: '', description: '', reference: '' },
+        other: expenseType === 'other'
+          ? { amount: expense.amount.toString(), description: expense.description, reference: expense.reference || '' }
+          : { amount: '', description: '', reference: '' },
+      });
+      
+      console.log('Form data set:', {
+        fuel: expenseType === 'fuel' || expenseType === 'generator_fuel' || expenseType === 'driver_fuel' ? expense.amount : 'empty',
+        driverPayment: expenseType === 'driver_payment' ? expense.amount : 'empty',
+        other: expenseType === 'other' ? expense.amount : 'empty',
       });
     } else {
       setEditingExpense(null);
-      // Smart defaults - use last values
       setFormData({
-        type: lastExpenseType as any,
-        description: '',
-        amount: lastAmounts[lastExpenseType] || '',
-        date: new Date(),
-        reference: '',
+        date: date || selectedDate,
+        fuel: { amount: '', description: '', reference: '' },
+        driverPayment: { amount: '', description: '', reference: '' },
+        other: { amount: '', description: '', reference: '' },
       });
     }
     setOpen(true);
@@ -164,28 +210,150 @@ export default function Expenses() {
   };
 
   const handleSubmit = async () => {
-    const expenseData: Omit<Expense, 'id'> = {
-      type: formData.type,
-      description: formData.description,
-      amount: parseFloat(formData.amount),
-      date: formData.date,
-      reference: formData.reference || undefined,
-    };
-
     try {
+      // Helper function to validate and parse amount
+      const parseAmount = (amountStr: string): number | null => {
+        if (!amountStr || amountStr.trim() === '') return null;
+        const parsed = parseFloat(amountStr);
+        return isNaN(parsed) || parsed <= 0 ? null : parsed;
+      };
+
       if (editingExpense?.id) {
-        await dbService.updateExpense(editingExpense.id, expenseData);
+        // Update single expense - determine which type based on which field has data
+        // Check in order: fuel, driverPayment, other
+        let expenseType: 'fuel' | 'driver_payment' | 'other' | null = null;
+        let amount: number | null = null;
+        let description = '';
+        let reference = '';
+
+        const fuelAmount = parseAmount(formData.fuel.amount);
+        const driverAmount = parseAmount(formData.driverPayment.amount);
+        const otherAmount = parseAmount(formData.other.amount);
+
+        if (fuelAmount !== null) {
+          expenseType = 'fuel';
+          amount = fuelAmount;
+          description = formData.fuel.description.trim() || 'Fuel expense';
+          reference = formData.fuel.reference?.trim() || '';
+        } else if (driverAmount !== null) {
+          expenseType = 'driver_payment';
+          amount = driverAmount;
+          description = formData.driverPayment.description.trim() || 'Driver payment';
+          reference = formData.driverPayment.reference?.trim() || '';
+        } else if (otherAmount !== null) {
+          expenseType = 'other';
+          amount = otherAmount;
+          description = formData.other.description.trim() || 'Other expense';
+          reference = formData.other.reference?.trim() || '';
+        }
+
+        console.log('Editing expense:', {
+          originalId: editingExpense.id,
+          originalType: editingExpense.type,
+          fuelAmount,
+          driverAmount,
+          otherAmount,
+          selectedType: expenseType,
+          amount,
+          description
+        });
+
+        if (expenseType && amount !== null) {
+          const updateData = {
+            type: expenseType,
+            description,
+            amount,
+            date: formData.date,
+            reference: reference || undefined,
+          };
+          console.log('Updating expense with:', updateData);
+          try {
+            await dbService.updateExpense(editingExpense.id, updateData);
+            console.log('Expense updated successfully');
+            handleClose();
+            setTimeout(() => {
+              loadExpenses();
+            }, 100);
+          } catch (error) {
+            console.error('Error updating expense:', error);
+            alert(`Error updating expense: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        } else {
+          alert('Please enter a valid amount for the expense.');
+          return;
+        }
       } else {
-        await dbService.addExpense(expenseData);
-        // Remember last values for smart defaults
-        setLastExpenseType(formData.type);
-        setLastAmounts({ ...lastAmounts, [formData.type]: formData.amount });
+        // Add multiple expenses - validate and save each type independently
+        const expensesToSave: Omit<Expense, 'id'>[] = [];
+        
+        // Save fuel expense if provided
+        const fuelAmount = parseAmount(formData.fuel.amount);
+        if (fuelAmount !== null) {
+          expensesToSave.push({
+            type: 'fuel',
+            description: formData.fuel.description.trim() || 'Fuel expense',
+            amount: fuelAmount,
+            date: formData.date,
+            reference: formData.fuel.reference?.trim() || undefined,
+          });
+          console.log('Adding fuel expense:', { amount: fuelAmount, description: formData.fuel.description });
+        }
+
+        // Save driver payment if provided
+        const driverAmount = parseAmount(formData.driverPayment.amount);
+        if (driverAmount !== null) {
+          expensesToSave.push({
+            type: 'driver_payment',
+            description: formData.driverPayment.description.trim() || 'Driver payment',
+            amount: driverAmount,
+            date: formData.date,
+            reference: formData.driverPayment.reference?.trim() || undefined,
+          });
+          console.log('Adding driver payment:', { amount: driverAmount, description: formData.driverPayment.description });
+        }
+
+        // Save other expense if provided
+        const otherAmount = parseAmount(formData.other.amount);
+        if (otherAmount !== null) {
+          expensesToSave.push({
+            type: 'other',
+            description: formData.other.description.trim() || 'Other expense',
+            amount: otherAmount,
+            date: formData.date,
+            reference: formData.other.reference?.trim() || undefined,
+          });
+          console.log('Adding other expense:', { amount: otherAmount, description: formData.other.description });
+        }
+
+        if (expensesToSave.length === 0) {
+          alert('Please enter at least one expense amount.');
+          return;
+        }
+
+        console.log('Saving expenses:', expensesToSave);
+        
+        // Save all expenses sequentially
+        for (const expense of expensesToSave) {
+          try {
+            const id = await dbService.addExpense(expense);
+            console.log('Expense saved with ID:', id, expense);
+          } catch (error) {
+            console.error('Error saving individual expense:', expense, error);
+            throw error;
+          }
+        }
+
+        console.log('All expenses saved successfully');
       }
+
       handleClose();
-      loadExpenses();
+      // Reload expenses after a short delay to ensure DB is updated
+      setTimeout(() => {
+        loadExpenses();
+      }, 100);
     } catch (error) {
-      console.error('Error saving expense:', error);
-      alert('Error saving expense. Please try again.');
+      console.error('Error saving expenses:', error);
+      alert(`Error saving expenses: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -201,157 +369,45 @@ export default function Expenses() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'fuel':
-        return 'error';
-      case 'driver_payment':
-        return 'warning';
-      case 'material':
-        return 'info';
-      default:
-        return 'default';
-    }
-  };
-
-  const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
-  const clearFilters = () => {
-    setSearchTerm('');
-    setFilterType('all');
-    setDateFilter('all');
-  };
-
-  return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-        <Typography variant="h4">Expenses</Typography>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button
-            variant="outlined"
-            startIcon={<FilterIcon />}
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            Filters
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpen()}
-          >
-            Add Expense
-          </Button>
+  const ExpenseCard = ({ title, icon, expenses, total, color }: {
+    title: string;
+    icon: React.ReactNode;
+    expenses: Expense[];
+    total: number;
+    color: string;
+  }) => (
+    <Card sx={{ mb: 2 }}>
+      <CardContent>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <Box sx={{ color, mr: 1 }}>{icon}</Box>
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+            {title}
+          </Typography>
+          <Chip label={formatCurrency(total)} color="primary" size="small" />
         </Box>
-      </Box>
-
-      {/* Filters */}
-      {showFilters && (
-        <Paper sx={{ p: 2, mb: 3 }}>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-            <TextField
-              placeholder="Search expenses..."
-              size="small"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ minWidth: 250 }}
-            />
-            <TextField
-              label="Type"
-              size="small"
-              select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              sx={{ minWidth: 150 }}
-            >
-              <MenuItem value="all">All Types</MenuItem>
-              <MenuItem value="fuel">Fuel</MenuItem>
-              <MenuItem value="driver_payment">Driver Payment</MenuItem>
-              <MenuItem value="material">Material</MenuItem>
-              <MenuItem value="other">Other</MenuItem>
-            </TextField>
-            <TextField
-              label="Date Range"
-              size="small"
-              select
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              sx={{ minWidth: 150 }}
-            >
-              <MenuItem value="all">All Time</MenuItem>
-              <MenuItem value="today">Today</MenuItem>
-              <MenuItem value="week">Last 7 Days</MenuItem>
-              <MenuItem value="month">Last 30 Days</MenuItem>
-              <MenuItem value="year">Last Year</MenuItem>
-            </TextField>
-            {(searchTerm || filterType !== 'all' || dateFilter !== 'all') && (
-              <Button
-                size="small"
-                startIcon={<ClearIcon />}
-                onClick={clearFilters}
-              >
-                Clear
-              </Button>
-            )}
-          </Box>
-        </Paper>
-      )}
-
-      <Paper sx={{ p: 2, mb: 3, backgroundColor: 'primary.light', color: 'primary.contrastText' }}>
-        <Typography variant="h6">
-          Total Expenses: {formatCurrency(totalExpenses)} ({filteredExpenses.length} {filteredExpenses.length === 1 ? 'expense' : 'expenses'})
-        </Typography>
-      </Paper>
-
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Date</TableCell>
-              <TableCell>Type</TableCell>
-              <TableCell>Description</TableCell>
-              <TableCell>Reference</TableCell>
-              <TableCell align="right">Amount</TableCell>
-              <TableCell align="center">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredExpenses.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} align="center">
-                  <Typography color="text.secondary">
-                    {expenses.length === 0 ? 'No expenses found' : 'No expenses match your filters'}
+        {expenses.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+            No {title.toLowerCase()} expenses
+          </Typography>
+        ) : (
+          <Stack spacing={1}>
+            {expenses.map((expense) => (
+              <Paper key={expense.id} variant="outlined" sx={{ p: 1.5 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1 }}>
+                  <Box sx={{ flexGrow: 1 }}>
+                    <Typography variant="body2" fontWeight="medium">
+                      {expense.description}
+                    </Typography>
+                    {expense.reference && (
+                      <Typography variant="caption" color="text.secondary">
+                        Ref: {expense.reference}
+                      </Typography>
+                    )}
+                  </Box>
+                  <Typography variant="body2" fontWeight="bold" sx={{ mr: 1 }}>
+                    {formatCurrency(expense.amount)}
                   </Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredExpenses.map((expense) => (
-                <TableRow key={expense.id} hover>
-                  <TableCell>{format(new Date(expense.date), 'MMM d, yyyy')}</TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={expense.type.replace('_', ' ')} 
-                      size="small" 
-                      color={getTypeColor(expense.type) as any} 
-                    />
-                  </TableCell>
-                  <TableCell>{expense.description}</TableCell>
-                  <TableCell>{expense.reference || 'N/A'}</TableCell>
-                  <TableCell align="right">{formatCurrency(expense.amount)}</TableCell>
-                  <TableCell align="center">
+                  <Box>
                     <Tooltip title="Edit">
                       <IconButton size="small" onClick={() => handleOpen(expense)}>
                         <EditIcon fontSize="small" />
@@ -362,76 +418,318 @@ export default function Expenses() {
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                  </Box>
+                </Box>
+              </Paper>
+            ))}
+          </Stack>
+        )}
+      </CardContent>
+    </Card>
+  );
 
-      <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+  return (
+    <Box>
+      {/* Header */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+        <Typography variant="h4">Daily Expenses</Typography>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => handleOpen()}
+          size="large"
+        >
+          Add Expenses
+        </Button>
+      </Box>
+
+      {/* Date Navigation - Day View */}
+      {viewMode === 'day' && (
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton onClick={() => handleDateChange('prev')}>
+                <ChevronLeft />
+              </IconButton>
+              <TextField
+                type="date"
+                value={formatDateForInput(selectedDate)}
+                onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
+                InputLabelProps={{ shrink: true }}
+                sx={{ minWidth: 200 }}
+              />
+              <IconButton onClick={() => handleDateChange('next')}>
+                <ChevronRight />
+              </IconButton>
+              {!isToday(selectedDate) && (
+                <Button variant="outlined" size="small" onClick={() => handleDateChange('today')}>
+                  Today
+                </Button>
+              )}
+            </Box>
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, newMode) => newMode && setViewMode(newMode)}
+              size="small"
+            >
+              <ToggleButton value="day">Day View</ToggleButton>
+              <ToggleButton value="range">Range View</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+        </Paper>
+      )}
+
+      {/* Date Range Selection */}
+      {viewMode === 'range' && (
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <TextField
+              label="Start Date"
+              type="date"
+              value={formatDateForInput(dateRange.start)}
+              onChange={(e) => setDateRange({ ...dateRange, start: parseDateFromInput(e.target.value) })}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              label="End Date"
+              type="date"
+              value={formatDateForInput(dateRange.end)}
+              onChange={(e) => setDateRange({ ...dateRange, end: parseDateFromInput(e.target.value) })}
+              InputLabelProps={{ shrink: true }}
+            />
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, newMode) => newMode && setViewMode(newMode)}
+              size="small"
+            >
+              <ToggleButton value="day">Day View</ToggleButton>
+              <ToggleButton value="range">Range View</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+        </Paper>
+      )}
+
+      {/* Summary Cards */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={4}>
+          <Card sx={{ backgroundColor: 'error.light', color: 'error.contrastText' }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Total Fuel
+              </Typography>
+              <Typography variant="h4">
+                {formatCurrency(totalByType.fuel)}
+              </Typography>
+              <Typography variant="body2">
+                {groupedExpenses.fuel.length} expense{groupedExpenses.fuel.length !== 1 ? 's' : ''}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={4}>
+          <Card sx={{ backgroundColor: 'info.light', color: 'info.contrastText' }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Driver Payments
+              </Typography>
+              <Typography variant="h4">
+                {formatCurrency(totalByType.driverPayment)}
+              </Typography>
+              <Typography variant="body2">
+                {groupedExpenses.driverPayment.length} payment{groupedExpenses.driverPayment.length !== 1 ? 's' : ''}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={4}>
+          <Card sx={{ backgroundColor: 'primary.light', color: 'primary.contrastText' }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Total Expenses
+              </Typography>
+              <Typography variant="h4">
+                {formatCurrency(totalExpenses)}
+              </Typography>
+              <Typography variant="body2">
+                {currentExpenses.length} total expense{currentExpenses.length !== 1 ? 's' : ''}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Expense Lists */}
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={4}>
+          <ExpenseCard
+            title="Fuel Expenses"
+            icon={<FuelIcon />}
+            expenses={groupedExpenses.fuel}
+            total={totalByType.fuel}
+            color="error.main"
+          />
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <ExpenseCard
+            title="Driver Payments"
+            icon={<DriverIcon />}
+            expenses={groupedExpenses.driverPayment}
+            total={totalByType.driverPayment}
+            color="info.main"
+          />
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <ExpenseCard
+            title="Other Expenses"
+            icon={<OtherIcon />}
+            expenses={groupedExpenses.other}
+            total={totalByType.other}
+            color="primary.main"
+          />
+        </Grid>
+      </Grid>
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
         <DialogTitle>
-          {editingExpense ? 'Edit Expense' : 'Add Expense'}
+          {editingExpense ? 'Edit Expense' : 'Add Daily Expenses'}
         </DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            <TextField
-              label="Expense Type"
-              fullWidth
-              select
-              value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-              required
-            >
-              <MenuItem value="fuel">Fuel</MenuItem>
-              <MenuItem value="driver_payment">Driver Payment</MenuItem>
-              <MenuItem value="material">Material</MenuItem>
-              <MenuItem value="other">Other</MenuItem>
-            </TextField>
-            <TextField
-              label="Description"
-              fullWidth
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              required
-              placeholder="e.g., Fuel for truck #1"
-            />
-            <TextField
-              label="Amount (₦)"
-              fullWidth
-              type="number"
-              value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              required
-              InputProps={{
-                startAdornment: <InputAdornment position="start">₦</InputAdornment>,
-              }}
-            />
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 1 }}>
             <TextField
               label="Date"
               type="date"
               fullWidth
               value={formatDateForInput(formData.date)}
               onChange={(e) => setFormData({ ...formData, date: parseDateFromInput(e.target.value) })}
-              InputLabelProps={{
-                shrink: true,
-              }}
+              InputLabelProps={{ shrink: true }}
               required
             />
-            <TextField
-              label="Reference (Trip ID, etc.)"
-              fullWidth
-              value={formData.reference}
-              onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
-              placeholder="Optional: Reference number or trip ID"
-            />
+
+            <Divider>Fuel Expenses</Divider>
+            
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor: 'error.50', borderRadius: 1 }}>
+              <TextField
+                label="Fuel Amount (₦)"
+                fullWidth
+                type="number"
+                value={formData.fuel.amount}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  fuel: { ...formData.fuel, amount: e.target.value }
+                })}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">₦</InputAdornment>,
+                }}
+                placeholder="Enter fuel amount"
+              />
+              <TextField
+                label="Description"
+                fullWidth
+                value={formData.fuel.description}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  fuel: { ...formData.fuel, description: e.target.value }
+                })}
+                placeholder="e.g., Generator + Driver fuel"
+              />
+              <TextField
+                label="Reference (Optional)"
+                fullWidth
+                value={formData.fuel.reference}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  fuel: { ...formData.fuel, reference: e.target.value }
+                })}
+                placeholder="Trip ID, receipt number, etc."
+              />
+            </Box>
+
+            <Divider>Driver Payments</Divider>
+
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor: 'info.50', borderRadius: 1 }}>
+              <TextField
+                label="Driver Payment Amount (₦)"
+                fullWidth
+                type="number"
+                value={formData.driverPayment.amount}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  driverPayment: { ...formData.driverPayment, amount: e.target.value }
+                })}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">₦</InputAdornment>,
+                }}
+                placeholder="Enter driver payment amount"
+              />
+              <TextField
+                label="Description"
+                fullWidth
+                value={formData.driverPayment.description}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  driverPayment: { ...formData.driverPayment, description: e.target.value }
+                })}
+                placeholder="e.g., Driver trip payment"
+              />
+              <TextField
+                label="Reference (Optional)"
+                fullWidth
+                value={formData.driverPayment.reference}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  driverPayment: { ...formData.driverPayment, reference: e.target.value }
+                })}
+                placeholder="Trip ID, driver name, etc."
+              />
+            </Box>
+
+            <Divider>Other Expenses</Divider>
+
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor: 'primary.50', borderRadius: 1 }}>
+              <TextField
+                label="Other Expense Amount (₦)"
+                fullWidth
+                type="number"
+                value={formData.other.amount}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  other: { ...formData.other, amount: e.target.value }
+                })}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">₦</InputAdornment>,
+                }}
+                placeholder="Enter other expense amount"
+              />
+              <TextField
+                label="Description"
+                fullWidth
+                value={formData.other.description}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  other: { ...formData.other, description: e.target.value }
+                })}
+                placeholder="e.g., Maintenance, supplies, etc."
+              />
+              <TextField
+                label="Reference (Optional)"
+                fullWidth
+                value={formData.other.reference}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  other: { ...formData.other, reference: e.target.value }
+                })}
+                placeholder="Receipt number, invoice, etc."
+              />
+            </Box>
           </Box>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ p: 2 }}>
           <Button onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleSubmit} variant="contained">
-            {editingExpense ? 'Update' : 'Add'} Expense
+          <Button onClick={handleSubmit} variant="contained" size="large">
+            {editingExpense ? 'Update' : 'Save Expenses'}
           </Button>
         </DialogActions>
       </Dialog>

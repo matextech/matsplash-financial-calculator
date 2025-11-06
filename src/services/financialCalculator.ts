@@ -28,7 +28,7 @@ export class FinancialCalculator {
 
     // Calculate expenses
     const fuelCosts = expenses
-      .filter(e => e.type === 'fuel')
+      .filter(e => e.type === 'fuel' || (e as any).type === 'generator_fuel' || (e as any).type === 'driver_fuel')
       .reduce((sum, e) => sum + e.amount, 0);
 
     const driverPayments = expenses
