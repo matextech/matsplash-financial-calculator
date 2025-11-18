@@ -28,8 +28,11 @@ function App() {
   const [dbInitialized, setDbInitialized] = useState(false);
 
   useEffect(() => {
-    dbService.init()
-      .then(async () => {
+    let timeoutId: NodeJS.Timeout;
+    
+    const initDb = async () => {
+      try {
+        await dbService.init();
         // Clear all data - ONE TIME ONLY
         try {
           await dbService.clearAllData();
@@ -38,10 +41,21 @@ function App() {
           console.error('Error clearing data:', error);
         }
         setDbInitialized(true);
-      })
-      .catch((error) => {
+      } catch (error) {
         console.error('Failed to initialize database:', error);
-      });
+        // Still set initialized to true after a timeout to prevent infinite loading
+        timeoutId = setTimeout(() => {
+          console.warn('Database initialization timed out, proceeding anyway...');
+          setDbInitialized(true);
+        }, 5000);
+      }
+    };
+
+    initDb();
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, []);
 
   if (!dbInitialized) {

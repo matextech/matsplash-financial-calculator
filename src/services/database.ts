@@ -477,47 +477,67 @@ class DatabaseService {
         if (settings.length > 0) {
           resolve(settings[0] as Settings);
         } else {
-          // Initialize with default settings
-          this.updateSettings(DEFAULT_SETTINGS).then(resolve).catch(reject);
+          // Return defaults without calling updateSettings to avoid circular dependency
+          resolve(DEFAULT_SETTINGS);
         }
       };
-      request.onerror = () => reject(request.error);
+      request.onerror = () => {
+        // If error, return defaults
+        resolve(DEFAULT_SETTINGS);
+      };
     });
   }
 
   async updateSettings(settings: Partial<Settings>): Promise<Settings> {
     const db = await this.ensureDB();
-    return new Promise(async (resolve, reject) => {
-      // First, get existing settings or use defaults
-      const existing = await this.getSettings().catch(() => DEFAULT_SETTINGS);
-      
-      const updatedSettings: Settings = {
-        ...existing,
-        ...settings,
-        id: existing.id || 1,
-        updatedAt: new Date(),
-      };
-
+    return new Promise((resolve, reject) => {
+      // Get existing settings directly from DB to avoid circular dependency
       const transaction = db.transaction(['settings'], 'readwrite');
       const store = transaction.objectStore('settings');
       
-      // Check if settings exist
-      const getRequest = store.get(updatedSettings.id);
+      // Try to get existing settings
+      const getRequest = store.getAll();
       getRequest.onsuccess = () => {
-        if (getRequest.result) {
-          // Update existing
-          const updateRequest = store.put(updatedSettings);
-          updateRequest.onsuccess = () => resolve(updatedSettings);
-          updateRequest.onerror = () => reject(updateRequest.error);
-        } else {
-          // Add new
+        const existing = getRequest.result;
+        const existingSettings = existing.length > 0 ? existing[0] as Settings : DEFAULT_SETTINGS;
+        
+        const updatedSettings: Settings = {
+          ...existingSettings,
+          ...settings,
+          id: existingSettings.id || 1,
+          updatedAt: new Date(),
+        };
+
+        // Check if settings exist by ID
+        const checkRequest = store.get(updatedSettings.id);
+        checkRequest.onsuccess = () => {
+          if (checkRequest.result) {
+            // Update existing
+            const updateRequest = store.put(updatedSettings);
+            updateRequest.onsuccess = () => resolve(updatedSettings);
+            updateRequest.onerror = () => reject(updateRequest.error);
+          } else {
+            // Add new
+            const addRequest = store.add(updatedSettings);
+            addRequest.onsuccess = () => resolve(updatedSettings);
+            addRequest.onerror = () => reject(addRequest.error);
+          }
+        };
+        checkRequest.onerror = () => {
+          // If get fails, try to add
           const addRequest = store.add(updatedSettings);
           addRequest.onsuccess = () => resolve(updatedSettings);
           addRequest.onerror = () => reject(addRequest.error);
-        }
+        };
       };
       getRequest.onerror = () => {
-        // If get fails, try to add
+        // If getAll fails, use defaults and add
+        const updatedSettings: Settings = {
+          ...DEFAULT_SETTINGS,
+          ...settings,
+          id: 1,
+          updatedAt: new Date(),
+        };
         const addRequest = store.add(updatedSettings);
         addRequest.onsuccess = () => resolve(updatedSettings);
         addRequest.onerror = () => reject(addRequest.error);
