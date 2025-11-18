@@ -90,7 +90,7 @@ export default function Sales() {
     // Apply driver filter
     if (filterDriver !== 'all') {
       filtered = filtered.filter(s => 
-        s.driverEmail === filterDriver || s.driverName === filterDriver
+        s.driverName === filterDriver
       );
     }
 
@@ -119,7 +119,7 @@ export default function Sales() {
     // Apply driver filter
     if (filterDriver !== 'all') {
       filtered = filtered.filter(s => 
-        s.driverEmail === filterDriver || s.driverName === filterDriver
+        s.driverName === filterDriver
       );
     }
 
@@ -262,6 +262,11 @@ export default function Sales() {
       const combinedBags = parseBags(formData.combinedBags);
       const combinedPrice = parseFloat(formData.combinedPrice);
 
+      // Find matching employee by name
+      const matchingEmployee = employees.find(
+        emp => emp.name.toLowerCase().trim() === formData.driverName.toLowerCase().trim()
+      );
+
       const salesToSave: Omit<Sale, 'id'>[] = [];
 
       // Save bags at ₦250 if provided
@@ -269,13 +274,14 @@ export default function Sales() {
         salesToSave.push({
           driverName: formData.driverName.trim(),
           driverEmail: formData.driverEmail?.trim() || undefined,
+          employeeId: matchingEmployee?.id,
           bagsSold: bagsAt250,
           pricePerBag: 250,
           totalAmount: bagsAt250 * 250,
           date: formData.date,
           notes: formData.notes?.trim() || undefined,
         });
-        console.log('Adding sale at ₦250:', bagsAt250, 'bags');
+        console.log('Adding sale at ₦250:', bagsAt250, 'bags', matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
       }
 
       // Save bags at ₦270 if provided
@@ -283,13 +289,14 @@ export default function Sales() {
         salesToSave.push({
           driverName: formData.driverName.trim(),
           driverEmail: formData.driverEmail?.trim() || undefined,
+          employeeId: matchingEmployee?.id,
           bagsSold: bagsAt270,
           pricePerBag: 270,
           totalAmount: bagsAt270 * 270,
           date: formData.date,
           notes: formData.notes?.trim() || undefined,
         });
-        console.log('Adding sale at ₦270:', bagsAt270, 'bags');
+        console.log('Adding sale at ₦270:', bagsAt270, 'bags', matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
       }
 
       // Save combined bags if provided (for other prices or when only one entry is used)
@@ -301,13 +308,14 @@ export default function Sales() {
         salesToSave.push({
           driverName: formData.driverName.trim(),
           driverEmail: formData.driverEmail?.trim() || undefined,
+          employeeId: matchingEmployee?.id,
           bagsSold: combinedBags,
           pricePerBag: combinedPrice,
           totalAmount: combinedBags * combinedPrice,
           date: formData.date,
           notes: formData.notes?.trim() || undefined,
         });
-        console.log('Adding combined sale:', combinedBags, 'bags at ₦' + combinedPrice);
+        console.log('Adding combined sale:', combinedBags, 'bags at ₦' + combinedPrice, matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
       }
 
       if (salesToSave.length === 0) {
@@ -319,10 +327,16 @@ export default function Sales() {
         // When editing, update the single sale - determine which entry was used
         let saleDataToUpdate: Omit<Sale, 'id'> | null = null;
 
+        // Find matching employee by name
+        const matchingEmployee = employees.find(
+          emp => emp.name.toLowerCase().trim() === formData.driverName.toLowerCase().trim()
+        );
+
         if (bagsAt250 !== null) {
           saleDataToUpdate = {
             driverName: formData.driverName.trim(),
             driverEmail: formData.driverEmail?.trim() || undefined,
+            employeeId: matchingEmployee?.id,
             bagsSold: bagsAt250,
             pricePerBag: 250,
             totalAmount: bagsAt250 * 250,
@@ -333,6 +347,7 @@ export default function Sales() {
           saleDataToUpdate = {
             driverName: formData.driverName.trim(),
             driverEmail: formData.driverEmail?.trim() || undefined,
+            employeeId: matchingEmployee?.id,
             bagsSold: bagsAt270,
             pricePerBag: 270,
             totalAmount: bagsAt270 * 270,
@@ -347,6 +362,7 @@ export default function Sales() {
           saleDataToUpdate = {
             driverName: formData.driverName.trim(),
             driverEmail: formData.driverEmail?.trim() || undefined,
+            employeeId: matchingEmployee?.id,
             bagsSold: combinedBags,
             pricePerBag: combinedPrice,
             totalAmount: combinedBags * combinedPrice,
@@ -520,9 +536,9 @@ export default function Sales() {
               onChange={(e) => setFilterDriver(e.target.value)}
             >
               <MenuItem value="all">All Drivers</MenuItem>
-              {Array.from(new Set(sales.map(s => s.driverEmail || s.driverName).filter(Boolean))).map((driver, idx) => (
-                <MenuItem key={idx} value={driver}>
-                  {driver}
+              {Array.from(new Set(sales.map(s => s.driverName).filter(Boolean))).map((driverName, idx) => (
+                <MenuItem key={idx} value={driverName}>
+                  {driverName}
                 </MenuItem>
               ))}
             </TextField>

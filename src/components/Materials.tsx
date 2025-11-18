@@ -9,35 +9,43 @@ import {
   TextField,
   Typography,
   Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  MenuItem,
-  Chip,
+  Grid,
+  Card,
+  CardContent,
   IconButton,
+  Chip,
   InputAdornment,
   Tooltip,
+  ToggleButton,
+  ToggleButtonGroup,
+  Stack,
+  MenuItem,
 } from '@mui/material';
 import { 
-  Add as AddIcon,
-  Edit as EditIcon,
+  Add as AddIcon, 
+  Edit as EditIcon, 
   Delete as DeleteIcon,
-  Search as SearchIcon,
-  FilterList as FilterIcon,
-  Clear as ClearIcon
+  Inventory as InventoryIcon,
+  ChevronLeft,
+  ChevronRight,
 } from '@mui/icons-material';
 import { MaterialPurchase, MATERIAL_COSTS } from '../types';
 import { dbService } from '../services/database';
-import { format, startOfDay, endOfDay, subDays } from 'date-fns';
+import { format, startOfDay, endOfDay, isSameDay, isToday, addDays, subDays } from 'date-fns';
 
 export default function Materials() {
   const [purchases, setPurchases] = useState<MaterialPurchase[]>([]);
-  const [filteredPurchases, setFilteredPurchases] = useState<MaterialPurchase[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [viewMode, setViewMode] = useState<'day' | 'range'>('day');
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
+    start: new Date(),
+    end: new Date(),
+  });
+  const [filterType, setFilterType] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [open, setOpen] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState<MaterialPurchase | null>(null);
+  
   const [formData, setFormData] = useState({
     type: 'sachet_roll' as 'sachet_roll' | 'packing_nylon',
     quantity: '1',
@@ -46,30 +54,27 @@ export default function Materials() {
     notes: '',
   });
 
-  // Filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<string>('all');
-  const [dateFilter, setDateFilter] = useState<string>('all');
-  const [showFilters, setShowFilters] = useState(false);
-
   useEffect(() => {
     loadPurchases();
   }, []);
 
-  useEffect(() => {
-    applyFilters();
-  }, [purchases, searchTerm, filterType, dateFilter]);
-
   const loadPurchases = async () => {
     const data = await dbService.getMaterialPurchases();
     setPurchases(data);
-    setFilteredPurchases(data);
   };
 
-  const applyFilters = () => {
-    let filtered = [...purchases];
+  const getPurchasesForDate = (date: Date): MaterialPurchase[] => {
+    let filtered = purchases.filter(purchase => {
+      const purchaseDate = purchase.date instanceof Date ? purchase.date : new Date(purchase.date);
+      return isSameDay(purchaseDate, date);
+    });
 
-    // Search filter
+    // Apply type filter
+    if (filterType !== 'all') {
+      filtered = filtered.filter(p => p.type === filterType);
+    }
+
+    // Apply search filter
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(p => 
@@ -79,41 +84,61 @@ export default function Materials() {
       );
     }
 
-    // Type filter
+    return filtered;
+  };
+
+  const getPurchasesForRange = (start: Date, end: Date): MaterialPurchase[] => {
+    const startDay = startOfDay(start);
+    const endDay = endOfDay(end);
+    let filtered = purchases.filter(purchase => {
+      const purchaseDate = purchase.date instanceof Date ? purchase.date : new Date(purchase.date);
+      return purchaseDate >= startDay && purchaseDate <= endDay;
+    });
+
+    // Apply type filter
     if (filterType !== 'all') {
       filtered = filtered.filter(p => p.type === filterType);
     }
 
-    // Date filter
-    if (dateFilter !== 'all') {
-      const today = new Date();
-      let startDate: Date;
-      let endDate: Date = endOfDay(today);
-
-      switch (dateFilter) {
-        case 'today':
-          startDate = startOfDay(today);
-          break;
-        case 'week':
-          startDate = startOfDay(subDays(today, 7));
-          break;
-        case 'month':
-          startDate = startOfDay(subDays(today, 30));
-          break;
-        default:
-          startDate = startOfDay(subDays(today, 365));
-      }
-
-      filtered = filtered.filter(p => {
-        const purchaseDate = new Date(p.date);
-        return purchaseDate >= startDate && purchaseDate <= endDate;
-      });
+    // Apply search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter(p => 
+        p.type.toLowerCase().includes(search) ||
+        p.cost.toString().includes(search) ||
+        (p.notes && p.notes.toLowerCase().includes(search))
+      );
     }
 
-    setFilteredPurchases(filtered);
+    return filtered;
   };
 
-  // Helper function to format date for input (YYYY-MM-DD) without timezone issues
+  const currentPurchases = viewMode === 'day' 
+    ? getPurchasesForDate(selectedDate)
+    : getPurchasesForRange(dateRange.start, dateRange.end);
+
+  const groupedPurchases = {
+    sachet_roll: currentPurchases.filter(p => p.type === 'sachet_roll'),
+    packing_nylon: currentPurchases.filter(p => p.type === 'packing_nylon'),
+  };
+
+  const totalByType = {
+    sachet_roll: groupedPurchases.sachet_roll.reduce((sum, p) => sum + p.cost, 0),
+    packing_nylon: groupedPurchases.packing_nylon.reduce((sum, p) => sum + p.cost, 0),
+  };
+
+  const totalCost = totalByType.sachet_roll + totalByType.packing_nylon;
+  const totalBags = groupedPurchases.sachet_roll.reduce((sum, p) => sum + (p.quantity * MATERIAL_COSTS.sachet_roll.bagsPerRoll), 0) +
+                    groupedPurchases.packing_nylon.reduce((sum, p) => sum + (p.quantity * MATERIAL_COSTS.packing_nylon.bagsPerPackage), 0);
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
   const formatDateForInput = (date: Date | string): string => {
     const d = typeof date === 'string' ? new Date(date) : date;
     const year = d.getFullYear();
@@ -122,16 +147,24 @@ export default function Materials() {
     return `${year}-${month}-${day}`;
   };
 
-  // Helper function to parse date from input (YYYY-MM-DD) without timezone issues
   const parseDateFromInput = (dateString: string): Date => {
     const [year, month, day] = dateString.split('-').map(Number);
     return new Date(year, month - 1, day);
   };
 
-  const handleOpen = (purchase?: MaterialPurchase) => {
+  const handleDateChange = (direction: 'prev' | 'next' | 'today') => {
+    if (direction === 'today') {
+      setSelectedDate(new Date());
+    } else if (direction === 'prev') {
+      setSelectedDate(prev => subDays(prev, 1));
+    } else {
+      setSelectedDate(prev => addDays(prev, 1));
+    }
+  };
+
+  const handleOpen = (purchase?: MaterialPurchase, date?: Date) => {
     if (purchase) {
       setEditingPurchase(purchase);
-      // Ensure date is properly parsed from database
       const purchaseDate = purchase.date instanceof Date ? purchase.date : new Date(purchase.date);
       setFormData({
         type: purchase.type,
@@ -140,13 +173,14 @@ export default function Materials() {
         date: purchaseDate,
         notes: purchase.notes || '',
       });
+      console.log('Opening purchase for editing:', purchase);
     } else {
       setEditingPurchase(null);
       setFormData({
         type: 'sachet_roll',
         quantity: '1',
-        cost: '',
-        date: new Date(),
+        cost: MATERIAL_COSTS.sachet_roll.cost.toString(),
+        date: date || selectedDate,
         notes: '',
       });
     }
@@ -159,37 +193,88 @@ export default function Materials() {
   };
 
   const handleTypeChange = (type: 'sachet_roll' | 'packing_nylon') => {
-    const cost = type === 'sachet_roll' 
-      ? MATERIAL_COSTS.sachet_roll.cost.toString()
-      : MATERIAL_COSTS.packing_nylon.cost.toString();
+    const standardCost = type === 'sachet_roll' 
+      ? MATERIAL_COSTS.sachet_roll.cost
+      : MATERIAL_COSTS.packing_nylon.cost;
+    
+    const quantity = parseInt(formData.quantity) || 1;
+    const newCost = (standardCost * quantity).toString();
     
     setFormData({
       ...formData,
       type,
-      cost,
+      cost: newCost,
+    });
+  };
+
+  const handleQuantityChange = (quantity: string) => {
+    const qty = parseInt(quantity) || 0;
+    const standardCost = formData.type === 'sachet_roll' 
+      ? MATERIAL_COSTS.sachet_roll.cost
+      : MATERIAL_COSTS.packing_nylon.cost;
+    
+    const newCost = (standardCost * qty).toString();
+    
+    setFormData({
+      ...formData,
+      quantity: quantity,
+      cost: newCost,
     });
   };
 
   const handleSubmit = async () => {
-    const purchaseData: Omit<MaterialPurchase, 'id'> = {
-      type: formData.type,
-      quantity: parseInt(formData.quantity),
-      cost: parseFloat(formData.cost),
-      date: formData.date,
-      notes: formData.notes || undefined,
-    };
-
     try {
-      if (editingPurchase?.id) {
-        await dbService.updateMaterialPurchase(editingPurchase.id, purchaseData);
-      } else {
-        await dbService.addMaterialPurchase(purchaseData);
+      const quantity = parseInt(formData.quantity);
+      const cost = parseFloat(formData.cost);
+
+      if (isNaN(quantity) || quantity <= 0) {
+        alert('Please enter a valid quantity.');
+        return;
       }
-      handleClose();
-      loadPurchases();
+
+      if (isNaN(cost) || cost <= 0) {
+        alert('Please enter a valid cost.');
+        return;
+      }
+
+      const purchaseData: Omit<MaterialPurchase, 'id'> = {
+        type: formData.type,
+        quantity,
+        cost,
+        date: formData.date,
+        notes: formData.notes?.trim() || undefined,
+      };
+
+      console.log('Saving purchase:', purchaseData);
+
+      if (editingPurchase?.id) {
+        try {
+          await dbService.updateMaterialPurchase(editingPurchase.id, purchaseData);
+          console.log('Purchase updated successfully');
+          handleClose();
+          setTimeout(() => {
+            loadPurchases();
+          }, 100);
+        } catch (error) {
+          console.error('Error updating purchase:', error);
+          alert(`Error updating purchase: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      } else {
+        try {
+          await dbService.addMaterialPurchase(purchaseData);
+          console.log('Purchase added successfully');
+          handleClose();
+          setTimeout(() => {
+            loadPurchases();
+          }, 100);
+        } catch (error) {
+          console.error('Error adding purchase:', error);
+          alert(`Error adding purchase: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
     } catch (error) {
-      console.error('Error saving material purchase:', error);
-      alert('Error saving material purchase. Please try again.');
+      console.error('Error saving purchase:', error);
+      alert(`Error saving purchase: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -205,167 +290,51 @@ export default function Materials() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const totalCost = filteredPurchases.reduce((sum, p) => sum + p.cost, 0);
-  const sachetRolls = filteredPurchases.filter(p => p.type === 'sachet_roll').reduce((sum, p) => sum + p.quantity, 0);
-  const packingNylon = filteredPurchases.filter(p => p.type === 'packing_nylon').reduce((sum, p) => sum + p.quantity, 0);
-
-  const clearFilters = () => {
-    setSearchTerm('');
-    setFilterType('all');
-    setDateFilter('all');
-  };
-
-  return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-        <Typography variant="h4">Material Purchases</Typography>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button
-            variant="outlined"
-            startIcon={<FilterIcon />}
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            Filters
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpen()}
-          >
-            Add Purchase
-          </Button>
+  const PurchaseCard = ({ title, purchases, total, color }: {
+    title: string;
+    purchases: MaterialPurchase[];
+    total: number;
+    color: string;
+  }) => (
+    <Card sx={{ mb: 2 }}>
+      <CardContent>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <InventoryIcon sx={{ color, mr: 1 }} />
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+            {title}
+          </Typography>
+          <Chip label={formatCurrency(total)} color="primary" size="small" />
         </Box>
-      </Box>
-
-      {/* Filters */}
-      {showFilters && (
-        <Paper sx={{ p: 2, mb: 3 }}>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-            <TextField
-              placeholder="Search purchases..."
-              size="small"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ minWidth: 250 }}
-            />
-            <TextField
-              label="Material Type"
-              size="small"
-              select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              sx={{ minWidth: 150 }}
-            >
-              <MenuItem value="all">All Types</MenuItem>
-              <MenuItem value="sachet_roll">Sachet Roll</MenuItem>
-              <MenuItem value="packing_nylon">Packing Nylon</MenuItem>
-            </TextField>
-            <TextField
-              label="Date Range"
-              size="small"
-              select
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              sx={{ minWidth: 150 }}
-            >
-              <MenuItem value="all">All Time</MenuItem>
-              <MenuItem value="today">Today</MenuItem>
-              <MenuItem value="week">Last 7 Days</MenuItem>
-              <MenuItem value="month">Last 30 Days</MenuItem>
-              <MenuItem value="year">Last Year</MenuItem>
-            </TextField>
-            {(searchTerm || filterType !== 'all' || dateFilter !== 'all') && (
-              <Button
-                size="small"
-                startIcon={<ClearIcon />}
-                onClick={clearFilters}
-              >
-                Clear
-              </Button>
-            )}
-          </Box>
-        </Paper>
-      )}
-
-      <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="body2" color="text.secondary">Total Cost</Typography>
-          <Typography variant="h5">{formatCurrency(totalCost)}</Typography>
-        </Paper>
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="body2" color="text.secondary">Sachet Rolls</Typography>
-          <Typography variant="h5">{sachetRolls} rolls</Typography>
-          <Typography variant="body2" color="text.secondary">
-            ({sachetRolls * MATERIAL_COSTS.sachet_roll.bagsPerRoll} bags capacity)
+        {purchases.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+            No {title.toLowerCase()} purchases
           </Typography>
-        </Paper>
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="body2" color="text.secondary">Packing Nylon</Typography>
-          <Typography variant="h5">{packingNylon} packages</Typography>
-          <Typography variant="body2" color="text.secondary">
-            ({packingNylon * MATERIAL_COSTS.packing_nylon.bagsPerPackage} bags capacity)
-          </Typography>
-        </Paper>
-      </Box>
-
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Date</TableCell>
-              <TableCell>Type</TableCell>
-              <TableCell>Quantity</TableCell>
-              <TableCell align="right">Cost</TableCell>
-              <TableCell align="right">Cost per Bag</TableCell>
-              <TableCell>Notes</TableCell>
-              <TableCell align="center">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredPurchases.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} align="center">
-                  <Typography color="text.secondary">
-                    {purchases.length === 0 ? 'No purchases found' : 'No purchases match your filters'}
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredPurchases.map((purchase) => {
-                const costPerBag = purchase.type === 'sachet_roll'
-                  ? purchase.cost / (purchase.quantity * MATERIAL_COSTS.sachet_roll.bagsPerRoll)
-                  : purchase.cost / (purchase.quantity * MATERIAL_COSTS.packing_nylon.bagsPerPackage);
-                
-                return (
-                  <TableRow key={purchase.id} hover>
-                    <TableCell>{format(new Date(purchase.date), 'MMM d, yyyy')}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={purchase.type.replace('_', ' ')}
-                        size="small"
-                        color={purchase.type === 'sachet_roll' ? 'primary' : 'secondary'}
-                      />
-                    </TableCell>
-                    <TableCell>{purchase.quantity}</TableCell>
-                    <TableCell align="right">{formatCurrency(purchase.cost)}</TableCell>
-                    <TableCell align="right">{formatCurrency(costPerBag)}</TableCell>
-                    <TableCell>{purchase.notes || 'N/A'}</TableCell>
-                    <TableCell align="center">
+        ) : (
+          <Stack spacing={1}>
+            {purchases.map((purchase) => {
+              const bagsCapacity = purchase.type === 'sachet_roll' 
+                ? purchase.quantity * MATERIAL_COSTS.sachet_roll.bagsPerRoll
+                : purchase.quantity * MATERIAL_COSTS.packing_nylon.bagsPerPackage;
+              return (
+                <Paper key={purchase.id} variant="outlined" sx={{ p: 1.5 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1 }}>
+                    <Box sx={{ flexGrow: 1 }}>
+                      <Typography variant="body2" fontWeight="medium">
+                        {purchase.quantity} {purchase.type === 'sachet_roll' ? 'roll(s)' : 'package(s)'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Capacity: {bagsCapacity.toLocaleString()} bags
+                      </Typography>
+                      {purchase.notes && (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          {purchase.notes}
+                        </Typography>
+                      )}
+                    </Box>
+                    <Typography variant="body2" fontWeight="bold" sx={{ mr: 1 }}>
+                      {formatCurrency(purchase.cost)}
+                    </Typography>
+                    <Box>
                       <Tooltip title="Edit">
                         <IconButton size="small" onClick={() => handleOpen(purchase)}>
                           <EditIcon fontSize="small" />
@@ -376,15 +345,221 @@ export default function Materials() {
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                    </Box>
+                  </Box>
+                </Paper>
+              );
+            })}
+          </Stack>
+        )}
+      </CardContent>
+    </Card>
+  );
 
+  return (
+    <Box>
+      {/* Header */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+        <Typography variant="h4">Material Purchases</Typography>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => handleOpen()}
+          size="large"
+        >
+          Add Purchase
+        </Button>
+      </Box>
+
+      {/* Date Navigation - Day View */}
+      {viewMode === 'day' && (
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton onClick={() => handleDateChange('prev')}>
+                <ChevronLeft />
+              </IconButton>
+              <TextField
+                type="date"
+                value={formatDateForInput(selectedDate)}
+                onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
+                InputLabelProps={{ shrink: true }}
+                sx={{ minWidth: 200 }}
+              />
+              <IconButton onClick={() => handleDateChange('next')}>
+                <ChevronRight />
+              </IconButton>
+              {!isToday(selectedDate) && (
+                <Button variant="outlined" size="small" onClick={() => handleDateChange('today')}>
+                  Today
+                </Button>
+              )}
+            </Box>
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, newMode) => newMode && setViewMode(newMode)}
+              size="small"
+            >
+              <ToggleButton value="day">Day View</ToggleButton>
+              <ToggleButton value="range">Range View</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+        </Paper>
+      )}
+
+      {/* Date Range Selection */}
+      {viewMode === 'range' && (
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <TextField
+              label="Start Date"
+              type="date"
+              value={formatDateForInput(dateRange.start)}
+              onChange={(e) => setDateRange({ ...dateRange, start: parseDateFromInput(e.target.value) })}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              label="End Date"
+              type="date"
+              value={formatDateForInput(dateRange.end)}
+              onChange={(e) => setDateRange({ ...dateRange, end: parseDateFromInput(e.target.value) })}
+              InputLabelProps={{ shrink: true }}
+            />
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, newMode) => newMode && setViewMode(newMode)}
+              size="small"
+            >
+              <ToggleButton value="day">Day View</ToggleButton>
+              <ToggleButton value="range">Range View</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+        </Paper>
+      )}
+
+      {/* Filters */}
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              label="Search Purchases"
+              fullWidth
+              size="small"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Type, cost, notes..."
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <InventoryIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              label="Filter by Type"
+              fullWidth
+              select
+              size="small"
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+            >
+              <MenuItem value="all">All Types</MenuItem>
+              <MenuItem value="sachet_roll">Sachet Roll</MenuItem>
+              <MenuItem value="packing_nylon">Packing Nylon</MenuItem>
+            </TextField>
+          </Grid>
+          {(searchTerm || filterType !== 'all') && (
+            <Grid item xs={12} sm={12} md={4}>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setSearchTerm('');
+                  setFilterType('all');
+                }}
+                fullWidth
+              >
+                Clear Filters
+              </Button>
+            </Grid>
+          )}
+        </Grid>
+      </Paper>
+
+      {/* Summary Cards */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ backgroundColor: 'primary.light', color: 'primary.contrastText' }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Total Cost
+              </Typography>
+              <Typography variant="h4">
+                {formatCurrency(totalCost)}
+              </Typography>
+              <Typography variant="body2">
+                {currentPurchases.length} purchase{currentPurchases.length !== 1 ? 's' : ''}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ backgroundColor: 'success.light', color: 'success.contrastText' }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Total Bag Capacity
+              </Typography>
+              <Typography variant="h4">
+                {totalBags.toLocaleString()}
+              </Typography>
+              <Typography variant="body2">
+                bags available
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ backgroundColor: 'info.light', color: 'info.contrastText' }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Sachet Rolls
+              </Typography>
+              <Typography variant="h4">
+                {formatCurrency(totalByType.sachet_roll)}
+              </Typography>
+              <Typography variant="body2">
+                {groupedPurchases.sachet_roll.length} purchase{groupedPurchases.sachet_roll.length !== 1 ? 's' : ''}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Purchase Lists */}
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={6}>
+          <PurchaseCard
+            title="Sachet Rolls"
+            purchases={groupedPurchases.sachet_roll}
+            total={totalByType.sachet_roll}
+            color="primary.main"
+          />
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <PurchaseCard
+            title="Packing Nylon"
+            purchases={groupedPurchases.packing_nylon}
+            total={totalByType.packing_nylon}
+            color="success.main"
+          />
+        </Grid>
+      </Grid>
+
+      {/* Add/Edit Dialog */}
       <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
         <DialogTitle>
           {editingPurchase ? 'Edit Material Purchase' : 'Add Material Purchase'}
@@ -392,30 +567,44 @@ export default function Materials() {
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
             <TextField
+              label="Date"
+              type="date"
+              fullWidth
+              value={formatDateForInput(formData.date)}
+              onChange={(e) => setFormData({ ...formData, date: parseDateFromInput(e.target.value) })}
+              InputLabelProps={{ shrink: true }}
+              required
+            />
+
+            <TextField
               label="Material Type"
               fullWidth
               select
               value={formData.type}
-              onChange={(e) => handleTypeChange(e.target.value as any)}
+              onChange={(e) => handleTypeChange(e.target.value as 'sachet_roll' | 'packing_nylon')}
+              required
             >
               <MenuItem value="sachet_roll">
-                Sachet Roll (₦31,000 per roll - 450 bags)
+                Sachet Roll - ₦{MATERIAL_COSTS.sachet_roll.cost.toLocaleString()} per roll ({MATERIAL_COSTS.sachet_roll.bagsPerRoll} bags)
               </MenuItem>
               <MenuItem value="packing_nylon">
-                Packing Nylon (₦100,000 per package - 5000 bags)
+                Packing Nylon - ₦{MATERIAL_COSTS.packing_nylon.cost.toLocaleString()} per package ({MATERIAL_COSTS.packing_nylon.bagsPerPackage.toLocaleString()} bags)
               </MenuItem>
             </TextField>
+
             <TextField
               label="Quantity"
               fullWidth
               type="number"
               value={formData.quantity}
-              onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+              onChange={(e) => handleQuantityChange(e.target.value)}
               required
               inputProps={{ min: 1 }}
+              helperText={`Standard: ${formData.type === 'sachet_roll' ? `₦${MATERIAL_COSTS.sachet_roll.cost.toLocaleString()}` : `₦${MATERIAL_COSTS.packing_nylon.cost.toLocaleString()}`} per ${formData.type === 'sachet_roll' ? 'roll' : 'package'}`}
             />
+
             <TextField
-              label="Cost (₦)"
+              label="Total Cost (₦)"
               fullWidth
               type="number"
               value={formData.cost}
@@ -424,36 +613,23 @@ export default function Materials() {
               InputProps={{
                 startAdornment: <InputAdornment position="start">₦</InputAdornment>,
               }}
-              helperText={
-                formData.type === 'sachet_roll'
-                  ? `Standard: ₦31,000 per roll (${MATERIAL_COSTS.sachet_roll.bagsPerRoll} bags)`
-                  : `Standard: ₦100,000 per package (${MATERIAL_COSTS.packing_nylon.bagsPerPackage} bags)`
-              }
+              helperText={`Auto-calculated: ${formData.quantity} × ${formData.type === 'sachet_roll' ? `₦${MATERIAL_COSTS.sachet_roll.cost.toLocaleString()}` : `₦${MATERIAL_COSTS.packing_nylon.cost.toLocaleString()}`} = ${formatCurrency(parseFloat(formData.cost || '0'))}`}
             />
+
             <TextField
-              label="Purchase Date"
-              type="date"
-              fullWidth
-              value={formatDateForInput(formData.date)}
-              onChange={(e) => setFormData({ ...formData, date: parseDateFromInput(e.target.value) })}
-              InputLabelProps={{
-                shrink: true,
-              }}
-              required
-            />
-            <TextField
-              label="Notes"
+              label="Notes (Optional)"
               fullWidth
               multiline
               rows={2}
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              placeholder="Additional notes about this purchase"
             />
           </Box>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ p: 2 }}>
           <Button onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleSubmit} variant="contained">
+          <Button onClick={handleSubmit} variant="contained" size="large">
             {editingPurchase ? 'Update' : 'Add'} Purchase
           </Button>
         </DialogActions>

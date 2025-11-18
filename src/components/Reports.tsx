@@ -173,8 +173,8 @@ export default function Reports() {
   };
 
   const expenseData = report ? [
-    { name: 'Fuel', value: report.fuelCosts },
-    { name: 'Driver Payments', value: report.driverPayments },
+    { name: 'Generator Fuel', value: report.fuelCosts },
+    { name: 'Drivers Fuel', value: report.driverPayments },
     { name: 'Materials', value: report.materialCosts },
     { name: 'Salaries', value: report.totalSalaries },
   ] : [];
@@ -313,11 +313,11 @@ export default function Reports() {
                 </Typography>
                 <Box sx={{ mt: 2 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                    <Typography>Fuel Costs</Typography>
+                    <Typography>Generator Fuel</Typography>
                     <Typography fontWeight="bold">{formatCurrency(report.fuelCosts)}</Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                    <Typography>Driver Payments</Typography>
+                    <Typography>Drivers Fuel</Typography>
                     <Typography fontWeight="bold">{formatCurrency(report.driverPayments)}</Typography>
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>

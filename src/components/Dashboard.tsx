@@ -157,7 +157,7 @@ export default function Dashboard() {
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography>Driver Payments</Typography>
+                <Typography>Drivers Fuel</Typography>
                 <Typography fontWeight="bold">
                   {formatCurrency(todayReport?.driverPayments || 0)}
                 </Typography>

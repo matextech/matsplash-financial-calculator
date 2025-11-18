@@ -28,11 +28,11 @@ export class FinancialCalculator {
 
     // Calculate expenses
     const fuelCosts = expenses
-      .filter(e => e.type === 'fuel' || (e as any).type === 'generator_fuel' || (e as any).type === 'driver_fuel')
+      .filter(e => e.type === 'fuel' || (e as any).type === 'generator_fuel')
       .reduce((sum, e) => sum + e.amount, 0);
 
     const driverPayments = expenses
-      .filter(e => e.type === 'driver_payment')
+      .filter(e => e.type === 'driver_fuel' || (e as any).type === 'driver_payment')
       .reduce((sum, e) => sum + e.amount, 0);
 
     const otherExpenses = expenses
@@ -119,6 +119,39 @@ export class FinancialCalculator {
       sachet: MATERIAL_COSTS.sachet_roll.costPerBag,
       nylon: MATERIAL_COSTS.packing_nylon.costPerBag,
       total: MATERIAL_COSTS.sachet_roll.costPerBag + MATERIAL_COSTS.packing_nylon.costPerBag
+    };
+  }
+
+  /**
+   * Calculate commission from sales for an employee
+   * @param employeeId - The employee ID
+   * @param startDate - Optional start date for filtering sales
+   * @param endDate - Optional end date for filtering sales
+   * @returns Object with total bags sold and calculated commission
+   */
+  static async calculateCommissionFromSales(
+    employeeId: number,
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<{ totalBags: number; commission: number; sales: Sale[] }> {
+    const allSales = await dbService.getSales(startDate, endDate);
+    const employeeSales = allSales.filter(sale => sale.employeeId === employeeId);
+    
+    const totalBags = employeeSales.reduce((sum, sale) => sum + sale.bagsSold, 0);
+    
+    // Get employee to get commission rate
+    const employees = await dbService.getEmployees();
+    const employee = employees.find(e => e.id === employeeId);
+    
+    let commission = 0;
+    if (employee && employee.commissionRate) {
+      commission = totalBags * employee.commissionRate;
+    }
+    
+    return {
+      totalBags,
+      commission,
+      sales: employeeSales
     };
   }
 }

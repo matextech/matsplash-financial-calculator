@@ -13,7 +13,7 @@ export interface Employee {
 
 export interface Expense {
   id?: number;
-  type: 'fuel' | 'driver_payment' | 'other';
+  type: 'fuel' | 'driver_fuel' | 'other';
   description: string;
   amount: number;
   date: Date;
@@ -35,6 +35,7 @@ export interface Sale {
   id?: number;
   driverName: string;
   driverEmail?: string;
+  employeeId?: number; // Link to employee record for commission calculation
   bagsSold: number;
   pricePerBag: number;
   totalAmount: number;
@@ -81,8 +82,8 @@ export const MATERIAL_COSTS = {
   },
   packing_nylon: {
     cost: 100000,
-    bagsPerPackage: 5000,
-    costPerBag: 100000 / 5000
+    bagsPerPackage: 10000,
+    costPerBag: 100000 / 10000
   }
 };
 

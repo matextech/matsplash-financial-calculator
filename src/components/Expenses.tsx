@@ -99,11 +99,11 @@ export default function Expenses() {
   const groupedExpenses = {
     fuel: currentExpenses.filter(e => {
       const type = e.type || (e as any).type;
-      return type === 'fuel' || type === 'generator_fuel' || type === 'driver_fuel';
+      return type === 'fuel' || type === 'generator_fuel';
     }),
-    driverPayment: currentExpenses.filter(e => {
+    driverFuel: currentExpenses.filter(e => {
       const type = e.type || (e as any).type;
-      return type === 'driver_payment';
+      return type === 'driver_fuel' || type === 'driver_payment';
     }),
     other: currentExpenses.filter(e => {
       const type = e.type || (e as any).type;
@@ -114,18 +114,18 @@ export default function Expenses() {
 
   const totalByType = {
     fuel: groupedExpenses.fuel.reduce((sum, e) => sum + (e.amount || 0), 0),
-    driverPayment: groupedExpenses.driverPayment.reduce((sum, e) => sum + (e.amount || 0), 0),
+    driverFuel: groupedExpenses.driverFuel.reduce((sum, e) => sum + (e.amount || 0), 0),
     other: groupedExpenses.other.reduce((sum, e) => sum + (e.amount || 0), 0),
   };
 
-  const totalExpenses = totalByType.fuel + totalByType.driverPayment + totalByType.other;
+  const totalExpenses = totalByType.fuel + totalByType.driverFuel + totalByType.other;
   
   // Debug: Log expenses on load
   useEffect(() => {
     console.log('All expenses loaded:', expenses.length);
     console.log('Expenses by type:', {
-      fuel: expenses.filter(e => e.type === 'fuel' || (e as any).type === 'generator_fuel' || (e as any).type === 'driver_fuel').length,
-      driverPayment: expenses.filter(e => e.type === 'driver_payment').length,
+      fuel: expenses.filter(e => e.type === 'fuel' || (e as any).type === 'generator_fuel').length,
+      driverFuel: expenses.filter(e => e.type === 'driver_fuel' || (e as any).type === 'driver_payment').length,
       other: expenses.filter(e => e.type === 'other').length,
     });
   }, [expenses]);
@@ -176,10 +176,10 @@ export default function Expenses() {
       
       setFormData({
         date: expenseDate,
-        fuel: expenseType === 'fuel' || expenseType === 'generator_fuel' || expenseType === 'driver_fuel'
+        fuel: expenseType === 'fuel' || expenseType === 'generator_fuel'
           ? { amount: expense.amount.toString(), description: expense.description, reference: expense.reference || '' }
           : { amount: '', description: '', reference: '' },
-        driverPayment: expenseType === 'driver_payment'
+        driverPayment: expenseType === 'driver_fuel' || expenseType === 'driver_payment'
           ? { amount: expense.amount.toString(), description: expense.description, reference: expense.reference || '' }
           : { amount: '', description: '', reference: '' },
         other: expenseType === 'other'
@@ -188,8 +188,8 @@ export default function Expenses() {
       });
       
       console.log('Form data set:', {
-        fuel: expenseType === 'fuel' || expenseType === 'generator_fuel' || expenseType === 'driver_fuel' ? expense.amount : 'empty',
-        driverPayment: expenseType === 'driver_payment' ? expense.amount : 'empty',
+        fuel: expenseType === 'fuel' || expenseType === 'generator_fuel' ? expense.amount : 'empty',
+        driverFuel: expenseType === 'driver_fuel' || expenseType === 'driver_payment' ? expense.amount : 'empty',
         other: expenseType === 'other' ? expense.amount : 'empty',
       });
     } else {
@@ -221,7 +221,7 @@ export default function Expenses() {
       if (editingExpense?.id) {
         // Update single expense - determine which type based on which field has data
         // Check in order: fuel, driverPayment, other
-        let expenseType: 'fuel' | 'driver_payment' | 'other' | null = null;
+        let expenseType: 'fuel' | 'driver_fuel' | 'other' | null = null;
         let amount: number | null = null;
         let description = '';
         let reference = '';
@@ -233,12 +233,12 @@ export default function Expenses() {
         if (fuelAmount !== null) {
           expenseType = 'fuel';
           amount = fuelAmount;
-          description = formData.fuel.description.trim() || 'Fuel expense';
+          description = formData.fuel.description.trim() || 'Generator Fuel';
           reference = formData.fuel.reference?.trim() || '';
         } else if (driverAmount !== null) {
-          expenseType = 'driver_payment';
+          expenseType = 'driver_fuel';
           amount = driverAmount;
-          description = formData.driverPayment.description.trim() || 'Driver payment';
+          description = formData.driverPayment.description.trim() || 'Drivers Fuel';
           reference = formData.driverPayment.reference?.trim() || '';
         } else if (otherAmount !== null) {
           expenseType = 'other';
@@ -291,25 +291,25 @@ export default function Expenses() {
         if (fuelAmount !== null) {
           expensesToSave.push({
             type: 'fuel',
-            description: formData.fuel.description.trim() || 'Fuel expense',
+            description: formData.fuel.description.trim() || 'Generator Fuel',
             amount: fuelAmount,
             date: formData.date,
             reference: formData.fuel.reference?.trim() || undefined,
           });
-          console.log('Adding fuel expense:', { amount: fuelAmount, description: formData.fuel.description });
+          console.log('Adding generator fuel expense:', { amount: fuelAmount, description: formData.fuel.description });
         }
 
-        // Save driver payment if provided
+        // Save driver fuel if provided
         const driverAmount = parseAmount(formData.driverPayment.amount);
         if (driverAmount !== null) {
           expensesToSave.push({
-            type: 'driver_payment',
-            description: formData.driverPayment.description.trim() || 'Driver payment',
+            type: 'driver_fuel',
+            description: formData.driverPayment.description.trim() || 'Drivers Fuel',
             amount: driverAmount,
             date: formData.date,
             reference: formData.driverPayment.reference?.trim() || undefined,
           });
-          console.log('Adding driver payment:', { amount: driverAmount, description: formData.driverPayment.description });
+          console.log('Adding drivers fuel expense:', { amount: driverAmount, description: formData.driverPayment.description });
         }
 
         // Save other expense if provided
@@ -517,7 +517,7 @@ export default function Expenses() {
           <Card sx={{ backgroundColor: 'error.light', color: 'error.contrastText' }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Total Fuel
+                Generator Fuel
               </Typography>
               <Typography variant="h4">
                 {formatCurrency(totalByType.fuel)}
@@ -532,13 +532,13 @@ export default function Expenses() {
           <Card sx={{ backgroundColor: 'info.light', color: 'info.contrastText' }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Driver Payments
+                Drivers Fuel
               </Typography>
               <Typography variant="h4">
-                {formatCurrency(totalByType.driverPayment)}
+                {formatCurrency(totalByType.driverFuel)}
               </Typography>
               <Typography variant="body2">
-                {groupedExpenses.driverPayment.length} payment{groupedExpenses.driverPayment.length !== 1 ? 's' : ''}
+                {groupedExpenses.driverFuel.length} expense{groupedExpenses.driverFuel.length !== 1 ? 's' : ''}
               </Typography>
             </CardContent>
           </Card>
@@ -564,7 +564,7 @@ export default function Expenses() {
       <Grid container spacing={2}>
         <Grid item xs={12} md={4}>
           <ExpenseCard
-            title="Fuel Expenses"
+            title="Generator Fuel"
             icon={<FuelIcon />}
             expenses={groupedExpenses.fuel}
             total={totalByType.fuel}
@@ -573,10 +573,10 @@ export default function Expenses() {
         </Grid>
         <Grid item xs={12} md={4}>
           <ExpenseCard
-            title="Driver Payments"
+            title="Drivers Fuel"
             icon={<DriverIcon />}
-            expenses={groupedExpenses.driverPayment}
-            total={totalByType.driverPayment}
+            expenses={groupedExpenses.driverFuel}
+            total={totalByType.driverFuel}
             color="info.main"
           />
         </Grid>
@@ -608,11 +608,11 @@ export default function Expenses() {
               required
             />
 
-            <Divider>Fuel Expenses</Divider>
+            <Divider>Generator Fuel</Divider>
             
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor: 'error.50', borderRadius: 1 }}>
               <TextField
-                label="Fuel Amount (₦)"
+                label="Generator Fuel Amount (₦)"
                 fullWidth
                 type="number"
                 value={formData.fuel.amount}
@@ -623,7 +623,7 @@ export default function Expenses() {
                 InputProps={{
                   startAdornment: <InputAdornment position="start">₦</InputAdornment>,
                 }}
-                placeholder="Enter fuel amount"
+                placeholder="Enter generator fuel amount"
               />
               <TextField
                 label="Description"
@@ -633,7 +633,7 @@ export default function Expenses() {
                   ...formData,
                   fuel: { ...formData.fuel, description: e.target.value }
                 })}
-                placeholder="e.g., Generator + Driver fuel"
+                placeholder="e.g., Generator fuel for factory"
               />
               <TextField
                 label="Reference (Optional)"
@@ -647,11 +647,11 @@ export default function Expenses() {
               />
             </Box>
 
-            <Divider>Driver Payments</Divider>
+            <Divider>Drivers Fuel</Divider>
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor: 'info.50', borderRadius: 1 }}>
               <TextField
-                label="Driver Payment Amount (₦)"
+                label="Drivers Fuel Amount (₦)"
                 fullWidth
                 type="number"
                 value={formData.driverPayment.amount}
@@ -662,7 +662,7 @@ export default function Expenses() {
                 InputProps={{
                   startAdornment: <InputAdornment position="start">₦</InputAdornment>,
                 }}
-                placeholder="Enter driver payment amount"
+                placeholder="Enter drivers fuel amount"
               />
               <TextField
                 label="Description"
@@ -672,7 +672,7 @@ export default function Expenses() {
                   ...formData,
                   driverPayment: { ...formData.driverPayment, description: e.target.value }
                 })}
-                placeholder="e.g., Driver trip payment"
+                placeholder="e.g., Fuel for driver vehicles"
               />
               <TextField
                 label="Reference (Optional)"

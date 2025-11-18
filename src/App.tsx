@@ -8,6 +8,7 @@ import Sales from './components/Sales';
 import Materials from './components/Materials';
 import Reports from './components/Reports';
 import Salaries from './components/Salaries';
+import Commissions from './components/Commissions';
 import Layout from './components/Layout';
 import { dbService } from './services/database';
 
@@ -64,6 +65,7 @@ function App() {
             <Route path="/sales" element={<Sales />} />
             <Route path="/materials" element={<Materials />} />
             <Route path="/salaries" element={<Salaries />} />
+            <Route path="/commissions" element={<Commissions />} />
             <Route path="/reports" element={<Reports />} />
           </Routes>
         </Layout>

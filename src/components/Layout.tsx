@@ -23,6 +23,7 @@ import {
   Inventory as MaterialsIcon,
   AccountBalance as SalariesIcon,
   Assessment as ReportsIcon,
+  TrendingUp as CommissionsIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -36,6 +37,7 @@ const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
   { text: 'Employees', icon: <PeopleIcon />, path: '/employees' },
   { text: 'Sales', icon: <SalesIcon />, path: '/sales' },
+  { text: 'Commissions', icon: <CommissionsIcon />, path: '/commissions' },
   { text: 'Expenses', icon: <MoneyIcon />, path: '/expenses' },
   { text: 'Materials', icon: <MaterialsIcon />, path: '/materials' },
   { text: 'Salaries', icon: <SalariesIcon />, path: '/salaries' },
