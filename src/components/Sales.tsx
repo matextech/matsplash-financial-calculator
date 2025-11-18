@@ -34,13 +34,14 @@ import {
   TrendingUp,
   LocalShipping,
 } from '@mui/icons-material';
-import { Sale, Employee } from '../types';
+import { Sale, Employee, Settings, DEFAULT_SETTINGS } from '../types';
 import { dbService } from '../services/database';
 import { format, startOfDay, endOfDay, isSameDay, isToday, addDays, subDays } from 'date-fns';
 
 export default function Sales() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'range'>('day');
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
@@ -56,20 +57,37 @@ export default function Sales() {
     driverName: '',
     driverEmail: '',
     date: new Date(),
-    bagsAt250: '',
-    bagsAt270: '',
+    bagsAtPrice1: '',
+    bagsAtPrice2: '',
     combinedBags: '',
-    combinedPrice: '250',
+    combinedPrice: '',
     notes: '',
   });
-
-  // Smart defaults
-  const [lastPricePerBag, setLastPricePerBag] = useState<string>('250');
 
   useEffect(() => {
     loadSales();
     loadEmployees();
+    loadSettings();
   }, []);
+
+  const loadSettings = async () => {
+    try {
+      const data = await dbService.getSettings();
+      setSettings(data);
+      // Initialize form with default price
+      setFormData(prev => ({
+        ...prev,
+        combinedPrice: data.salesPrice1.toString(),
+      }));
+    } catch (error) {
+      console.error('Error loading settings:', error);
+      setSettings(DEFAULT_SETTINGS);
+      setFormData(prev => ({
+        ...prev,
+        combinedPrice: DEFAULT_SETTINGS.salesPrice1.toString(),
+      }));
+    }
+  };
 
   const loadSales = async () => {
     const data = await dbService.getSales();
@@ -201,14 +219,17 @@ export default function Sales() {
       const saleDate = sale.date instanceof Date ? sale.date : new Date(sale.date);
       // When editing, we'll show the sale in the combined field since we can't split it
       const pricePerBag = sale.pricePerBag;
+      // Check if this is a general/factory sale
+      const isGeneralSale = sale.driverName === 'General/Factory' || !sale.employeeId;
+      
       setFormData({
-        driverName: sale.driverName,
+        driverName: isGeneralSale ? 'General' : sale.driverName,
         driverEmail: sale.driverEmail || '',
         date: saleDate,
-        bagsAt250: pricePerBag === 250 ? sale.bagsSold.toString() : '',
-        bagsAt270: pricePerBag === 270 ? sale.bagsSold.toString() : '',
-        combinedBags: (pricePerBag !== 250 && pricePerBag !== 270) ? sale.bagsSold.toString() : '',
-        combinedPrice: (pricePerBag !== 250 && pricePerBag !== 270) ? pricePerBag.toString() : '250',
+        bagsAtPrice1: pricePerBag === settings.salesPrice1 ? sale.bagsSold.toString() : '',
+        bagsAtPrice2: pricePerBag === settings.salesPrice2 ? sale.bagsSold.toString() : '',
+        combinedBags: (pricePerBag !== settings.salesPrice1 && pricePerBag !== settings.salesPrice2) ? sale.bagsSold.toString() : '',
+        combinedPrice: (pricePerBag !== settings.salesPrice1 && pricePerBag !== settings.salesPrice2) ? pricePerBag.toString() : settings.salesPrice1.toString(),
         notes: sale.notes || '',
       });
       console.log('Opening sale for editing:', sale);
@@ -218,10 +239,10 @@ export default function Sales() {
         driverName: '',
         driverEmail: '',
         date: date || selectedDate,
-        bagsAt250: '',
-        bagsAt270: '',
+        bagsAtPrice1: '',
+        bagsAtPrice2: '',
         combinedBags: '',
-        combinedPrice: '250',
+        combinedPrice: settings.salesPrice1.toString(),
         notes: '',
       });
     }
@@ -245,58 +266,68 @@ export default function Sales() {
 
   const handleSubmit = async () => {
     try {
-      if (!formData.driverName.trim()) {
-        alert('Please select or enter a driver name.');
+      // Allow general/factory sales without a driver
+      const isGeneralSale = formData.driverName.trim().toLowerCase() === 'general' || 
+                           formData.driverName.trim().toLowerCase() === 'factory' ||
+                           formData.driverName.trim() === '';
+      
+      if (!isGeneralSale && !formData.driverName.trim()) {
+        alert('Please select or enter a driver name, or enter "General" for factory sales.');
         return;
       }
 
       // Helper function to validate and parse bags
       const parseBags = (bagsStr: string): number | null => {
         if (!bagsStr || bagsStr.trim() === '') return null;
-        const parsed = parseInt(bagsStr);
+        // Use parseFloat first to handle any decimals, then Math.floor to ensure whole numbers
+        // This prevents any rounding issues
+        const parsed = Math.floor(parseFloat(bagsStr));
         return isNaN(parsed) || parsed <= 0 ? null : parsed;
       };
 
-      const bagsAt250 = parseBags(formData.bagsAt250);
-      const bagsAt270 = parseBags(formData.bagsAt270);
+      const bagsAtPrice1 = parseBags(formData.bagsAtPrice1);
+      const bagsAtPrice2 = parseBags(formData.bagsAtPrice2);
       const combinedBags = parseBags(formData.combinedBags);
       const combinedPrice = parseFloat(formData.combinedPrice);
 
-      // Find matching employee by name
-      const matchingEmployee = employees.find(
-        emp => emp.name.toLowerCase().trim() === formData.driverName.toLowerCase().trim()
-      );
+      // Find matching employee by name (only if not general/factory sale)
+      let matchingEmployee: Employee | undefined;
+      if (!isGeneralSale && formData.driverName.trim()) {
+        matchingEmployee = employees.find(
+          emp => emp.name.toLowerCase().trim() === formData.driverName.toLowerCase().trim()
+        );
+      }
 
       const salesToSave: Omit<Sale, 'id'>[] = [];
 
-      // Save bags at ₦250 if provided
-      if (bagsAt250 !== null) {
+      // Save bags at Price 1 if provided
+      if (bagsAtPrice1 !== null) {
         salesToSave.push({
-          driverName: formData.driverName.trim(),
-          driverEmail: formData.driverEmail?.trim() || undefined,
-          employeeId: matchingEmployee?.id,
-          bagsSold: bagsAt250,
-          pricePerBag: 250,
-          totalAmount: bagsAt250 * 250,
+          driverName: isGeneralSale ? 'General/Factory' : formData.driverName.trim(),
+          driverEmail: isGeneralSale ? undefined : formData.driverEmail?.trim() || undefined,
+          employeeId: isGeneralSale ? undefined : matchingEmployee?.id,
+          bagsSold: bagsAtPrice1,
+          pricePerBag: settings.salesPrice1,
+          totalAmount: bagsAtPrice1 * settings.salesPrice1,
           date: formData.date,
           notes: formData.notes?.trim() || undefined,
         });
-        console.log('Adding sale at ₦250:', bagsAt250, 'bags', matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
+        console.log(`Adding sale at ₦${settings.salesPrice1}:`, bagsAtPrice1, 'bags', isGeneralSale ? '(General/Factory sale)' : matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
       }
 
-      // Save bags at ₦270 if provided
-      if (bagsAt270 !== null) {
+      // Save bags at Price 2 if provided
+      if (bagsAtPrice2 !== null) {
         salesToSave.push({
-          driverName: formData.driverName.trim(),
-          driverEmail: formData.driverEmail?.trim() || undefined,
-          employeeId: matchingEmployee?.id,
-          bagsSold: bagsAt270,
-          pricePerBag: 270,
-          totalAmount: bagsAt270 * 270,
+          driverName: isGeneralSale ? 'General/Factory' : formData.driverName.trim(),
+          driverEmail: isGeneralSale ? undefined : formData.driverEmail?.trim() || undefined,
+          employeeId: isGeneralSale ? undefined : matchingEmployee?.id,
+          bagsSold: bagsAtPrice2,
+          pricePerBag: settings.salesPrice2,
+          totalAmount: bagsAtPrice2 * settings.salesPrice2,
           date: formData.date,
           notes: formData.notes?.trim() || undefined,
         });
-        console.log('Adding sale at ₦270:', bagsAt270, 'bags', matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
+        console.log(`Adding sale at ₦${settings.salesPrice2}:`, bagsAtPrice2, 'bags', isGeneralSale ? '(General/Factory sale)' : matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
       }
 
       // Save combined bags if provided (for other prices or when only one entry is used)
@@ -306,20 +337,20 @@ export default function Sales() {
           return;
         }
         salesToSave.push({
-          driverName: formData.driverName.trim(),
-          driverEmail: formData.driverEmail?.trim() || undefined,
-          employeeId: matchingEmployee?.id,
+          driverName: isGeneralSale ? 'General/Factory' : formData.driverName.trim(),
+          driverEmail: isGeneralSale ? undefined : formData.driverEmail?.trim() || undefined,
+          employeeId: isGeneralSale ? undefined : matchingEmployee?.id,
           bagsSold: combinedBags,
           pricePerBag: combinedPrice,
           totalAmount: combinedBags * combinedPrice,
           date: formData.date,
           notes: formData.notes?.trim() || undefined,
         });
-        console.log('Adding combined sale:', combinedBags, 'bags at ₦' + combinedPrice, matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
+        console.log('Adding combined sale:', combinedBags, 'bags at ₦' + combinedPrice, isGeneralSale ? '(General/Factory sale)' : matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
       }
 
       if (salesToSave.length === 0) {
-        alert('Please enter at least one sale entry (bags at ₦250, ₦270, or combined).');
+        alert(`Please enter at least one sale entry (bags at ₦${settings.salesPrice1}, ₦${settings.salesPrice2}, or combined).`);
         return;
       }
 
@@ -327,30 +358,38 @@ export default function Sales() {
         // When editing, update the single sale - determine which entry was used
         let saleDataToUpdate: Omit<Sale, 'id'> | null = null;
 
-        // Find matching employee by name
-        const matchingEmployee = employees.find(
-          emp => emp.name.toLowerCase().trim() === formData.driverName.toLowerCase().trim()
-        );
+        // Check if this is a general/factory sale
+        const isGeneralSaleEdit = formData.driverName.trim().toLowerCase() === 'general' || 
+                                  formData.driverName.trim().toLowerCase() === 'factory' ||
+                                  formData.driverName.trim() === '';
 
-        if (bagsAt250 !== null) {
+        // Find matching employee by name (only if not general/factory sale)
+        let matchingEmployee: Employee | undefined;
+        if (!isGeneralSaleEdit && formData.driverName.trim()) {
+          matchingEmployee = employees.find(
+            emp => emp.name.toLowerCase().trim() === formData.driverName.toLowerCase().trim()
+          );
+        }
+
+        if (bagsAtPrice1 !== null) {
           saleDataToUpdate = {
-            driverName: formData.driverName.trim(),
-            driverEmail: formData.driverEmail?.trim() || undefined,
-            employeeId: matchingEmployee?.id,
-            bagsSold: bagsAt250,
-            pricePerBag: 250,
-            totalAmount: bagsAt250 * 250,
+            driverName: isGeneralSaleEdit ? 'General/Factory' : formData.driverName.trim(),
+            driverEmail: isGeneralSaleEdit ? undefined : formData.driverEmail?.trim() || undefined,
+            employeeId: isGeneralSaleEdit ? undefined : matchingEmployee?.id,
+            bagsSold: bagsAtPrice1,
+            pricePerBag: settings.salesPrice1,
+            totalAmount: bagsAtPrice1 * settings.salesPrice1,
             date: formData.date,
             notes: formData.notes?.trim() || undefined,
           };
-        } else if (bagsAt270 !== null) {
+        } else if (bagsAtPrice2 !== null) {
           saleDataToUpdate = {
-            driverName: formData.driverName.trim(),
-            driverEmail: formData.driverEmail?.trim() || undefined,
-            employeeId: matchingEmployee?.id,
-            bagsSold: bagsAt270,
-            pricePerBag: 270,
-            totalAmount: bagsAt270 * 270,
+            driverName: isGeneralSaleEdit ? 'General/Factory' : formData.driverName.trim(),
+            driverEmail: isGeneralSaleEdit ? undefined : formData.driverEmail?.trim() || undefined,
+            employeeId: isGeneralSaleEdit ? undefined : matchingEmployee?.id,
+            bagsSold: bagsAtPrice2,
+            pricePerBag: settings.salesPrice2,
+            totalAmount: bagsAtPrice2 * settings.salesPrice2,
             date: formData.date,
             notes: formData.notes?.trim() || undefined,
           };
@@ -360,9 +399,9 @@ export default function Sales() {
             return;
           }
           saleDataToUpdate = {
-            driverName: formData.driverName.trim(),
-            driverEmail: formData.driverEmail?.trim() || undefined,
-            employeeId: matchingEmployee?.id,
+            driverName: isGeneralSaleEdit ? 'General/Factory' : formData.driverName.trim(),
+            driverEmail: isGeneralSaleEdit ? undefined : formData.driverEmail?.trim() || undefined,
+            employeeId: isGeneralSaleEdit ? undefined : matchingEmployee?.id,
             bagsSold: combinedBags,
             pricePerBag: combinedPrice,
             totalAmount: combinedBags * combinedPrice,
@@ -386,7 +425,7 @@ export default function Sales() {
           }
           return;
         } else {
-          alert('Please enter at least one sale entry (bags at ₦250, ₦270, or combined).');
+          alert(`Please enter at least one sale entry (bags at ₦${settings.salesPrice1}, ₦${settings.salesPrice2}, or combined).`);
           return;
         }
       } else {
@@ -756,12 +795,12 @@ export default function Sales() {
             />
 
             <TextField
-              label="Driver Name"
+              label="Driver Name (or 'General' for factory sales)"
               fullWidth
               value={formData.driverName}
               onChange={(e) => setFormData({ ...formData, driverName: e.target.value })}
-              required
-              placeholder="Enter driver name if not in list above"
+              placeholder="Enter driver name, or 'General'/'Factory' for factory sales"
+              helperText="Leave empty or enter 'General'/'Factory' for sales at the factory without a specific driver"
             />
 
             <TextField
@@ -773,33 +812,41 @@ export default function Sales() {
               placeholder="driver@example.com"
             />
 
-            <Divider>Bags at ₦250</Divider>
+            <Divider>Bags at ₦{settings.salesPrice1}</Divider>
             
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor: 'success.50', borderRadius: 1 }}>
               <TextField
-                label="Bags Sold at ₦250"
+                label={`Bags Sold at ₦${settings.salesPrice1}`}
                 fullWidth
                 type="number"
-                value={formData.bagsAt250}
-                onChange={(e) => setFormData({ ...formData, bagsAt250: e.target.value })}
-                inputProps={{ min: 0 }}
+                value={formData.bagsAtPrice1}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Preserve the exact value as string, only validate on submit
+                  setFormData({ ...formData, bagsAtPrice1: value });
+                }}
+                inputProps={{ min: 0, step: 1 }}
                 placeholder="Enter number of bags"
-                helperText={formData.bagsAt250 ? `${formData.bagsAt250} bags × ₦250 = ${formatCurrency(parseInt(formData.bagsAt250 || '0') * 250)}` : 'Optional: Enter bags sold at ₦250'}
+                helperText={formData.bagsAtPrice1 ? `${formData.bagsAtPrice1} bags × ₦${settings.salesPrice1} = ${formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice1 || '0')) * settings.salesPrice1)}` : `Optional: Enter bags sold at ₦${settings.salesPrice1}`}
               />
             </Box>
 
-            <Divider>Bags at ₦270</Divider>
+            <Divider>Bags at ₦{settings.salesPrice2}</Divider>
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor: 'info.50', borderRadius: 1 }}>
               <TextField
-                label="Bags Sold at ₦270"
+                label={`Bags Sold at ₦${settings.salesPrice2}`}
                 fullWidth
                 type="number"
-                value={formData.bagsAt270}
-                onChange={(e) => setFormData({ ...formData, bagsAt270: e.target.value })}
-                inputProps={{ min: 0 }}
+                value={formData.bagsAtPrice2}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Preserve the exact value as string, only validate on submit
+                  setFormData({ ...formData, bagsAtPrice2: value });
+                }}
+                inputProps={{ min: 0, step: 1 }}
                 placeholder="Enter number of bags"
-                helperText={formData.bagsAt270 ? `${formData.bagsAt270} bags × ₦270 = ${formatCurrency(parseInt(formData.bagsAt270 || '0') * 270)}` : 'Optional: Enter bags sold at ₦270'}
+                helperText={formData.bagsAtPrice2 ? `${formData.bagsAtPrice2} bags × ₦${settings.salesPrice2} = ${formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice2 || '0')) * settings.salesPrice2)}` : `Optional: Enter bags sold at ₦${settings.salesPrice2}`}
               />
             </Box>
 
@@ -811,8 +858,12 @@ export default function Sales() {
                 fullWidth
                 type="number"
                 value={formData.combinedBags}
-                onChange={(e) => setFormData({ ...formData, combinedBags: e.target.value })}
-                inputProps={{ min: 0 }}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Preserve the exact value as string, only validate on submit
+                  setFormData({ ...formData, combinedBags: value });
+                }}
+                inputProps={{ min: 0, step: 1 }}
                 placeholder="Enter number of bags"
                 helperText="Use this if bags are sold at a different price, or if only one price point is available"
               />
@@ -821,11 +872,16 @@ export default function Sales() {
                 fullWidth
                 type="number"
                 value={formData.combinedPrice}
-                onChange={(e) => setFormData({ ...formData, combinedPrice: e.target.value })}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Preserve the exact value as string
+                  setFormData({ ...formData, combinedPrice: value });
+                }}
                 InputProps={{
                   startAdornment: <InputAdornment position="start">₦</InputAdornment>,
                 }}
-                helperText={formData.combinedBags && formData.combinedPrice ? `Total: ${formatCurrency(parseInt(formData.combinedBags || '0') * parseFloat(formData.combinedPrice || '0'))}` : 'Enter price per bag for combined entry'}
+                inputProps={{ min: 0, step: 1 }}
+                helperText={formData.combinedBags && formData.combinedPrice ? `Total: ${formatCurrency(Math.floor(parseFloat(formData.combinedBags || '0')) * parseFloat(formData.combinedPrice || '0'))}` : 'Enter price per bag for combined entry'}
               />
             </Box>
 
@@ -834,21 +890,21 @@ export default function Sales() {
                 <strong>Total Summary:</strong>
               </Typography>
               <Typography variant="body2">
-                ₦250: {parseInt(formData.bagsAt250 || '0')} bags = {formatCurrency(parseInt(formData.bagsAt250 || '0') * 250)}
+                ₦{settings.salesPrice1}: {Math.floor(parseFloat(formData.bagsAtPrice1 || '0'))} bags = {formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice1 || '0')) * settings.salesPrice1)}
               </Typography>
               <Typography variant="body2">
-                ₦270: {parseInt(formData.bagsAt270 || '0')} bags = {formatCurrency(parseInt(formData.bagsAt270 || '0') * 270)}
+                ₦{settings.salesPrice2}: {Math.floor(parseFloat(formData.bagsAtPrice2 || '0'))} bags = {formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice2 || '0')) * settings.salesPrice2)}
               </Typography>
               {formData.combinedBags && (
                 <Typography variant="body2">
-                  ₦{formData.combinedPrice}: {parseInt(formData.combinedBags || '0')} bags = {formatCurrency(parseInt(formData.combinedBags || '0') * parseFloat(formData.combinedPrice || '0'))}
+                  ₦{formData.combinedPrice}: {Math.floor(parseFloat(formData.combinedBags || '0'))} bags = {formatCurrency(Math.floor(parseFloat(formData.combinedBags || '0')) * parseFloat(formData.combinedPrice || '0'))}
                 </Typography>
               )}
               <Typography variant="body2" fontWeight="bold" sx={{ mt: 1 }}>
                 Grand Total: {formatCurrency(
-                  parseInt(formData.bagsAt250 || '0') * 250 +
-                  parseInt(formData.bagsAt270 || '0') * 270 +
-                  parseInt(formData.combinedBags || '0') * parseFloat(formData.combinedPrice || '0')
+                  Math.floor(parseFloat(formData.bagsAtPrice1 || '0')) * settings.salesPrice1 +
+                  Math.floor(parseFloat(formData.bagsAtPrice2 || '0')) * settings.salesPrice2 +
+                  Math.floor(parseFloat(formData.combinedBags || '0')) * parseFloat(formData.combinedPrice || '0')
                 )}
               </Typography>
             </Box>

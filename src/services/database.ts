@@ -1,8 +1,8 @@
-import { Employee, Expense, MaterialPurchase, Sale, SalaryPayment } from '../types';
+import { Employee, Expense, MaterialPurchase, Sale, SalaryPayment, Settings, DEFAULT_SETTINGS } from '../types';
 
 class DatabaseService {
   private dbName = 'matsplash_financial_db';
-  private version = 1;
+  private version = 2;
   private db: IDBDatabase | null = null;
 
   async init(): Promise<void> {
@@ -51,6 +51,11 @@ class DatabaseService {
           salaryStore.createIndex('employeeId', 'employeeId');
           salaryStore.createIndex('periodStart', 'periodStart');
           salaryStore.createIndex('paidDate', 'paidDate');
+        }
+
+        // Settings store (version 2)
+        if (!db.objectStoreNames.contains('settings')) {
+          db.createObjectStore('settings', { keyPath: 'id', autoIncrement: true });
         }
       };
     });
@@ -457,6 +462,92 @@ class DatabaseService {
       const request = store.delete(id);
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
+    });
+  }
+
+  // Settings operations
+  async getSettings(): Promise<Settings> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['settings'], 'readonly');
+      const store = transaction.objectStore('settings');
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const settings = request.result;
+        if (settings.length > 0) {
+          resolve(settings[0] as Settings);
+        } else {
+          // Initialize with default settings
+          this.updateSettings(DEFAULT_SETTINGS).then(resolve).catch(reject);
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async updateSettings(settings: Partial<Settings>): Promise<Settings> {
+    const db = await this.ensureDB();
+    return new Promise(async (resolve, reject) => {
+      // First, get existing settings or use defaults
+      const existing = await this.getSettings().catch(() => DEFAULT_SETTINGS);
+      
+      const updatedSettings: Settings = {
+        ...existing,
+        ...settings,
+        id: existing.id || 1,
+        updatedAt: new Date(),
+      };
+
+      const transaction = db.transaction(['settings'], 'readwrite');
+      const store = transaction.objectStore('settings');
+      
+      // Check if settings exist
+      const getRequest = store.get(updatedSettings.id);
+      getRequest.onsuccess = () => {
+        if (getRequest.result) {
+          // Update existing
+          const updateRequest = store.put(updatedSettings);
+          updateRequest.onsuccess = () => resolve(updatedSettings);
+          updateRequest.onerror = () => reject(updateRequest.error);
+        } else {
+          // Add new
+          const addRequest = store.add(updatedSettings);
+          addRequest.onsuccess = () => resolve(updatedSettings);
+          addRequest.onerror = () => reject(addRequest.error);
+        }
+      };
+      getRequest.onerror = () => {
+        // If get fails, try to add
+        const addRequest = store.add(updatedSettings);
+        addRequest.onsuccess = () => resolve(updatedSettings);
+        addRequest.onerror = () => reject(addRequest.error);
+      };
+    });
+  }
+
+  // Clear all data from all stores
+  async clearAllData(): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const stores = ['employees', 'expenses', 'materialPurchases', 'sales', 'salaryPayments'];
+      const transaction = db.transaction(stores, 'readwrite');
+      let completed = 0;
+      let hasError = false;
+
+      stores.forEach(storeName => {
+        const store = transaction.objectStore(storeName);
+        const request = store.clear();
+        request.onsuccess = () => {
+          completed++;
+          if (completed === stores.length && !hasError) {
+            resolve();
+          }
+        };
+        request.onerror = () => {
+          hasError = true;
+          reject(request.error);
+        };
+      });
     });
   }
 }

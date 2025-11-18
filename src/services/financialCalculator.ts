@@ -5,7 +5,8 @@ import {
   MaterialPurchase, 
   Sale, 
   SalaryPayment,
-  MATERIAL_COSTS 
+  MATERIAL_COSTS,
+  DEFAULT_SETTINGS
 } from '../types';
 import { dbService } from './database';
 
@@ -58,9 +59,18 @@ export class FinancialCalculator {
       .filter(m => m.type === 'packing_nylon')
       .reduce((sum, m) => sum + m.quantity, 0);
 
+    // Get settings for material costs
+    let settings;
+    try {
+      settings = await dbService.getSettings();
+    } catch (error) {
+      console.error('Error loading settings, using defaults:', error);
+      settings = DEFAULT_SETTINGS;
+    }
+
     // Calculate material cost allocated to this period (simplified - could be improved with FIFO)
-    const sachetCostPerBag = MATERIAL_COSTS.sachet_roll.costPerBag;
-    const nylonCostPerBag = MATERIAL_COSTS.packing_nylon.costPerBag;
+    const sachetCostPerBag = settings.sachetRollCost / settings.sachetRollBagsPerRoll;
+    const nylonCostPerBag = settings.packingNylonCost / settings.packingNylonBagsPerPackage;
     const materialCostAllocated = totalBagsSold * (sachetCostPerBag + nylonCostPerBag);
 
     // Calculate salaries
@@ -91,15 +101,20 @@ export class FinancialCalculator {
   static calculateEmployeeSalary(
     employee: Employee,
     bagsSold: number,
-    period: 'daily' | 'weekly' | 'monthly'
+    period: 'first_half' | 'second_half' | 'daily' | 'weekly' | 'monthly'
   ): number {
     let total = 0;
 
     if (employee.salaryType === 'fixed' || employee.salaryType === 'both') {
       if (employee.fixedSalary) {
-        // For daily, divide monthly by ~30, weekly by 4
-        const divisor = period === 'daily' ? 30 : period === 'weekly' ? 4 : 1;
-        total += employee.fixedSalary / divisor;
+        // For payment cycles, use exactly half
+        if (period === 'first_half' || period === 'second_half') {
+          total += employee.fixedSalary / 2;
+        } else {
+          // For daily, divide monthly by ~30, weekly by 4
+          const divisor = period === 'daily' ? 30 : period === 'weekly' ? 4 : 1;
+          total += employee.fixedSalary / divisor;
+        }
       }
     }
 
@@ -135,7 +150,12 @@ export class FinancialCalculator {
     endDate?: Date
   ): Promise<{ totalBags: number; commission: number; sales: Sale[] }> {
     const allSales = await dbService.getSales(startDate, endDate);
-    const employeeSales = allSales.filter(sale => sale.employeeId === employeeId);
+    // Filter by employeeId - must match exactly and not be undefined/null
+    const employeeSales = allSales.filter(sale => 
+      sale.employeeId !== undefined && 
+      sale.employeeId !== null && 
+      sale.employeeId === employeeId
+    );
     
     const totalBags = employeeSales.reduce((sum, sale) => sum + sale.bagsSold, 0);
     

@@ -24,6 +24,7 @@ import {
   AccountBalance as SalariesIcon,
   Assessment as ReportsIcon,
   TrendingUp as CommissionsIcon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -42,6 +43,7 @@ const menuItems = [
   { text: 'Materials', icon: <MaterialsIcon />, path: '/materials' },
   { text: 'Salaries', icon: <SalariesIcon />, path: '/salaries' },
   { text: 'Reports', icon: <ReportsIcon />, path: '/reports' },
+  { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
 ];
 
 export default function Layout({ children }: LayoutProps) {

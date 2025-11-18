@@ -29,12 +29,13 @@ import {
   ChevronLeft,
   ChevronRight,
 } from '@mui/icons-material';
-import { MaterialPurchase, MATERIAL_COSTS } from '../types';
+import { MaterialPurchase, Settings, DEFAULT_SETTINGS } from '../types';
 import { dbService } from '../services/database';
 import { format, startOfDay, endOfDay, isSameDay, isToday, addDays, subDays } from 'date-fns';
 
 export default function Materials() {
   const [purchases, setPurchases] = useState<MaterialPurchase[]>([]);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'range'>('day');
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
@@ -56,7 +57,18 @@ export default function Materials() {
 
   useEffect(() => {
     loadPurchases();
+    loadSettings();
   }, []);
+
+  const loadSettings = async () => {
+    try {
+      const data = await dbService.getSettings();
+      setSettings(data);
+    } catch (error) {
+      console.error('Error loading settings:', error);
+      setSettings(DEFAULT_SETTINGS);
+    }
+  };
 
   const loadPurchases = async () => {
     const data = await dbService.getMaterialPurchases();
@@ -128,8 +140,8 @@ export default function Materials() {
   };
 
   const totalCost = totalByType.sachet_roll + totalByType.packing_nylon;
-  const totalBags = groupedPurchases.sachet_roll.reduce((sum, p) => sum + (p.quantity * MATERIAL_COSTS.sachet_roll.bagsPerRoll), 0) +
-                    groupedPurchases.packing_nylon.reduce((sum, p) => sum + (p.quantity * MATERIAL_COSTS.packing_nylon.bagsPerPackage), 0);
+  const totalBags = groupedPurchases.sachet_roll.reduce((sum, p) => sum + (p.quantity * settings.sachetRollBagsPerRoll), 0) +
+                    groupedPurchases.packing_nylon.reduce((sum, p) => sum + (p.quantity * settings.packingNylonBagsPerPackage), 0);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-NG', {
@@ -179,7 +191,7 @@ export default function Materials() {
       setFormData({
         type: 'sachet_roll',
         quantity: '1',
-        cost: MATERIAL_COSTS.sachet_roll.cost.toString(),
+        cost: settings.sachetRollCost.toString(),
         date: date || selectedDate,
         notes: '',
       });
@@ -194,8 +206,8 @@ export default function Materials() {
 
   const handleTypeChange = (type: 'sachet_roll' | 'packing_nylon') => {
     const standardCost = type === 'sachet_roll' 
-      ? MATERIAL_COSTS.sachet_roll.cost
-      : MATERIAL_COSTS.packing_nylon.cost;
+      ? settings.sachetRollCost
+      : settings.packingNylonCost;
     
     const quantity = parseInt(formData.quantity) || 1;
     const newCost = (standardCost * quantity).toString();
@@ -210,8 +222,8 @@ export default function Materials() {
   const handleQuantityChange = (quantity: string) => {
     const qty = parseInt(quantity) || 0;
     const standardCost = formData.type === 'sachet_roll' 
-      ? MATERIAL_COSTS.sachet_roll.cost
-      : MATERIAL_COSTS.packing_nylon.cost;
+      ? settings.sachetRollCost
+      : settings.packingNylonCost;
     
     const newCost = (standardCost * qty).toString();
     
@@ -313,8 +325,8 @@ export default function Materials() {
           <Stack spacing={1}>
             {purchases.map((purchase) => {
               const bagsCapacity = purchase.type === 'sachet_roll' 
-                ? purchase.quantity * MATERIAL_COSTS.sachet_roll.bagsPerRoll
-                : purchase.quantity * MATERIAL_COSTS.packing_nylon.bagsPerPackage;
+                ? purchase.quantity * settings.sachetRollBagsPerRoll
+                : purchase.quantity * settings.packingNylonBagsPerPackage;
               return (
                 <Paper key={purchase.id} variant="outlined" sx={{ p: 1.5 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1 }}>
@@ -585,10 +597,10 @@ export default function Materials() {
               required
             >
               <MenuItem value="sachet_roll">
-                Sachet Roll - ₦{MATERIAL_COSTS.sachet_roll.cost.toLocaleString()} per roll ({MATERIAL_COSTS.sachet_roll.bagsPerRoll} bags)
+                Sachet Roll - ₦{settings.sachetRollCost.toLocaleString()} per roll ({settings.sachetRollBagsPerRoll} bags)
               </MenuItem>
               <MenuItem value="packing_nylon">
-                Packing Nylon - ₦{MATERIAL_COSTS.packing_nylon.cost.toLocaleString()} per package ({MATERIAL_COSTS.packing_nylon.bagsPerPackage.toLocaleString()} bags)
+                Packing Nylon - ₦{settings.packingNylonCost.toLocaleString()} per package ({settings.packingNylonBagsPerPackage.toLocaleString()} bags)
               </MenuItem>
             </TextField>
 
@@ -600,7 +612,7 @@ export default function Materials() {
               onChange={(e) => handleQuantityChange(e.target.value)}
               required
               inputProps={{ min: 1 }}
-              helperText={`Standard: ${formData.type === 'sachet_roll' ? `₦${MATERIAL_COSTS.sachet_roll.cost.toLocaleString()}` : `₦${MATERIAL_COSTS.packing_nylon.cost.toLocaleString()}`} per ${formData.type === 'sachet_roll' ? 'roll' : 'package'}`}
+              helperText={`Standard: ${formData.type === 'sachet_roll' ? `₦${settings.sachetRollCost.toLocaleString()}` : `₦${settings.packingNylonCost.toLocaleString()}`} per ${formData.type === 'sachet_roll' ? 'roll' : 'package'}`}
             />
 
             <TextField
@@ -613,7 +625,7 @@ export default function Materials() {
               InputProps={{
                 startAdornment: <InputAdornment position="start">₦</InputAdornment>,
               }}
-              helperText={`Auto-calculated: ${formData.quantity} × ${formData.type === 'sachet_roll' ? `₦${MATERIAL_COSTS.sachet_roll.cost.toLocaleString()}` : `₦${MATERIAL_COSTS.packing_nylon.cost.toLocaleString()}`} = ${formatCurrency(parseFloat(formData.cost || '0'))}`}
+              helperText={`Auto-calculated: ${formData.quantity} × ${formData.type === 'sachet_roll' ? `₦${settings.sachetRollCost.toLocaleString()}` : `₦${settings.packingNylonCost.toLocaleString()}`} = ${formatCurrency(parseFloat(formData.cost || '0'))}`}
             />
 
             <TextField

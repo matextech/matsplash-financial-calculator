@@ -9,6 +9,7 @@ import Materials from './components/Materials';
 import Reports from './components/Reports';
 import Salaries from './components/Salaries';
 import Commissions from './components/Commissions';
+import Settings from './components/Settings';
 import Layout from './components/Layout';
 import { dbService } from './services/database';
 
@@ -28,7 +29,14 @@ function App() {
 
   useEffect(() => {
     dbService.init()
-      .then(() => {
+      .then(async () => {
+        // Clear all data - ONE TIME ONLY
+        try {
+          await dbService.clearAllData();
+          console.log('All database data has been cleared.');
+        } catch (error) {
+          console.error('Error clearing data:', error);
+        }
         setDbInitialized(true);
       })
       .catch((error) => {
@@ -67,6 +75,7 @@ function App() {
             <Route path="/salaries" element={<Salaries />} />
             <Route path="/commissions" element={<Commissions />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </Layout>
       </BrowserRouter>

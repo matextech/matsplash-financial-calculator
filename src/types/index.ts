@@ -48,7 +48,7 @@ export interface SalaryPayment {
   id?: number;
   employeeId: number;
   employeeName: string;
-  period: 'daily' | 'weekly' | 'monthly';
+  period: 'first_half' | 'second_half' | 'daily' | 'weekly' | 'monthly'; // first_half: 1st-15th (paid 18th), second_half: 16th-end (paid 5th)
   periodStart: Date;
   periodEnd: Date;
   fixedAmount?: number;
@@ -74,6 +74,30 @@ export interface FinancialReport {
   profitMargin: number; // Percentage
 }
 
+export interface Settings {
+  id?: number;
+  // Material Costs
+  sachetRollCost: number; // Price per roll
+  sachetRollBagsPerRoll: number; // Number of bags per roll
+  packingNylonCost: number; // Price per package
+  packingNylonBagsPerPackage: number; // Number of bags per package
+  // Sales Prices
+  salesPrice1: number; // Default ₦250
+  salesPrice2: number; // Default ₦270
+  updatedAt?: Date;
+}
+
+// Default settings (fallback)
+export const DEFAULT_SETTINGS: Settings = {
+  sachetRollCost: 31000,
+  sachetRollBagsPerRoll: 450,
+  packingNylonCost: 100000,
+  packingNylonBagsPerPackage: 10000,
+  salesPrice1: 250,
+  salesPrice2: 270,
+};
+
+// Legacy constant for backward compatibility (will be replaced by settings)
 export const MATERIAL_COSTS = {
   sachet_roll: {
     cost: 31000,

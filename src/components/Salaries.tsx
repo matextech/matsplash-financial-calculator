@@ -20,6 +20,14 @@ import {
   ToggleButtonGroup,
   Stack,
   MenuItem,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Alert,
+  Divider,
 } from '@mui/material';
 import { 
   Add as AddIcon, 
@@ -29,17 +37,37 @@ import {
   Person as PersonIcon,
   ChevronLeft,
   ChevronRight,
+  CheckCircle as CheckCircleIcon,
+  Pending as PendingIcon,
+  CalendarToday as CalendarIcon,
 } from '@mui/icons-material';
-import { SalaryPayment, Employee } from '../types';
+import { SalaryPayment, Employee, Sale } from '../types';
 import { dbService } from '../services/database';
 import { FinancialCalculator } from '../services/financialCalculator';
-import { format, startOfDay, endOfDay, isSameDay, isToday, addDays, subDays } from 'date-fns';
+import { format, startOfDay, endOfDay, isSameDay, isToday, addDays, subDays, startOfMonth, endOfMonth, getDate, addMonths, setDate } from 'date-fns';
+
+interface PaymentCycleData {
+  period: 'first' | 'second';
+  workStart: Date;
+  workEnd: Date;
+  payDate: Date;
+  employees: {
+    employee: Employee;
+    totalBags: number;
+    commission: number;
+    fixedAmount: number;
+    totalAmount: number;
+    sales: Sale[];
+    isPaid: boolean;
+    paymentId?: number;
+  }[];
+}
 
 export default function Salaries() {
   const [payments, setPayments] = useState<SalaryPayment[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [viewMode, setViewMode] = useState<'day' | 'range'>('day');
+  const [viewMode, setViewMode] = useState<'cycles' | 'day' | 'range'>('cycles');
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
     start: new Date(),
     end: new Date(),
@@ -49,10 +77,12 @@ export default function Salaries() {
   const [searchTerm, setSearchTerm] = useState('');
   const [open, setOpen] = useState(false);
   const [editingPayment, setEditingPayment] = useState<SalaryPayment | null>(null);
+  const [paymentCycles, setPaymentCycles] = useState<PaymentCycleData[]>([]);
+  const [selectedCycle, setSelectedCycle] = useState<{ period: 'first' | 'second'; month: Date } | null>(null);
   
   const [formData, setFormData] = useState({
     employeeId: '',
-    period: 'daily' as 'daily' | 'weekly' | 'monthly',
+    period: 'first_half' as 'first_half' | 'second_half' | 'daily' | 'weekly' | 'monthly',
     periodStart: new Date(),
     periodEnd: new Date(),
     fixedAmount: '',
@@ -68,6 +98,12 @@ export default function Salaries() {
     loadEmployees();
   }, []);
 
+  useEffect(() => {
+    if (viewMode === 'cycles') {
+      loadPaymentCycles();
+    }
+  }, [viewMode, employees, payments]);
+
   const loadPayments = async () => {
     const data = await dbService.getSalaryPayments();
     setPayments(data);
@@ -78,23 +114,120 @@ export default function Salaries() {
     setEmployees(data);
   };
 
+  const getPaymentCycles = (month: Date): { first: PaymentCycleData; second: PaymentCycleData } => {
+    const year = month.getFullYear();
+    const monthIndex = month.getMonth();
+    
+    // Period 1: 1st-15th, paid on 18th
+    const period1Start = new Date(year, monthIndex, 1);
+    const period1End = new Date(year, monthIndex, 15);
+    const period1PayDate = new Date(year, monthIndex, 18);
+    
+    // Period 2: 16th-end, paid on 5th of next month
+    const period2Start = new Date(year, monthIndex, 16);
+    const period2End = endOfMonth(month);
+    const period2PayDate = new Date(year, monthIndex + 1, 5);
+    
+    return {
+      first: {
+        period: 'first',
+        workStart: period1Start,
+        workEnd: period1End,
+        payDate: period1PayDate,
+        employees: [],
+      },
+      second: {
+        period: 'second',
+        workStart: period2Start,
+        workEnd: period2End,
+        payDate: period2PayDate,
+        employees: [],
+      },
+    };
+  };
+
+  const loadPaymentCycles = async () => {
+    const today = new Date();
+    const currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const previousMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    
+    // Get cycles for current and previous month (to see pending payments)
+    const months = [previousMonth, currentMonth];
+    const cycles: PaymentCycleData[] = [];
+    
+    for (const month of months) {
+      const { first, second } = getPaymentCycles(month);
+      
+      // Load employee data for each period
+      for (const cycle of [first, second]) {
+        const cycleEmployees = [];
+        
+        for (const employee of employees) {
+          if (!employee.id) continue;
+          if (employee.salaryType !== 'commission' && employee.salaryType !== 'both') continue;
+          
+          // Get sales for this period
+          const commissionInfo = await FinancialCalculator.calculateCommissionFromSales(
+            employee.id,
+            startOfDay(cycle.workStart),
+            endOfDay(cycle.workEnd)
+          );
+          
+          // Calculate fixed salary for the period (if applicable)
+          let fixedAmount = 0;
+          if (employee.salaryType === 'fixed' || employee.salaryType === 'both') {
+            if (employee.fixedSalary) {
+              // For payment cycles, calculate exactly half of monthly salary
+              // Period 1 (1st-15th) and Period 2 (16th-end) each get exactly half
+              fixedAmount = employee.fixedSalary / 2;
+            }
+          }
+          
+          const totalAmount = fixedAmount + commissionInfo.commission;
+          
+          // Check if payment already exists for this period
+          const existingPayment = payments.find(p => 
+            p.employeeId === employee.id &&
+            p.periodStart.getTime() === cycle.workStart.getTime() &&
+            p.periodEnd.getTime() === cycle.workEnd.getTime()
+          );
+          
+          if (commissionInfo.totalBags > 0 || fixedAmount > 0) {
+            cycleEmployees.push({
+              employee,
+              totalBags: commissionInfo.totalBags,
+              commission: commissionInfo.commission,
+              fixedAmount,
+              totalAmount,
+              sales: commissionInfo.sales,
+              isPaid: !!existingPayment,
+              paymentId: existingPayment?.id,
+            });
+          }
+        }
+        
+        cycle.employees = cycleEmployees;
+        cycles.push(cycle);
+      }
+    }
+    
+    setPaymentCycles(cycles);
+  };
+
   const getPaymentsForDate = (date: Date): SalaryPayment[] => {
     let filtered = payments.filter(payment => {
       const paidDate = payment.paidDate instanceof Date ? payment.paidDate : new Date(payment.paidDate);
       return isSameDay(paidDate, date);
     });
 
-    // Apply employee filter
     if (filterEmployee !== 'all') {
       filtered = filtered.filter(p => p.employeeId.toString() === filterEmployee);
     }
 
-    // Apply period filter
     if (filterPeriod !== 'all') {
       filtered = filtered.filter(p => p.period === filterPeriod);
     }
 
-    // Apply search filter
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(p => 
@@ -115,17 +248,14 @@ export default function Salaries() {
       return paidDate >= startDay && paidDate <= endDay;
     });
 
-    // Apply employee filter
     if (filterEmployee !== 'all') {
       filtered = filtered.filter(p => p.employeeId.toString() === filterEmployee);
     }
 
-    // Apply period filter
     if (filterPeriod !== 'all') {
       filtered = filtered.filter(p => p.period === filterPeriod);
     }
 
-    // Apply search filter
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(p => 
@@ -140,7 +270,9 @@ export default function Salaries() {
 
   const currentPayments = viewMode === 'day' 
     ? getPaymentsForDate(selectedDate)
-    : getPaymentsForRange(dateRange.start, dateRange.end);
+    : viewMode === 'range'
+    ? getPaymentsForRange(dateRange.start, dateRange.end)
+    : [];
 
   const totalSalaries = currentPayments.reduce((sum, p) => sum + p.totalAmount, 0);
   const totalFixed = currentPayments.reduce((sum, p) => sum + (p.fixedAmount || 0), 0);
@@ -177,6 +309,23 @@ export default function Salaries() {
     }
   };
 
+  const handleCreatePaymentFromCycle = (cycleData: PaymentCycleData, employeeData: typeof cycleData.employees[0]) => {
+    const employee = employeeData.employee;
+    setFormData({
+      employeeId: employee.id?.toString() || '',
+      period: cycleData.period === 'first' ? 'first_half' : 'second_half',
+      periodStart: cycleData.workStart,
+      periodEnd: cycleData.workEnd,
+      fixedAmount: employeeData.fixedAmount.toFixed(2),
+      commissionAmount: employeeData.commission.toFixed(2),
+      totalBags: employeeData.totalBags.toString(),
+      totalAmount: employeeData.totalAmount.toFixed(2),
+      paidDate: cycleData.payDate,
+      notes: `Payment for ${format(cycleData.workStart, 'MMM d')} - ${format(cycleData.workEnd, 'MMM d, yyyy')} (${cycleData.period === 'first' ? '1st-15th, paid on 18th' : '16th-end, paid on 5th'})`,
+    });
+    setOpen(true);
+  };
+
   const handleOpen = (payment?: SalaryPayment, date?: Date) => {
     if (payment) {
       setEditingPayment(payment);
@@ -195,13 +344,12 @@ export default function Salaries() {
         paidDate: paidDate,
         notes: payment.notes || '',
       });
-      console.log('Opening payment for editing:', payment);
     } else {
       setEditingPayment(null);
       const today = new Date();
       setFormData({
         employeeId: '',
-        period: 'daily',
+        period: 'first_half',
         periodStart: today,
         periodEnd: today,
         fixedAmount: '',
@@ -224,7 +372,6 @@ export default function Salaries() {
     const employee = employees.find(e => e.id?.toString() === employeeId);
     if (!employee) return;
 
-    // Calculate salary based on employee type and period
     const totalBags = formData.totalBags ? parseInt(formData.totalBags) : 0;
     const calculatedSalary = FinancialCalculator.calculateEmployeeSalary(
       employee,
@@ -232,14 +379,18 @@ export default function Salaries() {
       formData.period
     );
 
-    // Separate fixed and commission for display
     let fixedAmount = 0;
     let commissionAmount = 0;
 
     if (employee.salaryType === 'fixed' || employee.salaryType === 'both') {
       if (employee.fixedSalary) {
-        const divisor = formData.period === 'daily' ? 30 : formData.period === 'weekly' ? 4 : 1;
-        fixedAmount = employee.fixedSalary / divisor;
+        // For payment cycles, use exactly half
+        if (formData.period === 'first_half' || formData.period === 'second_half') {
+          fixedAmount = employee.fixedSalary / 2;
+        } else {
+          const divisor = formData.period === 'daily' ? 30 : formData.period === 'weekly' ? 4 : 1;
+          fixedAmount = employee.fixedSalary / divisor;
+        }
       }
     }
 
@@ -280,32 +431,20 @@ export default function Salaries() {
         notes: formData.notes?.trim() || undefined,
       };
 
-      console.log('Saving payment:', paymentData);
-
       if (editingPayment?.id) {
-        try {
-          await dbService.updateSalaryPayment(editingPayment.id, paymentData);
-          console.log('Payment updated successfully');
-          handleClose();
-          setTimeout(() => {
-            loadPayments();
-          }, 100);
-        } catch (error) {
-          console.error('Error updating payment:', error);
-          alert(`Error updating payment: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
+        await dbService.updateSalaryPayment(editingPayment.id, paymentData);
+        handleClose();
+        setTimeout(() => {
+          loadPayments();
+          if (viewMode === 'cycles') loadPaymentCycles();
+        }, 100);
       } else {
-        try {
-          await dbService.addSalaryPayment(paymentData);
-          console.log('Payment added successfully');
-          handleClose();
-          setTimeout(() => {
-            loadPayments();
-          }, 100);
-        } catch (error) {
-          console.error('Error adding payment:', error);
-          alert(`Error adding payment: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
+        await dbService.addSalaryPayment(paymentData);
+        handleClose();
+        setTimeout(() => {
+          loadPayments();
+          if (viewMode === 'cycles') loadPaymentCycles();
+        }, 100);
       }
     } catch (error) {
       console.error('Error saving payment:', error);
@@ -318,6 +457,7 @@ export default function Salaries() {
       try {
         await dbService.deleteSalaryPayment(id);
         loadPayments();
+        if (viewMode === 'cycles') loadPaymentCycles();
       } catch (error) {
         console.error('Error deleting payment:', error);
         alert('Error deleting payment. Please try again.');
@@ -340,289 +480,523 @@ export default function Salaries() {
         </Button>
       </Box>
 
-      {/* Date Navigation - Day View */}
-      {viewMode === 'day' && (
-        <Paper sx={{ p: 2, mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <IconButton onClick={() => handleDateChange('prev')}>
-                <ChevronLeft />
-              </IconButton>
-              <TextField
-                type="date"
-                value={formatDateForInput(selectedDate)}
-                onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
-                InputLabelProps={{ shrink: true }}
-                sx={{ minWidth: 200 }}
-              />
-              <IconButton onClick={() => handleDateChange('next')}>
-                <ChevronRight />
-              </IconButton>
-              {!isToday(selectedDate) && (
-                <Button variant="outlined" size="small" onClick={() => handleDateChange('today')}>
-                  Today
-                </Button>
-              )}
-            </Box>
-            <ToggleButtonGroup
-              value={viewMode}
-              exclusive
-              onChange={(_, newMode) => newMode && setViewMode(newMode)}
-              size="small"
-            >
-              <ToggleButton value="day">Day View</ToggleButton>
-              <ToggleButton value="range">Range View</ToggleButton>
-            </ToggleButtonGroup>
-          </Box>
-        </Paper>
-      )}
-
-      {/* Date Range Selection */}
-      {viewMode === 'range' && (
-        <Paper sx={{ p: 2, mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-            <TextField
-              label="Start Date"
-              type="date"
-              value={formatDateForInput(dateRange.start)}
-              onChange={(e) => setDateRange({ ...dateRange, start: parseDateFromInput(e.target.value) })}
-              InputLabelProps={{ shrink: true }}
-            />
-            <TextField
-              label="End Date"
-              type="date"
-              value={formatDateForInput(dateRange.end)}
-              onChange={(e) => setDateRange({ ...dateRange, end: parseDateFromInput(e.target.value) })}
-              InputLabelProps={{ shrink: true }}
-            />
-            <ToggleButtonGroup
-              value={viewMode}
-              exclusive
-              onChange={(_, newMode) => newMode && setViewMode(newMode)}
-              size="small"
-            >
-              <ToggleButton value="day">Day View</ToggleButton>
-              <ToggleButton value="range">Range View</ToggleButton>
-            </ToggleButtonGroup>
-          </Box>
-        </Paper>
-      )}
-
-      {/* Filters */}
+      {/* View Mode Toggle */}
       <Paper sx={{ p: 2, mb: 3 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              label="Search Payments"
-              fullWidth
-              size="small"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Employee name, amount..."
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SalaryIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              label="Filter by Employee"
-              fullWidth
-              select
-              size="small"
-              value={filterEmployee}
-              onChange={(e) => setFilterEmployee(e.target.value)}
-            >
-              <MenuItem value="all">All Employees</MenuItem>
-              {employees.map((emp) => (
-                <MenuItem key={emp.id} value={emp.id?.toString()}>
-                  {emp.name}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              label="Filter by Period"
-              fullWidth
-              select
-              size="small"
-              value={filterPeriod}
-              onChange={(e) => setFilterPeriod(e.target.value)}
-            >
-              <MenuItem value="all">All Periods</MenuItem>
-              <MenuItem value="daily">Daily</MenuItem>
-              <MenuItem value="weekly">Weekly</MenuItem>
-              <MenuItem value="monthly">Monthly</MenuItem>
-            </TextField>
-          </Grid>
-          {(searchTerm || filterEmployee !== 'all' || filterPeriod !== 'all') && (
-            <Grid item xs={12} sm={6} md={3}>
-              <Button
-                variant="outlined"
-                onClick={() => {
-                  setSearchTerm('');
-                  setFilterEmployee('all');
-                  setFilterPeriod('all');
-                }}
-                fullWidth
-              >
-                Clear Filters
-              </Button>
-            </Grid>
-          )}
-        </Grid>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+          <ToggleButtonGroup
+            value={viewMode}
+            exclusive
+            onChange={(_, newMode) => newMode && setViewMode(newMode)}
+            size="small"
+          >
+            <ToggleButton value="cycles">
+              <CalendarIcon sx={{ mr: 1 }} />
+              Payment Cycles
+            </ToggleButton>
+            <ToggleButton value="day">Day View</ToggleButton>
+            <ToggleButton value="range">Range View</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
       </Paper>
 
-      {/* Summary Cards */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={4}>
-          <Card sx={{ backgroundColor: 'primary.light', color: 'primary.contrastText' }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Total Salaries
-              </Typography>
-              <Typography variant="h4">
-                {formatCurrency(totalSalaries)}
-              </Typography>
-              <Typography variant="body2">
-                {currentPayments.length} payment{currentPayments.length !== 1 ? 's' : ''}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <Card sx={{ backgroundColor: 'info.light', color: 'info.contrastText' }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Fixed Salaries
-              </Typography>
-              <Typography variant="h4">
-                {formatCurrency(totalFixed)}
-              </Typography>
-              <Typography variant="body2">
-                Fixed salary payments
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <Card sx={{ backgroundColor: 'success.light', color: 'success.contrastText' }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Commissions
-              </Typography>
-              <Typography variant="h4">
-                {formatCurrency(totalCommission)}
-              </Typography>
-              <Typography variant="body2">
-                Commission payments
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      {/* Payment Cycles View */}
+      {viewMode === 'cycles' && (
+        <Box>
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Typography variant="body2">
+              <strong>Payment Schedule:</strong> Work done between 1st-15th is paid on the 18th. 
+              Work done between 16th-end is paid on the 5th of the following month.
+            </Typography>
+          </Alert>
 
-      {/* Payment List */}
-      {currentPayments.length === 0 ? (
-        <Paper sx={{ p: 4, textAlign: 'center' }}>
-          <Typography variant="h6" color="text.secondary" gutterBottom>
-            No payments found
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {viewMode === 'day' 
-              ? `No payments recorded for ${format(selectedDate, 'MMM d, yyyy')}`
-              : 'No payments found in the selected date range'}
-          </Typography>
-        </Paper>
-      ) : (
-        <Grid container spacing={2}>
-          {currentPayments.map((payment) => (
-            <Grid item xs={12} md={6} key={payment.id}>
-              <Card>
+          {paymentCycles.map((cycle, idx) => {
+            const isPastDue = cycle.payDate < new Date() && cycle.employees.some(e => !e.isPaid);
+            const pendingCount = cycle.employees.filter(e => !e.isPaid).length;
+            const totalPending = cycle.employees.filter(e => !e.isPaid).reduce((sum, e) => sum + e.totalAmount, 0);
+            
+            return (
+              <Card key={idx} sx={{ mb: 3 }}>
                 <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <PersonIcon sx={{ mr: 1, color: 'primary.main' }} />
-                    <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                      {payment.employeeName}
-                    </Typography>
-                    <Chip 
-                      label={payment.period}
-                      size="small"
-                      color="primary"
-                    />
-                  </Box>
-                  
-                  <Box sx={{ mb: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 2 }}>
+                    <Box>
+                      <Typography variant="h6" gutterBottom>
+                        {cycle.period === 'first' ? 'Period 1' : 'Period 2'}: {format(cycle.workStart, 'MMM d')} - {format(cycle.workEnd, 'MMM d, yyyy')}
+                      </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Period
+                        Work Period: {format(cycle.workStart, 'MMM d, yyyy')} to {format(cycle.workEnd, 'MMM d, yyyy')}
                       </Typography>
-                      <Typography variant="body2">
-                        {format(new Date(payment.periodStart), 'MMM d')} - {format(new Date(payment.periodEnd), 'MMM d, yyyy')}
-                      </Typography>
-                    </Box>
-                    {payment.fixedAmount && (
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="body2" color="text.secondary">
-                          Fixed Salary
-                        </Typography>
-                        <Typography variant="body2">
-                          {formatCurrency(payment.fixedAmount)}
-                        </Typography>
-                      </Box>
-                    )}
-                    {payment.commissionAmount && (
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="body2" color="text.secondary">
-                          Commission ({payment.totalBags} bags)
-                        </Typography>
-                        <Typography variant="body2">
-                          {formatCurrency(payment.commissionAmount)}
-                        </Typography>
-                      </Box>
-                    )}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2, pt: 1, borderTop: 1, borderColor: 'divider' }}>
-                      <Typography variant="body1" fontWeight="bold">
-                        Total Amount
-                      </Typography>
-                      <Typography variant="h6" color="success.main" fontWeight="bold">
-                        {formatCurrency(payment.totalAmount)}
+                      <Typography variant="body2" color="text.secondary">
+                        Payment Due: {format(cycle.payDate, 'MMM d, yyyy')}
                       </Typography>
                     </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                    <Box sx={{ textAlign: 'right' }}>
+                      {isPastDue && (
+                        <Chip label="Past Due" color="error" size="small" sx={{ mb: 1, display: 'block' }} />
+                      )}
+                      <Chip 
+                        label={`${pendingCount} Pending`} 
+                        color={pendingCount > 0 ? 'warning' : 'success'} 
+                        size="small"
+                        icon={pendingCount > 0 ? <PendingIcon /> : <CheckCircleIcon />}
+                      />
+                      <Typography variant="h6" color="primary" sx={{ mt: 1 }}>
+                        {formatCurrency(totalPending)}
+                      </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        Paid: {format(new Date(payment.paidDate), 'MMM d, yyyy')}
+                        Total Pending
                       </Typography>
                     </Box>
-                    {payment.notes && (
-                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-                        {payment.notes}
-                      </Typography>
-                    )}
                   </Box>
 
-                  <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                    <Tooltip title="Edit">
-                      <IconButton size="small" onClick={() => handleOpen(payment)}>
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete">
-                      <IconButton size="small" onClick={() => payment.id && handleDelete(payment.id)} color="error">
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
+                  {cycle.employees.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                      No employees with sales or fixed salaries for this period
+                    </Typography>
+                  ) : (
+                    <TableContainer>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Employee</TableCell>
+                            <TableCell>Role</TableCell>
+                            <TableCell align="right">Bags Sold</TableCell>
+                            <TableCell align="right">Fixed Salary</TableCell>
+                            <TableCell align="right">Commission</TableCell>
+                            <TableCell align="right">Total Amount</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell>Action</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {cycle.employees.map((empData) => (
+                            <TableRow key={empData.employee.id} hover>
+                              <TableCell>
+                                <Box>
+                                  <Typography variant="body2" fontWeight="medium">
+                                    {empData.employee.name}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {empData.employee.email}
+                                  </Typography>
+                                </Box>
+                              </TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={empData.employee.role || 'General'}
+                                  size="small"
+                                  color={
+                                    empData.employee.role === 'Driver'
+                                      ? 'secondary'
+                                      : empData.employee.role === 'Packers'
+                                      ? 'info'
+                                      : 'default'
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell align="right">
+                                {empData.totalBags.toLocaleString()}
+                              </TableCell>
+                              <TableCell align="right">
+                                {empData.fixedAmount > 0 ? formatCurrency(empData.fixedAmount) : '-'}
+                              </TableCell>
+                              <TableCell align="right">
+                                {empData.commission > 0 ? formatCurrency(empData.commission) : '-'}
+                              </TableCell>
+                              <TableCell align="right">
+                                <Typography variant="body2" fontWeight="bold" color="success.main">
+                                  {formatCurrency(empData.totalAmount)}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                {empData.isPaid ? (
+                                  <Chip
+                                    label="Paid"
+                                    color="success"
+                                    size="small"
+                                    icon={<CheckCircleIcon />}
+                                  />
+                                ) : (
+                                  <Chip
+                                    label="Pending"
+                                    color="warning"
+                                    size="small"
+                                    icon={<PendingIcon />}
+                                  />
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {empData.isPaid ? (
+                                  <Tooltip title="View Payment">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => {
+                                        const payment = payments.find(p => p.id === empData.paymentId);
+                                        if (payment) handleOpen(payment);
+                                      }}
+                                    >
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                ) : (
+                                  <Button
+                                    variant="contained"
+                                    size="small"
+                                    startIcon={<AddIcon />}
+                                    onClick={() => handleCreatePaymentFromCycle(cycle, empData)}
+                                  >
+                                    Create Payment
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </Box>
+      )}
+
+      {/* Day View */}
+      {viewMode === 'day' && (
+        <>
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <IconButton onClick={() => handleDateChange('prev')}>
+                  <ChevronLeft />
+                </IconButton>
+                <TextField
+                  type="date"
+                  value={formatDateForInput(selectedDate)}
+                  onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ minWidth: 200 }}
+                />
+                <IconButton onClick={() => handleDateChange('next')}>
+                  <ChevronRight />
+                </IconButton>
+                {!isToday(selectedDate) && (
+                  <Button variant="outlined" size="small" onClick={() => handleDateChange('today')}>
+                    Today
+                  </Button>
+                )}
+              </Box>
+            </Box>
+          </Paper>
+
+          {/* Filters */}
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  label="Search Payments"
+                  fullWidth
+                  size="small"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Employee name, amount..."
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SalaryIcon fontSize="small" />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  label="Filter by Employee"
+                  fullWidth
+                  select
+                  size="small"
+                  value={filterEmployee}
+                  onChange={(e) => setFilterEmployee(e.target.value)}
+                >
+                  <MenuItem value="all">All Employees</MenuItem>
+                  {employees.map((emp) => (
+                    <MenuItem key={emp.id} value={emp.id?.toString()}>
+                      {emp.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  label="Filter by Period"
+                  fullWidth
+                  select
+                  size="small"
+                  value={filterPeriod}
+                  onChange={(e) => setFilterPeriod(e.target.value)}
+                >
+                  <MenuItem value="all">All Periods</MenuItem>
+                  <MenuItem value="first_half">First Half (1st-15th)</MenuItem>
+                  <MenuItem value="second_half">Second Half (16th-end)</MenuItem>
+                  <MenuItem value="daily">Daily</MenuItem>
+                  <MenuItem value="weekly">Weekly</MenuItem>
+                  <MenuItem value="monthly">Monthly</MenuItem>
+                </TextField>
+              </Grid>
+              {(searchTerm || filterEmployee !== 'all' || filterPeriod !== 'all') && (
+                <Grid item xs={12} sm={6} md={3}>
+                  <Button
+                    variant="outlined"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setFilterEmployee('all');
+                      setFilterPeriod('all');
+                    }}
+                    fullWidth
+                  >
+                    Clear Filters
+                  </Button>
+                </Grid>
+              )}
+            </Grid>
+          </Paper>
+
+          {/* Summary Cards */}
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={6} md={4}>
+              <Card sx={{ backgroundColor: 'primary.light', color: 'primary.contrastText' }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Total Salaries
+                  </Typography>
+                  <Typography variant="h4">
+                    {formatCurrency(totalSalaries)}
+                  </Typography>
+                  <Typography variant="body2">
+                    {currentPayments.length} payment{currentPayments.length !== 1 ? 's' : ''}
+                  </Typography>
                 </CardContent>
               </Card>
             </Grid>
-          ))}
-        </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <Card sx={{ backgroundColor: 'info.light', color: 'info.contrastText' }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Fixed Salaries
+                  </Typography>
+                  <Typography variant="h4">
+                    {formatCurrency(totalFixed)}
+                  </Typography>
+                  <Typography variant="body2">
+                    Fixed salary payments
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <Card sx={{ backgroundColor: 'success.light', color: 'success.contrastText' }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Commissions
+                  </Typography>
+                  <Typography variant="h4">
+                    {formatCurrency(totalCommission)}
+                  </Typography>
+                  <Typography variant="body2">
+                    Commission payments
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          {/* Payment List */}
+          {currentPayments.length === 0 ? (
+            <Paper sx={{ p: 4, textAlign: 'center' }}>
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                No payments found
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                No payments recorded for {format(selectedDate, 'MMM d, yyyy')}
+              </Typography>
+            </Paper>
+          ) : (
+            <Grid container spacing={2}>
+              {currentPayments.map((payment) => (
+                <Grid item xs={12} md={6} key={payment.id}>
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                        <PersonIcon sx={{ mr: 1, color: 'primary.main' }} />
+                        <Typography variant="h6" sx={{ flexGrow: 1 }}>
+                          {payment.employeeName}
+                        </Typography>
+                        <Chip 
+                          label={payment.period}
+                          size="small"
+                          color="primary"
+                        />
+                      </Box>
+                      
+                      <Box sx={{ mb: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            Period
+                          </Typography>
+                          <Typography variant="body2">
+                            {format(new Date(payment.periodStart), 'MMM d')} - {format(new Date(payment.periodEnd), 'MMM d, yyyy')}
+                          </Typography>
+                        </Box>
+                        {payment.fixedAmount && (
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                            <Typography variant="body2" color="text.secondary">
+                              Fixed Salary
+                            </Typography>
+                            <Typography variant="body2">
+                              {formatCurrency(payment.fixedAmount)}
+                            </Typography>
+                          </Box>
+                        )}
+                        {payment.commissionAmount && (
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                            <Typography variant="body2" color="text.secondary">
+                              Commission ({payment.totalBags} bags)
+                            </Typography>
+                            <Typography variant="body2">
+                              {formatCurrency(payment.commissionAmount)}
+                            </Typography>
+                          </Box>
+                        )}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2, pt: 1, borderTop: 1, borderColor: 'divider' }}>
+                          <Typography variant="body1" fontWeight="bold">
+                            Total Amount
+                          </Typography>
+                          <Typography variant="h6" color="success.main" fontWeight="bold">
+                            {formatCurrency(payment.totalAmount)}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Paid: {format(new Date(payment.paidDate), 'MMM d, yyyy')}
+                          </Typography>
+                        </Box>
+                        {payment.notes && (
+                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                            {payment.notes}
+                          </Typography>
+                        )}
+                      </Box>
+
+                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                        <Tooltip title="Edit">
+                          <IconButton size="small" onClick={() => handleOpen(payment)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                          <IconButton size="small" onClick={() => payment.id && handleDelete(payment.id)} color="error">
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </>
+      )}
+
+      {/* Range View */}
+      {viewMode === 'range' && (
+        <>
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+              <TextField
+                label="Start Date"
+                type="date"
+                value={formatDateForInput(dateRange.start)}
+                onChange={(e) => setDateRange({ ...dateRange, start: parseDateFromInput(e.target.value) })}
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label="End Date"
+                type="date"
+                value={formatDateForInput(dateRange.end)}
+                onChange={(e) => setDateRange({ ...dateRange, end: parseDateFromInput(e.target.value) })}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Box>
+          </Paper>
+
+          {/* Same filters and display as day view */}
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  label="Search Payments"
+                  fullWidth
+                  size="small"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Employee name, amount..."
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  label="Filter by Employee"
+                  fullWidth
+                  select
+                  size="small"
+                  value={filterEmployee}
+                  onChange={(e) => setFilterEmployee(e.target.value)}
+                >
+                  <MenuItem value="all">All Employees</MenuItem>
+                  {employees.map((emp) => (
+                    <MenuItem key={emp.id} value={emp.id?.toString()}>
+                      {emp.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+            </Grid>
+          </Paper>
+
+          {currentPayments.length === 0 ? (
+            <Paper sx={{ p: 4, textAlign: 'center' }}>
+              <Typography variant="h6" color="text.secondary">
+                No payments found in the selected date range
+              </Typography>
+            </Paper>
+          ) : (
+            <Grid container spacing={2}>
+              {currentPayments.map((payment) => (
+                <Grid item xs={12} md={6} key={payment.id}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6">{payment.employeeName}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {format(new Date(payment.paidDate), 'MMM d, yyyy')}
+                      </Typography>
+                      <Typography variant="h5" color="success.main" sx={{ mt: 1 }}>
+                        {formatCurrency(payment.totalAmount)}
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                        <IconButton size="small" onClick={() => handleOpen(payment)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton size="small" onClick={() => payment.id && handleDelete(payment.id)} color="error">
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </>
       )}
 
       {/* Add/Edit Dialog */}
@@ -654,7 +1028,7 @@ export default function Salaries() {
               select
               value={formData.period}
               onChange={(e) => {
-                const newPeriod = e.target.value as 'daily' | 'weekly' | 'monthly';
+                const newPeriod = e.target.value as 'first_half' | 'second_half' | 'daily' | 'weekly' | 'monthly';
                 const employee = employees.find(e => e.id?.toString() === formData.employeeId);
                 if (employee) {
                   handleEmployeeChange(formData.employeeId);
@@ -663,6 +1037,8 @@ export default function Salaries() {
               }}
               required
             >
+              <MenuItem value="first_half">First Half (1st-15th, paid on 18th)</MenuItem>
+              <MenuItem value="second_half">Second Half (16th-end, paid on 5th)</MenuItem>
               <MenuItem value="daily">Daily</MenuItem>
               <MenuItem value="weekly">Weekly</MenuItem>
               <MenuItem value="monthly">Monthly</MenuItem>
@@ -715,8 +1091,13 @@ export default function Salaries() {
 
                     if (employee.salaryType === 'fixed' || employee.salaryType === 'both') {
                       if (employee.fixedSalary) {
-                        const divisor = formData.period === 'daily' ? 30 : formData.period === 'weekly' ? 4 : 1;
-                        fixedAmount = employee.fixedSalary / divisor;
+                        // For payment cycles, use exactly half
+                        if (formData.period === 'first_half' || formData.period === 'second_half') {
+                          fixedAmount = employee.fixedSalary / 2;
+                        } else {
+                          const divisor = formData.period === 'daily' ? 30 : formData.period === 'weekly' ? 4 : 1;
+                          fixedAmount = employee.fixedSalary / divisor;
+                        }
                       }
                     }
 
