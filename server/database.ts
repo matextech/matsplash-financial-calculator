@@ -38,12 +38,12 @@ export default async function setupDatabase(): Promise<void> {
         table.string('email');
         table.string('password'); // For director
         table.string('pin_hash'); // Hashed PIN for other roles
-        table.boolean('pin_reset_required').defaultTo(false);
+        table.integer('pin_reset_required').defaultTo(0); // SQLite uses 0/1 for boolean
         table.string('role').notNullable(); // director, manager, receptionist, storekeeper
         table.string('name').notNullable();
         table.string('two_factor_secret');
-        table.boolean('two_factor_enabled').defaultTo(false);
-        table.boolean('is_active').defaultTo(true);
+        table.integer('two_factor_enabled').defaultTo(0); // SQLite uses 0/1 for boolean
+        table.integer('is_active').defaultTo(1); // SQLite uses 0/1 for boolean
         table.timestamp('created_at').defaultTo(db.fn.now());
         table.timestamp('updated_at').defaultTo(db.fn.now());
         table.timestamp('last_login');
@@ -152,7 +152,7 @@ export default async function setupDatabase(): Promise<void> {
         table.integer('total_bags').notNullable();
         table.integer('submitted_by').notNullable();
         table.timestamp('submitted_at').defaultTo(db.fn.now());
-        table.boolean('is_submitted').defaultTo(false);
+        table.integer('is_submitted').defaultTo(0); // SQLite uses 0/1 for boolean
         table.text('notes');
         table.timestamp('created_at').defaultTo(db.fn.now());
         table.timestamp('updated_at').defaultTo(db.fn.now());
@@ -173,7 +173,7 @@ export default async function setupDatabase(): Promise<void> {
         table.integer('bags_count').notNullable();
         table.integer('submitted_by').notNullable();
         table.timestamp('submitted_at').defaultTo(db.fn.now());
-        table.boolean('is_submitted').defaultTo(false);
+        table.integer('is_submitted').defaultTo(0); // SQLite uses 0/1 for boolean
         table.text('notes');
         table.timestamp('created_at').defaultTo(db.fn.now());
         table.timestamp('updated_at').defaultTo(db.fn.now());
@@ -189,7 +189,7 @@ export default async function setupDatabase(): Promise<void> {
         table.decimal('expected_amount', 10, 2).notNullable();
         table.decimal('settled_amount', 10, 2).notNullable();
         table.decimal('remaining_balance', 10, 2).notNullable();
-        table.boolean('is_settled').defaultTo(false);
+        table.integer('is_settled').defaultTo(0); // SQLite uses 0/1 for boolean
         table.integer('settled_by').notNullable();
         table.timestamp('settled_at');
         table.text('notes');
@@ -226,7 +226,7 @@ export default async function setupDatabase(): Promise<void> {
         table.string('type').notNullable();
         table.string('title').notNullable();
         table.text('message').notNullable();
-        table.boolean('is_read').defaultTo(false);
+        table.integer('is_read').defaultTo(0); // SQLite uses 0/1 for boolean
         table.string('related_entity_type');
         table.integer('related_entity_id');
         table.timestamp('created_at').defaultTo(db.fn.now());

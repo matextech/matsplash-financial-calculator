@@ -85,8 +85,8 @@ router.post('/', async (req, res) => {
       pin_hash: role !== 'director' ? pinHash : null,
       role,
       name,
-      two_factor_enabled: twoFactorEnabled || false,
-      is_active: isActive !== undefined ? isActive : true
+      two_factor_enabled: twoFactorEnabled ? 1 : 0, // SQLite uses 0/1
+      is_active: isActive !== undefined ? (isActive ? 1 : 0) : 1 // SQLite uses 0/1
     });
 
     res.json({
@@ -116,8 +116,8 @@ router.put('/:id', async (req, res) => {
     if (req.body.phone !== undefined) updateData.phone = req.body.phone;
     if (req.body.password !== undefined) updateData.password = req.body.password;
     if (req.body.role !== undefined) updateData.role = req.body.role;
-    if (req.body.twoFactorEnabled !== undefined) updateData.two_factor_enabled = req.body.twoFactorEnabled;
-    if (req.body.isActive !== undefined) updateData.is_active = req.body.isActive;
+    if (req.body.twoFactorEnabled !== undefined) updateData.two_factor_enabled = req.body.twoFactorEnabled ? 1 : 0;
+    if (req.body.isActive !== undefined) updateData.is_active = req.body.isActive ? 1 : 0;
 
     // Handle PIN update
     if (req.body.pin !== undefined) {
@@ -125,7 +125,7 @@ router.put('/:id', async (req, res) => {
       console.log('Updating PIN for user:', id);
     }
 
-    // Handle PIN reset required flag
+    // Handle PIN reset required flag (SQLite uses 0/1)
     if (req.body.pinResetRequired !== undefined) {
       updateData.pin_reset_required = req.body.pinResetRequired ? 1 : 0;
       console.log('Setting pin_reset_required to:', updateData.pin_reset_required);

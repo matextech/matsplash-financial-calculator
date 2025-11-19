@@ -25,7 +25,7 @@ router.post('/login', async (req, res) => {
       .where(function() {
         this.where('email', identifier).orWhere('phone', identifier);
       })
-      .andWhere('is_active', true)
+      .andWhere('is_active', 1) // SQLite stores boolean as 0/1
       .first();
 
     if (!user) {
@@ -62,8 +62,8 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Check if PIN reset is required
-    const pinResetRequired = user.role !== 'director' && user.pin_reset_required === 1;
+    // Check if PIN reset is required (SQLite stores as 0/1)
+    const pinResetRequired = user.role !== 'director' && (user.pin_reset_required === 1 || user.pin_reset_required === true);
 
     // Generate JWT token
     const token = jwt.sign(
@@ -138,7 +138,7 @@ router.post('/change-pin', async (req, res) => {
       .where('id', userId)
       .update({
         pin_hash: pinHash,
-        pin_reset_required: false,
+        pin_reset_required: 0, // SQLite uses 0/1
         updated_at: new Date().toISOString()
       });
 
@@ -175,7 +175,7 @@ router.get('/verify', async (req, res) => {
     // Get user from database
     const user = await db('users')
       .where('id', decoded.userId)
-      .andWhere('is_active', true)
+      .andWhere('is_active', 1) // SQLite stores boolean as 0/1
       .first();
 
     if (!user) {
