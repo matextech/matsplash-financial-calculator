@@ -1,107 +1,93 @@
-import { User, UserRole, AuthSession } from '../types/auth';
-import { dbService } from './database';
+import { UserRole, AuthSession } from '../types/auth';
+import { apiService } from './apiService';
 
 class AuthService {
   private currentSession: AuthSession | null = null;
 
   async login(identifier: string, passwordOrPin: string, twoFactorCode?: string): Promise<AuthSession> {
-    // Find user by phone or email
-    let user: User | null = null;
-    
-    if (identifier.includes('@')) {
-      // Try to find by email
-      const users = await dbService.getUsers();
-      user = users.find(u => u.email === identifier) || null;
-    } else {
-      // Try to find by phone
-      user = await dbService.getUserByPhone(identifier);
-    }
-
-    if (!user || !user.isActive) {
-      throw new Error('Invalid credentials');
-    }
-
-    // Verify password/PIN
-    if (user.role === 'director') {
-      // Director uses password
-      if (user.password !== passwordOrPin) { // In production, use bcrypt
-        throw new Error('Invalid password');
+    try {
+      console.log('Login attempt:', { identifier, hasPassword: !!passwordOrPin });
+      
+      // Use API service for login
+      const response = await apiService.login(identifier, passwordOrPin);
+      
+      if (!response.success) {
+        throw new Error(response.message || 'Invalid credentials');
       }
       
-      // Check 2FA if enabled
-      if (user.twoFactorEnabled) {
-        if (!twoFactorCode) {
-          throw new Error('2FA code required');
-        }
-        // In production, verify TOTP code
-        // For now, accept any 6-digit code
-        if (!/^\d{6}$/.test(twoFactorCode)) {
-          throw new Error('Invalid 2FA code');
-        }
-      }
-    } else {
-      // Other roles use PIN
-      if (user.pin !== passwordOrPin) {
-        throw new Error('Invalid PIN');
-      }
+      const user = response.user;
+      const token = response.token;
+      const pinResetRequired = response.pinResetRequired || false;
+      
+      console.log('Login successful:', user.name, 'PIN reset required:', pinResetRequired);
+      
+      // Create session
+      const session: AuthSession = {
+        userId: user.id,
+        role: user.role as UserRole,
+        token: token,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+        pinResetRequired: pinResetRequired
+      };
+      
+      this.currentSession = session;
+      localStorage.setItem('authSession', JSON.stringify(session));
+      
+      return session;
+    } catch (error: any) {
+      console.error('Login error:', error);
+      throw error;
     }
-
-    // Create session
-    const session: AuthSession = {
-      userId: user.id!,
-      role: user.role,
-      token: this.generateToken(),
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
-    };
-
-    this.currentSession = session;
-
-    // Update last login
-    await dbService.updateUser(user.id!, { lastLogin: new Date() });
-
-    return session;
   }
 
   async logout(): Promise<void> {
     this.currentSession = null;
+    localStorage.removeItem('authSession');
+    await apiService.logout();
   }
 
   getCurrentSession(): AuthSession | null {
+    // Try to restore from localStorage
+    if (!this.currentSession) {
+      const stored = localStorage.getItem('authSession');
+      if (stored) {
+        try {
+          this.currentSession = JSON.parse(stored);
+        } catch (e) {
+          localStorage.removeItem('authSession');
+        }
+      }
+    }
     return this.currentSession;
   }
 
+  updateSession(session: AuthSession): void {
+    this.currentSession = session;
+    localStorage.setItem('authSession', JSON.stringify(session));
+  }
+
   isAuthenticated(): boolean {
-    if (!this.currentSession) return false;
-    return this.currentSession.expiresAt > new Date();
+    const session = this.getCurrentSession();
+    if (!session) return false;
+    return session.expiresAt > new Date();
   }
 
   hasRole(role: UserRole): boolean {
-    return this.currentSession?.role === role;
+    return this.getCurrentSession()?.role === role;
   }
 
   hasAnyRole(roles: UserRole[]): boolean {
-    return this.currentSession ? roles.includes(this.currentSession.role) : false;
+    const session = this.getCurrentSession();
+    return session ? roles.includes(session.role) : false;
   }
 
-  private generateToken(): string {
-    return Math.random().toString(36).substring(2, 15) + 
-           Math.random().toString(36).substring(2, 15);
-  }
-
-  // 2FA Setup for Director
+  // 2FA Setup for Director (placeholder - implement with speakeasy later)
   async setup2FA(userId: number): Promise<{ secret: string; qrCode: string }> {
     // In production, use speakeasy or similar
     const secret = Math.random().toString(36).substring(2, 15);
     const qrCode = `otpauth://totp/Matsplash:${userId}?secret=${secret}&issuer=Matsplash`;
-    
-    await dbService.updateUser(userId, {
-      twoFactorSecret: secret,
-      twoFactorEnabled: true
-    });
-
     return { secret, qrCode };
   }
 }
 
 export const authService = new AuthService();
-

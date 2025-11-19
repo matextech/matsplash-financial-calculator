@@ -29,6 +29,7 @@ export class AuditService {
         oldValue: oldValue?.toString(),
         newValue: newValue?.toString(),
         changedBy: session.userId,
+        changedAt: new Date(),
         reason,
       });
     } catch (error) {
@@ -55,6 +56,7 @@ export class AuditService {
         entityId,
         action: 'create',
         changedBy: session.userId,
+        changedAt: new Date(),
       });
     } catch (error) {
       console.error('Error creating audit log:', error);
@@ -81,6 +83,7 @@ export class AuditService {
         entityId,
         action: 'delete',
         changedBy: session.userId,
+        changedAt: new Date(),
         reason,
       });
     } catch (error) {
@@ -107,6 +110,7 @@ export class AuditService {
         entityId,
         action: 'submit',
         changedBy: session.userId,
+        changedAt: new Date(),
       });
     } catch (error) {
       console.error('Error creating audit log:', error);

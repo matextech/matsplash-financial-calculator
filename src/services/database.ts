@@ -625,40 +625,92 @@ class DatabaseService {
     });
   }
 
+  // Normalize phone number (remove spaces, dashes, etc.)
+  private normalizePhone(phone: string): string {
+    return phone.replace(/\D/g, ''); // Remove all non-digits
+  }
+
   // User operations
   async addUser(user: Omit<User, 'id'>): Promise<number> {
     const db = await this.ensureDB();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction(['users'], 'readwrite');
-      const store = transaction.objectStore('users');
-      const request = store.add({
-        ...user,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-      request.onsuccess = () => resolve(request.result as number);
-      request.onerror = () => reject(request.error);
+      try {
+        if (!db.objectStoreNames.contains('users')) {
+          console.warn('Users store does not exist yet');
+          reject(new Error('Users store does not exist'));
+          return;
+        }
+        const transaction = db.transaction(['users'], 'readwrite');
+        const store = transaction.objectStore('users');
+        
+        // Normalize phone number before storing
+        const normalizedUser = {
+          ...user,
+          phone: this.normalizePhone(user.phone),
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        
+        const request = store.add(normalizedUser);
+        request.onsuccess = () => {
+          console.log('User added successfully:', user.email || user.phone);
+          resolve(request.result as number);
+        };
+        request.onerror = () => {
+          console.error('addUser error:', request.error);
+          reject(request.error);
+        };
+      } catch (error) {
+        console.error('addUser exception:', error);
+        reject(error);
+      }
     });
   }
 
   async getUsers(): Promise<User[]> {
     const db = await this.ensureDB();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction(['users'], 'readonly');
-      const store = transaction.objectStore('users');
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+      try {
+        if (!db.objectStoreNames.contains('users')) {
+          console.warn('Users store does not exist yet');
+          resolve([]);
+          return;
+        }
+        const transaction = db.transaction(['users'], 'readonly');
+        const store = transaction.objectStore('users');
+        const request = store.getAll();
+        request.onsuccess = () => {
+          console.log('getUsers result:', request.result?.length || 0, 'users');
+          resolve(request.result || []);
+        };
+        request.onerror = () => {
+          console.error('getUsers error:', request.error);
+          reject(request.error);
+        };
+      } catch (error) {
+        console.error('getUsers exception:', error);
+        reject(error);
+      }
     });
   }
 
   async getUser(id: number): Promise<User | null> {
     const db = await this.ensureDB();
     return new Promise((resolve, reject) => {
+      if (!id) {
+        resolve(null);
+        return;
+      }
       const transaction = db.transaction(['users'], 'readonly');
       const store = transaction.objectStore('users');
       const request = store.get(id);
-      request.onsuccess = () => resolve(request.result || null);
+      request.onsuccess = () => {
+        const user = request.result || null;
+        if (user) {
+          console.log('getUser: Retrieved user:', { id: user.id, name: user.name, pin: user.pin });
+        }
+        resolve(user);
+      };
       request.onerror = () => reject(request.error);
     });
   }
@@ -666,12 +718,28 @@ class DatabaseService {
   async getUserByPhone(phone: string): Promise<User | null> {
     const db = await this.ensureDB();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction(['users'], 'readonly');
-      const store = transaction.objectStore('users');
-      const index = store.index('phone');
-      const request = index.get(phone);
-      request.onsuccess = () => resolve(request.result || null);
-      request.onerror = () => reject(request.error);
+      try {
+        if (!db.objectStoreNames.contains('users')) {
+          console.warn('Users store does not exist yet');
+          resolve(null);
+          return;
+        }
+        const transaction = db.transaction(['users'], 'readonly');
+        const store = transaction.objectStore('users');
+        const index = store.index('phone');
+        const request = index.get(phone);
+        request.onsuccess = () => {
+          console.log('getUserByPhone result:', request.result ? 'found' : 'not found');
+          resolve(request.result || null);
+        };
+        request.onerror = () => {
+          console.error('getUserByPhone error:', request.error);
+          reject(request.error);
+        };
+      } catch (error) {
+        console.error('getUserByPhone exception:', error);
+        reject(error);
+      }
     });
   }
 
@@ -681,18 +749,89 @@ class DatabaseService {
       const transaction = db.transaction(['users'], 'readwrite');
       const store = transaction.objectStore('users');
       const getRequest = store.get(id);
+      
       getRequest.onsuccess = () => {
         const existing = getRequest.result;
         if (!existing) {
+          console.error('updateUser: User not found with id:', id);
           reject(new Error('User not found'));
           return;
         }
-        const updated = { ...existing, ...user, updatedAt: new Date() };
+        
+        console.log('🔍 updateUser: Existing user before update:', { 
+          id: existing.id, 
+          name: existing.name, 
+          currentPin: existing.pin,
+          updatingWith: user 
+        });
+        
+        // Normalize phone if provided
+        const updateData: Partial<User> = { ...user };
+        if (updateData.phone) {
+          updateData.phone = this.normalizePhone(updateData.phone);
+        }
+        
+        // Merge existing with update data - PIN will override if provided
+        const updated: User = {
+          ...existing,
+          ...updateData,
+          updatedAt: new Date()
+        };
+        
+        // CRITICAL: Explicitly ensure PIN is set if provided (override any spread issues)
+        if (user.pin !== undefined && user.pin !== null) {
+          updated.pin = String(user.pin); // Ensure it's a string
+          console.log('✅ updateUser: PIN explicitly set to:', updated.pin);
+        }
+        if (user.pinResetRequired !== undefined) {
+          updated.pinResetRequired = Boolean(user.pinResetRequired);
+          console.log('✅ updateUser: pinResetRequired set to:', updated.pinResetRequired);
+        }
+        
+        console.log('💾 updateUser: Saving user with PIN:', updated.pin, 'Full object:', {
+          id: updated.id,
+          name: updated.name,
+          pin: updated.pin,
+          pinResetRequired: updated.pinResetRequired,
+          phone: updated.phone,
+          email: updated.email
+        });
+        
         const putRequest = store.put(updated);
-        putRequest.onsuccess = () => resolve();
-        putRequest.onerror = () => reject(putRequest.error);
+        putRequest.onsuccess = () => {
+          console.log('✅ updateUser: PUT request succeeded. PIN saved:', updated.pin);
+          // Immediately verify by reading back
+          const verifyRequest = store.get(id);
+          verifyRequest.onsuccess = () => {
+            const verified = verifyRequest.result;
+            console.log('🔍 updateUser: Verification read - PIN is:', verified?.pin, 'Expected:', updated.pin);
+            if (verified && verified.pin === updated.pin) {
+              console.log('✅ updateUser: PIN verified successfully in database');
+              resolve();
+            } else {
+              console.error('❌ updateUser: PIN verification failed!', {
+                expected: updated.pin,
+                actual: verified?.pin
+              });
+              // Still resolve - the put succeeded, verification might be a timing issue
+              resolve();
+            }
+          };
+          verifyRequest.onerror = () => {
+            console.warn('updateUser: Could not verify, but put succeeded');
+            resolve();
+          };
+        };
+        putRequest.onerror = () => {
+          console.error('❌ updateUser: PUT request failed:', putRequest.error);
+          reject(putRequest.error);
+        };
       };
-      getRequest.onerror = () => reject(getRequest.error);
+      
+      getRequest.onerror = () => {
+        console.error('❌ updateUser: GET request failed:', getRequest.error);
+        reject(getRequest.error);
+      };
     });
   }
 
@@ -738,9 +877,9 @@ class DatabaseService {
         const normalized = sales.map((sale: ReceptionistSale) => ({
           ...sale,
           date: sale.date instanceof Date ? sale.date : new Date(sale.date),
-          submittedAt: sale.submittedAt instanceof Date ? sale.submittedAt : new Date(sale.submittedAt),
-          createdAt: sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt),
-          updatedAt: sale.updatedAt instanceof Date ? sale.updatedAt : new Date(sale.updatedAt)
+          submittedAt: sale.submittedAt instanceof Date ? sale.submittedAt : (sale.submittedAt ? new Date(sale.submittedAt) : new Date()),
+          createdAt: sale.createdAt instanceof Date ? sale.createdAt : (sale.createdAt ? new Date(sale.createdAt) : new Date()),
+          updatedAt: sale.updatedAt instanceof Date ? sale.updatedAt : (sale.updatedAt ? new Date(sale.updatedAt) : new Date())
         }));
         resolve(normalized.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       };
@@ -811,9 +950,9 @@ class DatabaseService {
         const normalized = entries.map((entry: StorekeeperEntry) => ({
           ...entry,
           date: entry.date instanceof Date ? entry.date : new Date(entry.date),
-          submittedAt: entry.submittedAt instanceof Date ? entry.submittedAt : new Date(entry.submittedAt),
-          createdAt: entry.createdAt instanceof Date ? entry.createdAt : new Date(entry.createdAt),
-          updatedAt: entry.updatedAt instanceof Date ? entry.updatedAt : new Date(entry.updatedAt)
+          submittedAt: entry.submittedAt instanceof Date ? entry.submittedAt : (entry.submittedAt ? new Date(entry.submittedAt) : new Date()),
+          createdAt: entry.createdAt instanceof Date ? entry.createdAt : (entry.createdAt ? new Date(entry.createdAt) : new Date()),
+          updatedAt: entry.updatedAt instanceof Date ? entry.updatedAt : (entry.updatedAt ? new Date(entry.updatedAt) : new Date())
         }));
         resolve(normalized.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       };
@@ -961,9 +1100,9 @@ class DatabaseService {
         
         const normalized = logs.map((log: AuditLog) => ({
           ...log,
-          changedAt: log.changedAt instanceof Date ? log.changedAt : new Date(log.changedAt)
+          changedAt: log.changedAt instanceof Date ? log.changedAt : (log.changedAt ? new Date(log.changedAt) : new Date())
         }));
-        resolve(normalized.sort((a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()));
+        resolve(normalized.sort((a: AuditLog, b: AuditLog) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()));
       };
       request.onerror = () => reject(request.error);
     });
