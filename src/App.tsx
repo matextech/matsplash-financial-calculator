@@ -17,9 +17,10 @@ import ReceptionistDashboard from './components/receptionist/ReceptionistDashboa
 import StorekeeperDashboard from './components/storekeeper/StorekeeperDashboard';
 import ManagerDashboard from './components/manager/ManagerDashboard';
 import DirectorDashboard from './components/director/DirectorDashboard';
+import DirectorDashboardWrapper from './components/director/DirectorDashboardWrapper';
 import { dbService } from './services/database';
 import { authService } from './services/authService';
-import { initializeDefaultDirector } from './services/setupService';
+import { initializeDefaultDirector, initializeDefaultAccounts } from './services/setupService';
 
 const theme = createTheme({
   palette: {
@@ -36,14 +37,34 @@ function App() {
   const [dbInitialized, setDbInitialized] = useState(false);
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     
     const initDb = async () => {
       try {
+        console.log('Initializing database...');
         await dbService.init();
+        console.log('Database initialized successfully');
+        
         // Initialize default director account if needed
-        await initializeDefaultDirector();
+        try {
+          await initializeDefaultDirector();
+          console.log('Default director account check completed');
+        } catch (setupError) {
+          console.warn('Failed to initialize default director (non-critical):', setupError);
+          // Don't block app initialization if setup fails
+        }
+        
+        // Initialize default accounts (manager, receptionist, storekeeper) and update existing ones
+        try {
+          await initializeDefaultAccounts();
+          console.log('Default accounts check completed');
+        } catch (setupError) {
+          console.warn('Failed to initialize default accounts (non-critical):', setupError);
+          // Don't block app initialization if setup fails
+        }
+        
         setDbInitialized(true);
+        console.log('App initialization complete');
       } catch (error) {
         console.error('Failed to initialize database:', error);
         // Still set initialized to true after a timeout to prevent infinite loading
@@ -83,7 +104,7 @@ function App() {
     if (session && authService.isAuthenticated()) {
       switch (session.role) {
         case 'director':
-          return '/director';
+          return '/dashboard'; // Director goes to main financial dashboard
         case 'manager':
           return '/manager';
         case 'receptionist':
@@ -230,6 +251,16 @@ function App() {
               <ProtectedRoute allowedRoles={['director']}>
                 <Layout>
                   <Settings />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/management"
+            element={
+              <ProtectedRoute allowedRoles={['director']}>
+                <Layout>
+                  <DirectorDashboardWrapper />
                 </Layout>
               </ProtectedRoute>
             }

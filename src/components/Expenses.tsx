@@ -55,7 +55,7 @@ export default function Expenses() {
       description: '',
       reference: '',
     },
-    driverPayment: {
+    driverFuel: {
       amount: '',
       description: '',
       reference: '',
@@ -182,10 +182,10 @@ export default function Expenses() {
       
       setFormData({
         date: expenseDate,
-        fuel: expenseType === 'fuel' || expenseType === 'generator_fuel'
+        fuel: expenseType === 'fuel' || (expenseType as any) === 'generator_fuel'
           ? { amount: expense.amount.toString(), description: expense.description, reference: expense.reference || '' }
           : { amount: '', description: '', reference: '' },
-        driverPayment: expenseType === 'driver_fuel' || expenseType === 'driver_payment'
+        driverFuel: expenseType === 'driver_fuel' || (expenseType as any) === 'driver_payment'
           ? { amount: expense.amount.toString(), description: expense.description, reference: expense.reference || '' }
           : { amount: '', description: '', reference: '' },
         other: expenseType === 'other'
@@ -194,8 +194,8 @@ export default function Expenses() {
       });
       
       console.log('Form data set:', {
-        fuel: expenseType === 'fuel' || expenseType === 'generator_fuel' ? expense.amount : 'empty',
-        driverFuel: expenseType === 'driver_fuel' || expenseType === 'driver_payment' ? expense.amount : 'empty',
+        fuel: expenseType === 'fuel' || (expenseType as any) === 'generator_fuel' ? expense.amount : 'empty',
+        driverFuel: expenseType === 'driver_fuel' || (expenseType as any) === 'driver_payment' ? expense.amount : 'empty',
         other: expenseType === 'other' ? expense.amount : 'empty',
       });
     } else {
@@ -203,7 +203,7 @@ export default function Expenses() {
       setFormData({
         date: date || selectedDate,
         fuel: { amount: '', description: '', reference: '' },
-        driverPayment: { amount: '', description: '', reference: '' },
+        driverFuel: { amount: '', description: '', reference: '' },
         other: { amount: '', description: '', reference: '' },
       });
     }
@@ -226,14 +226,14 @@ export default function Expenses() {
 
       if (editingExpense?.id) {
         // Update single expense - determine which type based on which field has data
-        // Check in order: fuel, driverPayment, other
+        // Check in order: fuel, driverFuel, other
         let expenseType: 'fuel' | 'driver_fuel' | 'other' | null = null;
         let amount: number | null = null;
         let description = '';
         let reference = '';
 
         const fuelAmount = parseAmount(formData.fuel.amount);
-        const driverAmount = parseAmount(formData.driverPayment.amount);
+        const driverAmount = parseAmount(formData.driverFuel.amount);
         const otherAmount = parseAmount(formData.other.amount);
 
         if (fuelAmount !== null) {
@@ -244,8 +244,8 @@ export default function Expenses() {
         } else if (driverAmount !== null) {
           expenseType = 'driver_fuel';
           amount = driverAmount;
-          description = formData.driverPayment.description.trim() || 'Drivers Fuel';
-          reference = formData.driverPayment.reference?.trim() || '';
+          description = formData.driverFuel.description.trim() || 'Drivers Fuel';
+          reference = formData.driverFuel.reference?.trim() || '';
         } else if (otherAmount !== null) {
           expenseType = 'other';
           amount = otherAmount;
@@ -306,16 +306,16 @@ export default function Expenses() {
         }
 
         // Save driver fuel if provided
-        const driverAmount = parseAmount(formData.driverPayment.amount);
+        const driverAmount = parseAmount(formData.driverFuel.amount);
         if (driverAmount !== null) {
           expensesToSave.push({
             type: 'driver_fuel',
-            description: formData.driverPayment.description.trim() || 'Drivers Fuel',
+            description: formData.driverFuel.description.trim() || 'Drivers Fuel',
             amount: driverAmount,
             date: formData.date,
-            reference: formData.driverPayment.reference?.trim() || undefined,
+            reference: formData.driverFuel.reference?.trim() || undefined,
           });
-          console.log('Adding drivers fuel expense:', { amount: driverAmount, description: formData.driverPayment.description });
+          console.log('Adding drivers fuel expense:', { amount: driverAmount, description: formData.driverFuel.description });
         }
 
         // Save other expense if provided
@@ -664,10 +664,10 @@ export default function Expenses() {
                 label="Drivers Fuel Amount (₦)"
                 fullWidth
                 type="number"
-                value={formData.driverPayment.amount}
+                value={formData.driverFuel.amount}
                 onChange={(e) => setFormData({
                   ...formData,
-                  driverPayment: { ...formData.driverPayment, amount: e.target.value }
+                  driverFuel: { ...formData.driverFuel, amount: e.target.value }
                 })}
                 InputProps={{
                   startAdornment: <InputAdornment position="start">₦</InputAdornment>,
@@ -677,20 +677,20 @@ export default function Expenses() {
               <TextField
                 label="Description"
                 fullWidth
-                value={formData.driverPayment.description}
+                value={formData.driverFuel.description}
                 onChange={(e) => setFormData({
                   ...formData,
-                  driverPayment: { ...formData.driverPayment, description: e.target.value }
+                  driverFuel: { ...formData.driverFuel, description: e.target.value }
                 })}
                 placeholder="e.g., Fuel for driver vehicles"
               />
               <TextField
                 label="Reference (Optional)"
                 fullWidth
-                value={formData.driverPayment.reference}
+                value={formData.driverFuel.reference}
                 onChange={(e) => setFormData({
                   ...formData,
-                  driverPayment: { ...formData.driverPayment, reference: e.target.value }
+                  driverFuel: { ...formData.driverFuel, reference: e.target.value }
                 })}
                 placeholder="Trip ID, driver name, etc."
               />

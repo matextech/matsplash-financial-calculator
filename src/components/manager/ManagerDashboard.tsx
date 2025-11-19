@@ -25,6 +25,10 @@ import {
   Tab,
   IconButton,
   Tooltip,
+  InputAdornment,
+  ToggleButton,
+  ToggleButtonGroup,
+  Stack,
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
@@ -33,14 +37,18 @@ import {
   Edit as EditIcon,
   Visibility as VisibilityIcon,
   Notifications as NotificationsIcon,
+  Search as SearchIcon,
+  FilterList as FilterIcon,
+  ChevronLeft,
+  ChevronRight,
 } from '@mui/icons-material';
 import { ReceptionistSale, StorekeeperEntry, Settlement, Notification } from '../../types/sales-log';
-import { Settings, DEFAULT_SETTINGS } from '../../types';
+import { Settings, DEFAULT_SETTINGS, Employee } from '../../types';
 import { dbService } from '../../services/database';
 import { authService } from '../../services/authService';
 import { AuditService } from '../../services/auditService';
 import { useNavigate } from 'react-router-dom';
-import { format, startOfMonth, endOfMonth, startOfDay, endOfDay, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfDay, endOfDay, subMonths, isSameDay, addDays, subDays } from 'date-fns';
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
@@ -50,7 +58,22 @@ export default function ManagerDashboard() {
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [viewMode, setViewMode] = useState<'month' | 'day' | 'range'>('month');
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
+    start: new Date(),
+    end: new Date(),
+  });
+  
+  // Filters
+  const [filterDriver, setFilterDriver] = useState<string>('all');
+  const [filterSaleType, setFilterSaleType] = useState<string>('all');
+  const [filterEntryType, setFilterEntryType] = useState<string>('all');
+  const [filterSettlementStatus, setFilterSettlementStatus] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  
   const [settlementDialogOpen, setSettlementDialogOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<ReceptionistSale | null>(null);
   const [settlementAmount, setSettlementAmount] = useState('');
@@ -64,17 +87,42 @@ export default function ManagerDashboard() {
   useEffect(() => {
     loadData();
     loadNotifications();
-  }, [selectedMonth]);
+    loadEmployees();
+  }, [selectedMonth, viewMode, selectedDate, dateRange]);
+
+  useEffect(() => {
+    loadEmployees();
+  }, []);
+
+  const loadEmployees = async () => {
+    try {
+      const data = await dbService.getEmployees();
+      setEmployees(data.filter(e => e.role === 'Driver'));
+    } catch (error) {
+      console.error('Error loading employees:', error);
+    }
+  };
 
   const loadData = async () => {
     try {
-      const monthStart = startOfMonth(selectedMonth);
-      const monthEnd = endOfMonth(selectedMonth);
+      let startDate: Date;
+      let endDate: Date;
+
+      if (viewMode === 'month') {
+        startDate = startOfMonth(selectedMonth);
+        endDate = endOfMonth(selectedMonth);
+      } else if (viewMode === 'day') {
+        startDate = startOfDay(selectedDate);
+        endDate = endOfDay(selectedDate);
+      } else {
+        startDate = startOfDay(dateRange.start);
+        endDate = endOfDay(dateRange.end);
+      }
       
       const [salesData, entriesData, settlementsData, settingsData] = await Promise.all([
-        dbService.getReceptionistSales(monthStart, monthEnd),
-        dbService.getStorekeeperEntries(monthStart, monthEnd),
-        dbService.getSettlements(monthStart, monthEnd),
+        dbService.getReceptionistSales(startDate, endDate),
+        dbService.getStorekeeperEntries(startDate, endDate),
+        dbService.getSettlements(startDate, endDate),
         dbService.getSettings(),
       ]);
 
@@ -161,6 +209,7 @@ export default function ManagerDashboard() {
           isRead: false,
           relatedEntityType: 'settlement',
           relatedEntityId: existingSettlement?.id,
+          createdAt: new Date(),
         });
       }
 
@@ -246,16 +295,90 @@ export default function ManagerDashboard() {
     }).format(amount);
   };
 
-  // Group sales by driver for daily view
-  const salesByDriver = sales.reduce((acc, sale) => {
-    const key = sale.driverName || sale.saleType;
-    if (!acc[key]) {
-      acc[key] = { sales: [], totalBags: 0 };
+  // Apply filters to sales
+  const filteredSales = sales.filter(sale => {
+    // Driver filter
+    if (filterDriver !== 'all' && sale.driverName !== filterDriver) {
+      return false;
     }
-    acc[key].sales.push(sale);
-    acc[key].totalBags += sale.totalBags;
-    return acc;
-  }, {} as Record<string, { sales: ReceptionistSale[]; totalBags: number }>);
+    
+    // Sale type filter
+    if (filterSaleType !== 'all' && sale.saleType !== filterSaleType) {
+      return false;
+    }
+    
+    // Search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      return (
+        (sale.driverName && sale.driverName.toLowerCase().includes(search)) ||
+        sale.saleType.toLowerCase().includes(search) ||
+        sale.totalBags.toString().includes(search) ||
+        (sale.notes && sale.notes.toLowerCase().includes(search))
+      );
+    }
+    
+    return true;
+  });
+
+  // Apply filters to entries
+  const filteredEntries = entries.filter(entry => {
+    // Entry type filter
+    if (filterEntryType !== 'all' && entry.entryType !== filterEntryType) {
+      return false;
+    }
+    
+    // Driver/Packer filter
+    if (filterDriver !== 'all') {
+      if (entry.entryType === 'driver_pickup' && entry.driverName !== filterDriver) {
+        return false;
+      }
+      if (entry.entryType === 'packer_production' && entry.packerName !== filterDriver) {
+        return false;
+      }
+    }
+    
+    // Search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      return (
+        (entry.driverName && entry.driverName.toLowerCase().includes(search)) ||
+        (entry.packerName && entry.packerName.toLowerCase().includes(search)) ||
+        entry.entryType.toLowerCase().includes(search) ||
+        entry.bagsCount.toString().includes(search) ||
+        (entry.notes && entry.notes.toLowerCase().includes(search))
+      );
+    }
+    
+    return true;
+  });
+
+  // Apply filters to settlements
+  const filteredSettlements = settlements.filter(settlement => {
+    // Settlement status filter
+    if (filterSettlementStatus !== 'all') {
+      if (filterSettlementStatus === 'settled' && !settlement.isSettled) {
+        return false;
+      }
+      if (filterSettlementStatus === 'pending' && settlement.isSettled) {
+        return false;
+      }
+    }
+    
+    // Search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      const sale = sales.find(s => s.id === settlement.receptionistSaleId);
+      return (
+        settlement.expectedAmount.toString().includes(search) ||
+        settlement.settledAmount.toString().includes(search) ||
+        settlement.remainingBalance.toString().includes(search) ||
+        (sale && sale.driverName && sale.driverName.toLowerCase().includes(search))
+      );
+    }
+    
+    return true;
+  });
 
   return (
     <Box>
@@ -281,25 +404,206 @@ export default function ManagerDashboard() {
         </Box>
       </Box>
 
-      {/* Month Selector */}
+      {/* View Mode and Date Selector */}
       <Paper sx={{ p: 2, mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Button onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))}>
-            Previous Month
-          </Button>
-          <TextField
-            type="month"
-            value={format(selectedMonth, 'yyyy-MM')}
-            onChange={(e) => {
-              const [year, month] = e.target.value.split('-').map(Number);
-              setSelectedMonth(new Date(year, month - 1, 1));
-            }}
-            InputLabelProps={{ shrink: true }}
-          />
-          <Button onClick={() => setSelectedMonth(new Date())}>
-            Current Month
-          </Button>
-        </Box>
+        <Stack spacing={2}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, newMode) => {
+                if (newMode) setViewMode(newMode);
+              }}
+              size="small"
+            >
+              <ToggleButton value="month">Month</ToggleButton>
+              <ToggleButton value="day">Day</ToggleButton>
+              <ToggleButton value="range">Range</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+
+          {viewMode === 'month' && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Button onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))}>
+                Previous Month
+              </Button>
+              <TextField
+                type="month"
+                value={format(selectedMonth, 'yyyy-MM')}
+                onChange={(e) => {
+                  const [year, month] = e.target.value.split('-').map(Number);
+                  setSelectedMonth(new Date(year, month - 1, 1));
+                }}
+                InputLabelProps={{ shrink: true }}
+              />
+              <Button onClick={() => setSelectedMonth(new Date())}>
+                Current Month
+              </Button>
+            </Box>
+          )}
+
+          {viewMode === 'day' && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <IconButton onClick={() => setSelectedDate(subDays(selectedDate, 1))}>
+                <ChevronLeft />
+              </IconButton>
+              <TextField
+                type="date"
+                value={format(selectedDate, 'yyyy-MM-dd')}
+                onChange={(e) => {
+                  const date = new Date(e.target.value);
+                  setSelectedDate(date);
+                }}
+                InputLabelProps={{ shrink: true }}
+              />
+              <IconButton onClick={() => setSelectedDate(addDays(selectedDate, 1))}>
+                <ChevronRight />
+              </IconButton>
+              <Button onClick={() => setSelectedDate(new Date())}>
+                Today
+              </Button>
+            </Box>
+          )}
+
+          {viewMode === 'range' && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <TextField
+                label="Start Date"
+                type="date"
+                value={format(dateRange.start, 'yyyy-MM-dd')}
+                onChange={(e) => {
+                  setDateRange({ ...dateRange, start: new Date(e.target.value) });
+                }}
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label="End Date"
+                type="date"
+                value={format(dateRange.end, 'yyyy-MM-dd')}
+                onChange={(e) => {
+                  setDateRange({ ...dateRange, end: new Date(e.target.value) });
+                }}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Box>
+          )}
+        </Stack>
+      </Paper>
+
+      {/* Filters */}
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Stack spacing={2}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <FilterIcon />
+            <Typography variant="h6">Filters</Typography>
+          </Box>
+          
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Search"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                  ),
+                }}
+                placeholder="Search by name, type, amount..."
+              />
+            </Grid>
+
+            {tabValue === 0 && (
+              <>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Driver"
+                    select
+                    value={filterDriver}
+                    onChange={(e) => setFilterDriver(e.target.value)}
+                  >
+                    <MenuItem value="all">All Drivers</MenuItem>
+                    {employees.map((emp) => (
+                      <MenuItem key={emp.id} value={emp.name}>
+                        {emp.name}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Sale Type"
+                    select
+                    value={filterSaleType}
+                    onChange={(e) => setFilterSaleType(e.target.value)}
+                  >
+                    <MenuItem value="all">All Types</MenuItem>
+                    <MenuItem value="driver">Driver Sale</MenuItem>
+                    <MenuItem value="general">General Sales</MenuItem>
+                    <MenuItem value="mini_store">Mini Store</MenuItem>
+                  </TextField>
+                </Grid>
+              </>
+            )}
+
+            {tabValue === 1 && (
+              <>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Entry Type"
+                    select
+                    value={filterEntryType}
+                    onChange={(e) => setFilterEntryType(e.target.value)}
+                  >
+                    <MenuItem value="all">All Types</MenuItem>
+                    <MenuItem value="driver_pickup">Driver Pickup</MenuItem>
+                    <MenuItem value="general_sales">General Sales</MenuItem>
+                    <MenuItem value="ministore_pickup">Mini Store Pickup</MenuItem>
+                    <MenuItem value="packer_production">Packer Production</MenuItem>
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Driver/Packer"
+                    select
+                    value={filterDriver}
+                    onChange={(e) => setFilterDriver(e.target.value)}
+                  >
+                    <MenuItem value="all">All</MenuItem>
+                    {employees.map((emp) => (
+                      <MenuItem key={emp.id} value={emp.name}>
+                        {emp.name}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+              </>
+            )}
+
+            {tabValue === 2 && (
+              <Grid item xs={12} md={3}>
+                <TextField
+                  fullWidth
+                  label="Settlement Status"
+                  select
+                  value={filterSettlementStatus}
+                  onChange={(e) => setFilterSettlementStatus(e.target.value)}
+                >
+                  <MenuItem value="all">All</MenuItem>
+                  <MenuItem value="settled">Settled</MenuItem>
+                  <MenuItem value="pending">Pending</MenuItem>
+                </TextField>
+              </Grid>
+            )}
+          </Grid>
+        </Stack>
       </Paper>
 
       {/* Tabs */}
@@ -314,25 +618,83 @@ export default function ManagerDashboard() {
       {/* Receptionist Sales Tab */}
       {tabValue === 0 && (
         <Box>
-          <Typography variant="h6" gutterBottom>
-            Sales by Driver - {format(selectedMonth, 'MMMM yyyy')}
-          </Typography>
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Driver/Type</TableCell>
-                  <TableCell>Bags @ ₦{settings.salesPrice1}</TableCell>
-                  <TableCell>Bags @ ₦{settings.salesPrice2}</TableCell>
-                  <TableCell>Total Bags</TableCell>
-                  <TableCell>Expected Amount</TableCell>
-                  <TableCell>Settlement Status</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {sales.map((sale) => {
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+              Sales by Driver - {viewMode === 'month' ? format(selectedMonth, 'MMMM yyyy') : 
+                                 viewMode === 'day' ? format(selectedDate, 'MMM d, yyyy') : 
+                                 `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}`}
+            </Typography>
+            <Chip 
+              label={`${filteredSales.length} ${filteredSales.length === 1 ? 'entry' : 'entries'}`} 
+              color="primary" 
+              variant="outlined"
+            />
+          </Box>
+          
+          {/* Summary Cards */}
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={4}>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Total Sales
+                  </Typography>
+                  <Typography variant="h5">
+                    {filteredSales.length}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Total Bags
+                  </Typography>
+                  <Typography variant="h5">
+                    {filteredSales.reduce((sum, s) => sum + s.totalBags, 0).toLocaleString()}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Expected Amount
+                  </Typography>
+                  <Typography variant="h5">
+                    {formatCurrency(filteredSales.reduce((sum, s) => 
+                      sum + (s.bagsAtPrice1 * settings.salesPrice1) + (s.bagsAtPrice2 * settings.salesPrice2), 0))}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+          
+          {filteredSales.length === 0 ? (
+            <Paper sx={{ p: 4, textAlign: 'center' }}>
+              <Typography variant="h6" color="text.secondary">
+                No sales found matching the filters
+              </Typography>
+            </Paper>
+          ) : (
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Driver/Type</TableCell>
+                    <TableCell>Bags @ ₦{settings.salesPrice1}</TableCell>
+                    <TableCell>Bags @ ₦{settings.salesPrice2}</TableCell>
+                    <TableCell>Total Bags</TableCell>
+                    <TableCell>Expected Amount</TableCell>
+                    <TableCell>Settlement Status</TableCell>
+                    <TableCell>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredSales.map((sale) => {
                   const expectedAmount = (sale.bagsAtPrice1 * settings.salesPrice1) + 
                                        (sale.bagsAtPrice2 * settings.salesPrice2);
                   const settlement = settlements.find(s => s.receptionistSaleId === sale.id);
@@ -376,37 +738,83 @@ export default function ManagerDashboard() {
                       </TableCell>
                     </TableRow>
                   );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
         </Box>
       )}
 
       {/* Storekeeper Entries Tab */}
       {tabValue === 1 && (
         <Box>
-          <Typography variant="h6" gutterBottom>
-            Storekeeper Entries - {format(selectedMonth, 'MMMM yyyy')}
-          </Typography>
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell>Driver/Packer</TableCell>
-                  <TableCell>Bags</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {entries.map((entry) => (
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+              Storekeeper Entries - {viewMode === 'month' ? format(selectedMonth, 'MMMM yyyy') : 
+                                      viewMode === 'day' ? format(selectedDate, 'MMM d, yyyy') : 
+                                      `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}`}
+            </Typography>
+            <Chip 
+              label={`${filteredEntries.length} ${filteredEntries.length === 1 ? 'entry' : 'entries'}`} 
+              color="primary" 
+              variant="outlined"
+            />
+          </Box>
+          
+          {/* Summary Cards */}
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Total Entries
+                  </Typography>
+                  <Typography variant="h5">
+                    {filteredEntries.length}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Total Bags
+                  </Typography>
+                  <Typography variant="h5">
+                    {filteredEntries.reduce((sum, e) => sum + e.bagsCount, 0).toLocaleString()}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+          {filteredEntries.length === 0 ? (
+            <Paper sx={{ p: 4, textAlign: 'center' }}>
+              <Typography variant="h6" color="text.secondary">
+                No entries found matching the filters
+              </Typography>
+            </Paper>
+          ) : (
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Type</TableCell>
+                    <TableCell>Driver/Packer</TableCell>
+                    <TableCell>Bags</TableCell>
+                    <TableCell>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredEntries.map((entry) => (
                   <TableRow key={entry.id}>
                     <TableCell>{format(new Date(entry.date), 'MMM d, yyyy')}</TableCell>
                     <TableCell>
                       {entry.entryType === 'driver_pickup' ? 'Driver Pickup' :
-                       entry.entryType === 'general_sales' ? 'General Sales' : 'Packer Production'}
+                       entry.entryType === 'general_sales' ? 'General Sales' :
+                       entry.entryType === 'ministore_pickup' ? 'Mini Store Pickup' : 'Packer Production'}
                     </TableCell>
                     <TableCell>{entry.driverName || entry.packerName || 'N/A'}</TableCell>
                     <TableCell>{entry.bagsCount.toLocaleString()}</TableCell>
@@ -418,21 +826,78 @@ export default function ManagerDashboard() {
                       </Tooltip>
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
         </Box>
       )}
 
       {/* Settlements Tab */}
       {tabValue === 2 && (
         <Box>
-          <Typography variant="h6" gutterBottom>
-            Settlements - {format(selectedMonth, 'MMMM yyyy')}
-          </Typography>
-          <Grid container spacing={2}>
-            {settlements.map((settlement) => {
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+              Settlements - {viewMode === 'month' ? format(selectedMonth, 'MMMM yyyy') : 
+                             viewMode === 'day' ? format(selectedDate, 'MMM d, yyyy') : 
+                             `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}`}
+            </Typography>
+            <Chip 
+              label={`${filteredSettlements.length} ${filteredSettlements.length === 1 ? 'settlement' : 'settlements'}`} 
+              color="primary" 
+              variant="outlined"
+            />
+          </Box>
+          
+          {/* Summary Cards */}
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={4}>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Total Settlements
+                  </Typography>
+                  <Typography variant="h5">
+                    {filteredSettlements.length}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Total Settled
+                  </Typography>
+                  <Typography variant="h5">
+                    {formatCurrency(filteredSettlements.reduce((sum, s) => sum + s.settledAmount, 0))}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Remaining Balance
+                  </Typography>
+                  <Typography variant="h5" color={filteredSettlements.reduce((sum, s) => sum + s.remainingBalance, 0) > 0 ? 'error.main' : 'success.main'}>
+                    {formatCurrency(filteredSettlements.reduce((sum, s) => sum + s.remainingBalance, 0))}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+          {filteredSettlements.length === 0 ? (
+            <Paper sx={{ p: 4, textAlign: 'center' }}>
+              <Typography variant="h6" color="text.secondary">
+                No settlements found matching the filters
+              </Typography>
+            </Paper>
+          ) : (
+            <Grid container spacing={2}>
+              {filteredSettlements.map((settlement) => {
               const sale = sales.find(s => s.id === settlement.receptionistSaleId);
               return (
                 <Grid item xs={12} md={6} key={settlement.id}>
@@ -461,8 +926,9 @@ export default function ManagerDashboard() {
                   </Card>
                 </Grid>
               );
-            })}
-          </Grid>
+              })}
+            </Grid>
+          )}
         </Box>
       )}
 

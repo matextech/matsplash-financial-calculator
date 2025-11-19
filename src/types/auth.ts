@@ -6,6 +6,7 @@ export interface User {
   email?: string; // For director
   password?: string; // Hashed password
   pin?: string; // 4-6 digit PIN for phone-based login
+  pinResetRequired?: boolean; // True if user must change PIN on next login
   role: UserRole;
   name: string;
   twoFactorSecret?: string; // For 2FA (Director only)
@@ -21,5 +22,6 @@ export interface AuthSession {
   role: UserRole;
   token: string;
   expiresAt: Date;
+  pinResetRequired?: boolean; // True if user must change PIN
 }
 

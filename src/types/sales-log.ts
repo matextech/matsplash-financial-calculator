@@ -20,7 +20,7 @@ export interface ReceptionistSale {
 export interface StorekeeperEntry {
   id?: number;
   date: Date;
-  entryType: 'driver_pickup' | 'general_sales' | 'packer_production';
+  entryType: 'driver_pickup' | 'general_sales' | 'packer_production' | 'ministore_pickup';
   driverId?: number; // For driver pickup
   driverName?: string;
   packerId?: number; // For packer production

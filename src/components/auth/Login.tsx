@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -13,6 +13,7 @@ import {
 import { Visibility, VisibilityOff, Phone, Email, Lock } from '@mui/icons-material';
 import { authService } from '../../services/authService';
 import { useNavigate } from 'react-router-dom';
+import PinChangeDialog from './PinChangeDialog';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -23,6 +24,8 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [needs2FA, setNeeds2FA] = useState(false);
+  const [showPinChangeDialog, setShowPinChangeDialog] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,33 +33,66 @@ export default function Login() {
     setLoading(true);
 
     try {
+      console.log('Starting login process...');
       const session = await authService.login(identifier, passwordOrPin, needs2FA ? twoFactorCode : undefined);
+      console.log('Login successful, checking PIN reset requirement...', session);
       
-      // Navigate based on role
+      // Check if PIN reset is required
+      if (session.pinResetRequired) {
+        console.log('PIN reset required, showing dialog');
+        // Determine where to navigate after PIN change
+        let targetRoute = '/dashboard';
+        switch (session.role) {
+          case 'director':
+            targetRoute = '/dashboard';
+            break;
+          case 'manager':
+            targetRoute = '/manager';
+            break;
+          case 'receptionist':
+            targetRoute = '/receptionist';
+            break;
+          case 'storekeeper':
+            targetRoute = '/storekeeper';
+            break;
+        }
+        setPendingNavigation(targetRoute);
+        setShowPinChangeDialog(true);
+        setLoading(false);
+        return;
+      }
+      
+      // Navigate based on role if PIN reset not required
+      console.log('Navigating to dashboard...');
       switch (session.role) {
         case 'director':
-          navigate('/director');
+          console.log('Navigating to financial dashboard');
+          navigate('/dashboard');
           break;
         case 'manager':
+          console.log('Navigating to manager dashboard');
           navigate('/manager');
           break;
         case 'receptionist':
+          console.log('Navigating to receptionist dashboard');
           navigate('/receptionist');
           break;
         case 'storekeeper':
+          console.log('Navigating to storekeeper dashboard');
           navigate('/storekeeper');
           break;
         default:
+          console.log('Navigating to default dashboard');
           navigate('/dashboard');
       }
     } catch (err: any) {
+      console.error('Login failed:', err);
       if (err.message === '2FA code required') {
         setNeeds2FA(true);
         setError('Please enter your 2FA code');
       } else {
         setError(err.message || 'Invalid credentials');
       }
-    } finally {
       setLoading(false);
     }
   };
@@ -157,6 +193,24 @@ export default function Login() {
           </form>
         </CardContent>
       </Card>
+
+      <PinChangeDialog
+        open={showPinChangeDialog}
+        onClose={() => {
+          setShowPinChangeDialog(false);
+          setPendingNavigation(null);
+          // Logout user if they cancel PIN change
+          authService.logout();
+        }}
+        onSuccess={() => {
+          setShowPinChangeDialog(false);
+          if (pendingNavigation) {
+            navigate(pendingNavigation);
+          } else {
+            navigate('/dashboard');
+          }
+        }}
+      />
     </Box>
   );
 }

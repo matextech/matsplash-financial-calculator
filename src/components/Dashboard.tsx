@@ -56,6 +56,15 @@ export default function Dashboard() {
     };
   }, []);
 
+  // Add error boundary for dashboard loading
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      console.error('Dashboard error:', event.error);
+    };
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
+
   const loadDashboardData = async () => {
     try {
       setLoading(true);
@@ -108,7 +117,11 @@ export default function Dashboard() {
   };
 
   if (loading) {
-    return <Typography>Loading...</Typography>;
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+        <Typography variant="h6">Loading dashboard data...</Typography>
+      </Box>
+    );
   }
 
   const profitChange = todayReport && yesterdayReport

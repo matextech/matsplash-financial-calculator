@@ -25,8 +25,11 @@ import {
   Assessment as ReportsIcon,
   TrendingUp as CommissionsIcon,
   Settings as SettingsIcon,
+  AdminPanelSettings as ManagementIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { authService } from '../services/authService';
+import { Logout as LogoutIcon } from '@mui/icons-material';
 
 const drawerWidth = 240;
 
@@ -43,6 +46,7 @@ const menuItems = [
   { text: 'Materials', icon: <MaterialsIcon />, path: '/materials' },
   { text: 'Salaries', icon: <SalariesIcon />, path: '/salaries' },
   { text: 'Reports', icon: <ReportsIcon />, path: '/reports' },
+  { text: 'Management', icon: <ManagementIcon />, path: '/management' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
 ];
 
@@ -55,6 +59,11 @@ export default function Layout({ children }: LayoutProps) {
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
+  };
+
+  const handleLogout = () => {
+    authService.logout();
+    navigate('/login');
   };
 
   const drawer = (
@@ -102,9 +111,16 @@ export default function Layout({ children }: LayoutProps) {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div">
+          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             Financial Management System
           </Typography>
+          <IconButton
+            color="inherit"
+            onClick={handleLogout}
+            aria-label="logout"
+          >
+            <LogoutIcon />
+          </IconButton>
         </Toolbar>
       </AppBar>
       <Box

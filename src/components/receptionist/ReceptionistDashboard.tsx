@@ -144,7 +144,6 @@ export default function ReceptionistDashboard() {
       bagsAtPrice1: bags1,
       bagsAtPrice2: bags2,
       totalBags: totalBags,
-      submittedBy: session.userId,
       notes: formData.notes || undefined,
     };
 

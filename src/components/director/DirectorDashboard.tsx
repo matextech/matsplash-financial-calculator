@@ -27,6 +27,10 @@ import {
   Tooltip,
   Switch,
   FormControlLabel,
+  InputAdornment,
+  ToggleButton,
+  ToggleButtonGroup,
+  Stack,
 } from '@mui/material';
 import {
   Logout as LogoutIcon,
@@ -35,16 +39,25 @@ import {
   Add as AddIcon,
   PersonAdd as PersonAddIcon,
   Security as SecurityIcon,
+  Search as SearchIcon,
+  FilterList as FilterIcon,
+  ChevronLeft,
+  ChevronRight,
 } from '@mui/icons-material';
 import { User } from '../../types/auth';
 import { ReceptionistSale, StorekeeperEntry, Settlement, AuditLog } from '../../types/sales-log';
 import { Employee } from '../../types';
 import { dbService } from '../../services/database';
 import { authService } from '../../services/authService';
+import { apiService } from '../../services/apiService';
 import { useNavigate } from 'react-router-dom';
-import { format, startOfYear, endOfYear, subYears } from 'date-fns';
+import { format, startOfYear, endOfYear, subYears, startOfMonth, endOfMonth, startOfDay, endOfDay, addDays, subDays, isSameDay } from 'date-fns';
 
-export default function DirectorDashboard() {
+interface DirectorDashboardProps {
+  hideHeader?: boolean;
+}
+
+export default function DirectorDashboard({ hideHeader = false }: DirectorDashboardProps) {
   const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(0);
   const [subTabValue, setSubTabValue] = useState(0);
@@ -55,6 +68,21 @@ export default function DirectorDashboard() {
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [viewMode, setViewMode] = useState<'year' | 'month' | 'day' | 'range'>('year');
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
+    start: new Date(),
+    end: new Date(),
+  });
+  
+  // Filters
+  const [filterDriver, setFilterDriver] = useState<string>('all');
+  const [filterSaleType, setFilterSaleType] = useState<string>('all');
+  const [filterEntryType, setFilterEntryType] = useState<string>('all');
+  const [filterEntityType, setFilterEntityType] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  
   const [allUsers, setAllUsers] = useState<User[]>([]);
   
   // User management dialogs
@@ -83,19 +111,33 @@ export default function DirectorDashboard() {
 
   useEffect(() => {
     loadData();
-  }, [selectedYear, tabValue, subTabValue]);
+  }, [selectedYear, selectedMonth, selectedDate, dateRange, viewMode, tabValue, subTabValue]);
 
   const loadData = async () => {
     try {
-      const yearStart = new Date(selectedYear, 0, 1);
-      const yearEnd = new Date(selectedYear, 11, 31, 23, 59, 59);
+      let startDate: Date;
+      let endDate: Date;
+
+      if (viewMode === 'year') {
+        startDate = new Date(selectedYear, 0, 1);
+        endDate = new Date(selectedYear, 11, 31, 23, 59, 59);
+      } else if (viewMode === 'month') {
+        startDate = startOfMonth(selectedMonth);
+        endDate = endOfMonth(selectedMonth);
+      } else if (viewMode === 'day') {
+        startDate = startOfDay(selectedDate);
+        endDate = endOfDay(selectedDate);
+      } else {
+        startDate = startOfDay(dateRange.start);
+        endDate = endOfDay(dateRange.end);
+      }
 
       if (tabValue === 0) {
         // Main dashboard view
         const [salesData, entriesData, settlementsData] = await Promise.all([
-          dbService.getReceptionistSales(yearStart, yearEnd),
-          dbService.getStorekeeperEntries(yearStart, yearEnd),
-          dbService.getSettlements(yearStart, yearEnd),
+          dbService.getReceptionistSales(startDate, endDate),
+          dbService.getStorekeeperEntries(startDate, endDate),
+          dbService.getSettlements(startDate, endDate),
         ]);
         setSales(salesData);
         setEntries(entriesData);
@@ -110,7 +152,7 @@ export default function DirectorDashboard() {
         setEmployees(employeesData.filter(e => e.role === 'Driver' || e.role === 'Packers'));
       } else if (tabValue === 3) {
         // Audit logs
-        const logsData = await dbService.getAuditLogs(undefined, undefined, yearStart, yearEnd);
+        const logsData = await dbService.getAuditLogs(undefined, undefined, startDate, endDate);
         setAuditLogs(logsData);
       }
       
@@ -169,10 +211,25 @@ export default function DirectorDashboard() {
   };
 
   const handleResetPin = async (userId: number) => {
-    const newPin = Math.floor(1000 + Math.random() * 9000).toString();
-    await dbService.updateUser(userId, { pin: newPin });
-    alert(`New PIN: ${newPin}`);
-    await loadData();
+    try {
+      console.log('🔐 Resetting PIN for user:', userId);
+      
+      // Use API service to reset PIN
+      const response = await apiService.resetUserPin(userId);
+      
+      if (!response || !response.newPin) {
+        throw new Error('Failed to reset PIN. No PIN returned from server.');
+      }
+      
+      const newPin = response.newPin;
+      console.log('✅ PIN reset successful. New PIN:', newPin);
+      
+      alert(`✅ New temporary PIN generated: ${newPin}\n\nThis PIN is saved in the shared database and will work across all browsers and devices.\n\nPlease provide this PIN to the user. They will be required to set a new PIN when they log in.`);
+      await loadData();
+    } catch (error) {
+      console.error('❌ Error resetting PIN:', error);
+      alert(`Error resetting PIN: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const handleOpenEmployeeDialog = (employee?: Employee) => {
@@ -182,7 +239,7 @@ export default function DirectorDashboard() {
         name: employee.name,
         email: employee.email,
         phone: employee.phone || '',
-        role: employee.role || 'Driver',
+        role: (employee.role === 'Driver' || employee.role === 'Packers') ? employee.role : 'Driver',
       });
     } else {
       setEditingEmployee(null);
@@ -236,39 +293,312 @@ export default function DirectorDashboard() {
     }).format(amount);
   };
 
+  // Apply filters to sales
+  const filteredSales = sales.filter(sale => {
+    if (filterDriver !== 'all' && sale.driverName !== filterDriver) {
+      return false;
+    }
+    if (filterSaleType !== 'all' && sale.saleType !== filterSaleType) {
+      return false;
+    }
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      return (
+        (sale.driverName && sale.driverName.toLowerCase().includes(search)) ||
+        sale.saleType.toLowerCase().includes(search) ||
+        sale.totalBags.toString().includes(search) ||
+        (sale.notes && sale.notes.toLowerCase().includes(search))
+      );
+    }
+    return true;
+  });
+
+  // Apply filters to entries
+  const filteredEntries = entries.filter(entry => {
+    if (filterEntryType !== 'all' && entry.entryType !== filterEntryType) {
+      return false;
+    }
+    if (filterDriver !== 'all') {
+      if (entry.entryType === 'driver_pickup' && entry.driverName !== filterDriver) {
+        return false;
+      }
+      if (entry.entryType === 'packer_production' && entry.packerName !== filterDriver) {
+        return false;
+      }
+    }
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      return (
+        (entry.driverName && entry.driverName.toLowerCase().includes(search)) ||
+        (entry.packerName && entry.packerName.toLowerCase().includes(search)) ||
+        entry.entryType.toLowerCase().includes(search) ||
+        entry.bagsCount.toString().includes(search) ||
+        (entry.notes && entry.notes.toLowerCase().includes(search))
+      );
+    }
+    return true;
+  });
+
+  // Apply filters to audit logs
+  const filteredAuditLogs = auditLogs.filter(log => {
+    if (filterEntityType !== 'all' && log.entityType !== filterEntityType) {
+      return false;
+    }
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      return (
+        log.entityType.toLowerCase().includes(search) ||
+        log.action.toLowerCase().includes(search) ||
+        (log.field && log.field.toLowerCase().includes(search)) ||
+        (log.oldValue && log.oldValue.toString().toLowerCase().includes(search)) ||
+        (log.newValue && log.newValue.toString().toLowerCase().includes(search)) ||
+        (log.reason && log.reason.toLowerCase().includes(search))
+      );
+    }
+    return true;
+  });
+
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">Director Dashboard</Typography>
-        <Button
-          variant="outlined"
-          startIcon={<LogoutIcon />}
-          onClick={handleLogout}
-        >
-          Logout
-        </Button>
-      </Box>
-
-      {/* Year Selector */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Button onClick={() => setSelectedYear(selectedYear - 1)}>
-            Previous Year
-          </Button>
-          <TextField
-            type="number"
-            label="Year"
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 120 }}
-          />
-          <Button onClick={() => setSelectedYear(new Date().getFullYear())}>
-            Current Year
+      {!hideHeader && (
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h4">Director Dashboard</Typography>
+          <Button
+            variant="outlined"
+            startIcon={<LogoutIcon />}
+            onClick={handleLogout}
+          >
+            Logout
           </Button>
         </Box>
+      )}
+
+      {/* View Mode and Date Selector */}
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Stack spacing={2}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, newMode) => {
+                if (newMode) setViewMode(newMode);
+              }}
+              size="small"
+            >
+              <ToggleButton value="year">Year</ToggleButton>
+              <ToggleButton value="month">Month</ToggleButton>
+              <ToggleButton value="day">Day</ToggleButton>
+              <ToggleButton value="range">Range</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+
+          {viewMode === 'year' && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Button onClick={() => setSelectedYear(selectedYear - 1)}>
+                Previous Year
+              </Button>
+              <TextField
+                type="number"
+                label="Year"
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                InputLabelProps={{ shrink: true }}
+                sx={{ width: 120 }}
+              />
+              <Button onClick={() => setSelectedYear(new Date().getFullYear())}>
+                Current Year
+              </Button>
+            </Box>
+          )}
+
+          {viewMode === 'month' && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Button onClick={() => setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1))}>
+                Previous Month
+              </Button>
+              <TextField
+                type="month"
+                value={format(selectedMonth, 'yyyy-MM')}
+                onChange={(e) => {
+                  const [year, month] = e.target.value.split('-').map(Number);
+                  setSelectedMonth(new Date(year, month - 1, 1));
+                }}
+                InputLabelProps={{ shrink: true }}
+              />
+              <Button onClick={() => setSelectedMonth(new Date())}>
+                Current Month
+              </Button>
+            </Box>
+          )}
+
+          {viewMode === 'day' && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <IconButton onClick={() => setSelectedDate(subDays(selectedDate, 1))}>
+                <ChevronLeft />
+              </IconButton>
+              <TextField
+                type="date"
+                value={format(selectedDate, 'yyyy-MM-dd')}
+                onChange={(e) => {
+                  const date = new Date(e.target.value);
+                  setSelectedDate(date);
+                }}
+                InputLabelProps={{ shrink: true }}
+              />
+              <IconButton onClick={() => setSelectedDate(addDays(selectedDate, 1))}>
+                <ChevronRight />
+              </IconButton>
+              <Button onClick={() => setSelectedDate(new Date())}>
+                Today
+              </Button>
+            </Box>
+          )}
+
+          {viewMode === 'range' && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <TextField
+                label="Start Date"
+                type="date"
+                value={format(dateRange.start, 'yyyy-MM-dd')}
+                onChange={(e) => {
+                  setDateRange({ ...dateRange, start: new Date(e.target.value) });
+                }}
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                label="End Date"
+                type="date"
+                value={format(dateRange.end, 'yyyy-MM-dd')}
+                onChange={(e) => {
+                  setDateRange({ ...dateRange, end: new Date(e.target.value) });
+                }}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Box>
+          )}
+        </Stack>
       </Paper>
+
+      {/* Filters */}
+      {(tabValue === 0 || tabValue === 3) && (
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <Stack spacing={2}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <FilterIcon />
+              <Typography variant="h6">Filters</Typography>
+            </Box>
+            
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Search"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                  placeholder="Search..."
+                />
+              </Grid>
+
+              {tabValue === 0 && subTabValue === 1 && (
+                <>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      fullWidth
+                      label="Driver"
+                      select
+                      value={filterDriver}
+                      onChange={(e) => setFilterDriver(e.target.value)}
+                    >
+                      <MenuItem value="all">All Drivers</MenuItem>
+                      {employees.filter(e => e.role === 'Driver').map((emp) => (
+                        <MenuItem key={emp.id} value={emp.name}>
+                          {emp.name}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      fullWidth
+                      label="Sale Type"
+                      select
+                      value={filterSaleType}
+                      onChange={(e) => setFilterSaleType(e.target.value)}
+                    >
+                      <MenuItem value="all">All Types</MenuItem>
+                      <MenuItem value="driver">Driver Sale</MenuItem>
+                      <MenuItem value="general">General Sales</MenuItem>
+                      <MenuItem value="mini_store">Mini Store</MenuItem>
+                    </TextField>
+                  </Grid>
+                </>
+              )}
+
+              {tabValue === 0 && subTabValue === 2 && (
+                <>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      fullWidth
+                      label="Entry Type"
+                      select
+                      value={filterEntryType}
+                      onChange={(e) => setFilterEntryType(e.target.value)}
+                    >
+                      <MenuItem value="all">All Types</MenuItem>
+                      <MenuItem value="driver_pickup">Driver Pickup</MenuItem>
+                      <MenuItem value="general_sales">General Sales</MenuItem>
+                      <MenuItem value="ministore_pickup">Mini Store Pickup</MenuItem>
+                      <MenuItem value="packer_production">Packer Production</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} md={3}>
+                    <TextField
+                      fullWidth
+                      label="Driver/Packer"
+                      select
+                      value={filterDriver}
+                      onChange={(e) => setFilterDriver(e.target.value)}
+                    >
+                      <MenuItem value="all">All</MenuItem>
+                      {employees.map((emp) => (
+                        <MenuItem key={emp.id} value={emp.name}>
+                          {emp.name}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                </>
+              )}
+
+              {tabValue === 3 && (
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Entity Type"
+                    select
+                    value={filterEntityType}
+                    onChange={(e) => setFilterEntityType(e.target.value)}
+                  >
+                    <MenuItem value="all">All Types</MenuItem>
+                    <MenuItem value="receptionist_sale">Receptionist Sale</MenuItem>
+                    <MenuItem value="storekeeper_entry">Storekeeper Entry</MenuItem>
+                    <MenuItem value="settlement">Settlement</MenuItem>
+                    <MenuItem value="user">User</MenuItem>
+                  </TextField>
+                </Grid>
+              )}
+            </Grid>
+          </Stack>
+        </Paper>
+      )}
 
       {/* Main Tabs */}
       <Paper sx={{ mb: 3 }}>
@@ -294,14 +624,17 @@ export default function DirectorDashboard() {
           {subTabValue === 0 && (
             <Box>
               <Typography variant="h6" gutterBottom>
-                Manager View - {selectedYear}
+                Manager View - {viewMode === 'year' ? selectedYear : 
+                                viewMode === 'month' ? format(selectedMonth, 'MMMM yyyy') : 
+                                viewMode === 'day' ? format(selectedDate, 'MMM d, yyyy') : 
+                                `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}`}
               </Typography>
               <Grid container spacing={2} sx={{ mb: 3 }}>
                 <Grid item xs={12} md={4}>
                   <Card>
                     <CardContent>
                       <Typography variant="h6">Total Sales</Typography>
-                      <Typography variant="h4">{sales.length}</Typography>
+                      <Typography variant="h4">{filteredSales.length}</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
@@ -343,7 +676,7 @@ export default function DirectorDashboard() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {sales.map((sale) => (
+                    {filteredSales.map((sale) => (
                       <TableRow key={sale.id}>
                         <TableCell>{format(new Date(sale.date), 'MMM d, yyyy')}</TableCell>
                         <TableCell>{sale.saleType}</TableCell>
@@ -359,31 +692,56 @@ export default function DirectorDashboard() {
 
           {subTabValue === 2 && (
             <Box>
-              <Typography variant="h6" gutterBottom>
-                Storekeeper Entries - {selectedYear}
-              </Typography>
-              <TableContainer component={Paper}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Date</TableCell>
-                      <TableCell>Type</TableCell>
-                      <TableCell>Driver/Packer</TableCell>
-                      <TableCell>Bags</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {entries.map((entry) => (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">
+                  Storekeeper Entries - {viewMode === 'year' ? selectedYear : 
+                                          viewMode === 'month' ? format(selectedMonth, 'MMMM yyyy') : 
+                                          viewMode === 'day' ? format(selectedDate, 'MMM d, yyyy') : 
+                                          `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}`}
+                </Typography>
+                <Chip 
+                  label={`${filteredEntries.length} ${filteredEntries.length === 1 ? 'entry' : 'entries'}`} 
+                  color="primary" 
+                  variant="outlined"
+                />
+              </Box>
+              {filteredEntries.length === 0 ? (
+                <Paper sx={{ p: 4, textAlign: 'center' }}>
+                  <Typography variant="h6" color="text.secondary">
+                    No entries found matching the filters
+                  </Typography>
+                </Paper>
+              ) : (
+                <TableContainer component={Paper}>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Date</TableCell>
+                        <TableCell>Type</TableCell>
+                        <TableCell>Driver/Packer</TableCell>
+                        <TableCell>Bags</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {filteredEntries.map((entry) => (
                       <TableRow key={entry.id}>
                         <TableCell>{format(new Date(entry.date), 'MMM d, yyyy')}</TableCell>
-                        <TableCell>{entry.entryType}</TableCell>
-                        <TableCell>{entry.driverName || entry.packerName || 'N/A'}</TableCell>
+                        <TableCell>
+                          {entry.entryType === 'driver_pickup' ? 'Driver Pickup' :
+                           entry.entryType === 'general_sales' ? 'General Sales' :
+                           entry.entryType === 'ministore_pickup' ? 'Mini Store Pickup' : 'Packer Production'}
+                        </TableCell>
+                        <TableCell>
+                          {entry.entryType === 'ministore_pickup' ? 'Mini Store' : 
+                           entry.driverName || entry.packerName || 'N/A'}
+                        </TableCell>
                         <TableCell>{entry.bagsCount.toLocaleString()}</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
             </Box>
           )}
         </Box>
@@ -509,41 +867,59 @@ export default function DirectorDashboard() {
       {/* Audit Logs Tab */}
       {tabValue === 3 && (
         <Box>
-          <Typography variant="h6" gutterBottom>
-            Audit Logs - {selectedYear}
-          </Typography>
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Entity</TableCell>
-                  <TableCell>Action</TableCell>
-                  <TableCell>Field</TableCell>
-                  <TableCell>Old Value</TableCell>
-                  <TableCell>New Value</TableCell>
-                  <TableCell>Changed By</TableCell>
-                  <TableCell>Reason</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {auditLogs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell>{format(new Date(log.changedAt), 'MMM d, yyyy HH:mm')}</TableCell>
-                    <TableCell>{log.entityType}</TableCell>
-                    <TableCell>{log.action}</TableCell>
-                    <TableCell>{log.field || 'N/A'}</TableCell>
-                    <TableCell>{log.oldValue || 'N/A'}</TableCell>
-                    <TableCell>{log.newValue || 'N/A'}</TableCell>
-                    <TableCell>
-                      {allUsers.find(u => u.id === log.changedBy)?.name || `User ${log.changedBy}`}
-                    </TableCell>
-                    <TableCell>{log.reason || 'N/A'}</TableCell>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+              Audit Logs - {viewMode === 'year' ? selectedYear : 
+                            viewMode === 'month' ? format(selectedMonth, 'MMMM yyyy') : 
+                            viewMode === 'day' ? format(selectedDate, 'MMM d, yyyy') : 
+                            `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}`}
+            </Typography>
+            <Chip 
+              label={`${filteredAuditLogs.length} ${filteredAuditLogs.length === 1 ? 'log' : 'logs'}`} 
+              color="primary" 
+              variant="outlined"
+            />
+          </Box>
+          {filteredAuditLogs.length === 0 ? (
+            <Paper sx={{ p: 4, textAlign: 'center' }}>
+              <Typography variant="h6" color="text.secondary">
+                No audit logs found matching the filters
+              </Typography>
+            </Paper>
+          ) : (
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Entity</TableCell>
+                    <TableCell>Action</TableCell>
+                    <TableCell>Field</TableCell>
+                    <TableCell>Old Value</TableCell>
+                    <TableCell>New Value</TableCell>
+                    <TableCell>Changed By</TableCell>
+                    <TableCell>Reason</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                </TableHead>
+                <TableBody>
+                  {filteredAuditLogs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell>{format(new Date(log.changedAt), 'MMM d, yyyy HH:mm')}</TableCell>
+                      <TableCell>{log.entityType}</TableCell>
+                      <TableCell>{log.action}</TableCell>
+                      <TableCell>{log.field || 'N/A'}</TableCell>
+                      <TableCell>{log.oldValue || 'N/A'}</TableCell>
+                      <TableCell>{log.newValue || 'N/A'}</TableCell>
+                      <TableCell>
+                        {allUsers.find(u => u.id === log.changedBy)?.name || `User ${log.changedBy}`}
+                      </TableCell>
+                      <TableCell>{log.reason || 'N/A'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
         </Box>
       )}
 

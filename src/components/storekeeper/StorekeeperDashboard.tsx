@@ -42,7 +42,7 @@ export default function StorekeeperDashboard() {
   
   const [formData, setFormData] = useState({
     date: new Date(),
-    entryType: 'driver_pickup' as 'driver_pickup' | 'general_sales' | 'packer_production',
+    entryType: 'driver_pickup' as 'driver_pickup' | 'general_sales' | 'packer_production' | 'ministore_pickup',
     driverId: '',
     packerId: '',
     bagsCount: '',
@@ -110,6 +110,8 @@ export default function StorekeeperDashboard() {
       return;
     }
 
+    // Ministore pickup doesn't require driver or packer selection
+
     const session = authService.getCurrentSession();
     if (!session) {
       alert('Session expired. Please login again.');
@@ -128,7 +130,6 @@ export default function StorekeeperDashboard() {
       packerId: formData.entryType === 'packer_production' ? parseInt(formData.packerId) : undefined,
       packerName: formData.entryType === 'packer_production' && selectedPacker ? selectedPacker.name : undefined,
       bagsCount: bagsCount,
-      submittedBy: session.userId,
       notes: formData.notes || undefined,
     };
 
@@ -205,6 +206,8 @@ export default function StorekeeperDashboard() {
         return 'General Sales';
       case 'packer_production':
         return 'Packer Production';
+      case 'ministore_pickup':
+        return 'Mini Store Pickup';
       default:
         return type;
     }
@@ -308,7 +311,8 @@ export default function StorekeeperDashboard() {
                         {getEntryTypeLabel(entry.entryType)}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {entry.driverName || entry.packerName || 'N/A'}
+                        {entry.entryType === 'ministore_pickup' ? 'Mini Store' : 
+                         entry.driverName || entry.packerName || 'N/A'}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         {format(new Date(entry.date), 'MMM d, yyyy')}
@@ -377,6 +381,7 @@ export default function StorekeeperDashboard() {
             >
               <MenuItem value="driver_pickup">Driver Pickup</MenuItem>
               <MenuItem value="general_sales">General Sales</MenuItem>
+              <MenuItem value="ministore_pickup">Mini Store Pickup</MenuItem>
               <MenuItem value="packer_production">Packer Production</MenuItem>
             </TextField>
 
@@ -460,7 +465,8 @@ export default function StorekeeperDashboard() {
                 <strong>Type:</strong> {getEntryTypeLabel(pendingEntry.entryType)}
               </Typography>
               <Typography variant="body2" gutterBottom>
-                <strong>Person:</strong> {pendingEntry.driverName || pendingEntry.packerName || 'N/A'}
+                <strong>Person:</strong> {pendingEntry.entryType === 'ministore_pickup' ? 'Mini Store' : 
+                                         pendingEntry.driverName || pendingEntry.packerName || 'N/A'}
               </Typography>
               <Typography variant="h6" sx={{ mt: 2 }}>
                 <strong>Bags:</strong> {pendingEntry.bagsCount.toLocaleString()}
