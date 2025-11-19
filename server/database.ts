@@ -265,8 +265,8 @@ async function initializeDefaultUsers(): Promise<void> {
       phone: '08000000000',
       password: 'admin123', // In production, hash this
       role: 'director',
-      two_factor_enabled: false,
-      is_active: true
+      two_factor_enabled: 0, // SQLite uses 0/1
+      is_active: 1 // SQLite uses 0/1
     });
     
     // Manager
@@ -277,8 +277,8 @@ async function initializeDefaultUsers(): Promise<void> {
       phone: '08012345678',
       pin_hash: managerPinHash,
       role: 'manager',
-      two_factor_enabled: false,
-      is_active: true
+      two_factor_enabled: 0, // SQLite uses 0/1
+      is_active: 1 // SQLite uses 0/1
     });
     
     // Receptionist
@@ -289,8 +289,8 @@ async function initializeDefaultUsers(): Promise<void> {
       phone: '08012345679',
       pin_hash: receptionistPinHash,
       role: 'receptionist',
-      two_factor_enabled: false,
-      is_active: true
+      two_factor_enabled: 0, // SQLite uses 0/1
+      is_active: 1 // SQLite uses 0/1
     });
     
     // Storekeeper
@@ -301,8 +301,8 @@ async function initializeDefaultUsers(): Promise<void> {
       phone: '08012345680',
       pin_hash: storekeeperPinHash,
       role: 'storekeeper',
-      two_factor_enabled: false,
-      is_active: true
+      two_factor_enabled: 0, // SQLite uses 0/1
+      is_active: 1 // SQLite uses 0/1
     });
     
     // Initialize default settings (only if none exist)

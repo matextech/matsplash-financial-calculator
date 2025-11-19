@@ -43,6 +43,12 @@ class ApiService {
     });
 
     const data = await response.json();
+    
+    // Check if response was successful
+    if (!response.ok) {
+      throw new Error(data.message || 'Invalid credentials');
+    }
+    
     if (data.success && data.token) {
       localStorage.setItem('authToken', data.token);
       localStorage.setItem('currentUser', JSON.stringify(data.user));
