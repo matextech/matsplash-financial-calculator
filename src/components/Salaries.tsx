@@ -98,11 +98,57 @@ export default function Salaries() {
     loadEmployees();
   }, []);
 
+  // Reload payments when switching to day/range view
+  useEffect(() => {
+    if (viewMode === 'day' || viewMode === 'range') {
+      loadPayments();
+      // Reset selected cycle when leaving cycles view
+      setSelectedCycle(null);
+    }
+  }, [viewMode]);
+
   useEffect(() => {
     if (viewMode === 'cycles') {
       loadPaymentCycles();
     }
   }, [viewMode, employees, payments]);
+
+  // Determine current cycle based on today's date
+  useEffect(() => {
+    if (viewMode === 'cycles' && paymentCycles.length > 0 && !selectedCycle) {
+      const today = new Date();
+      const currentDay = today.getDate();
+      const currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      
+      // If we're past the 15th, we're in the second period of current month
+      // If we're before the 15th, we're in the first period of current month
+      let defaultCycle: { period: 'first' | 'second'; month: Date } | null = null;
+      
+      if (currentDay <= 15) {
+        // First period (1st-15th, paid on 18th)
+        defaultCycle = { period: 'first', month: currentMonth };
+      } else {
+        // Second period (16th-end, paid on 5th of next month)
+        defaultCycle = { period: 'second', month: currentMonth };
+      }
+      
+      // Check if this cycle exists in paymentCycles
+      const cycleExists = paymentCycles.some(cycle => {
+        const cycleMonth = new Date(cycle.workStart.getFullYear(), cycle.workStart.getMonth(), 1);
+        return cycle.period === defaultCycle?.period && 
+               cycleMonth.getTime() === defaultCycle.month.getTime();
+      });
+      
+      if (cycleExists && defaultCycle) {
+        setSelectedCycle(defaultCycle);
+      } else if (paymentCycles.length > 0) {
+        // Fallback to first available cycle
+        const firstCycle = paymentCycles[0];
+        const firstCycleMonth = new Date(firstCycle.workStart.getFullYear(), firstCycle.workStart.getMonth(), 1);
+        setSelectedCycle({ period: firstCycle.period, month: firstCycleMonth });
+      }
+    }
+  }, [viewMode, paymentCycles]);
 
   const loadPayments = async () => {
     const data = await dbService.getSalaryPayments();
@@ -150,9 +196,10 @@ export default function Salaries() {
     const today = new Date();
     const currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const previousMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
     
-    // Get cycles for current and previous month (to see pending payments)
-    const months = [previousMonth, currentMonth];
+    // Get cycles for previous, current, and next month (to see all available cycles)
+    const months = [previousMonth, currentMonth, nextMonth];
     const cycles: PaymentCycleData[] = [];
     
     for (const month of months) {
@@ -164,7 +211,8 @@ export default function Salaries() {
         
         for (const employee of employees) {
           if (!employee.id) continue;
-          if (employee.salaryType !== 'commission' && employee.salaryType !== 'both') continue;
+          // Include all employees with fixed or commission salaries
+          if (employee.salaryType !== 'commission' && employee.salaryType !== 'both' && employee.salaryType !== 'fixed') continue;
           
           // Get sales for this period
           const commissionInfo = await FinancialCalculator.calculateCommissionFromSales(
@@ -192,7 +240,8 @@ export default function Salaries() {
             p.periodEnd.getTime() === cycle.workEnd.getTime()
           );
           
-          if (commissionInfo.totalBags > 0 || fixedAmount > 0) {
+          // Include employee if they have sales, fixed salary, or existing payment
+          if (commissionInfo.totalBags > 0 || fixedAmount > 0 || existingPayment) {
             cycleEmployees.push({
               employee,
               totalBags: commissionInfo.totalBags,
@@ -509,7 +558,42 @@ export default function Salaries() {
             </Typography>
           </Alert>
 
-          {paymentCycles.map((cycle, idx) => {
+          {/* Cycle Selector */}
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+              <Typography variant="body1" fontWeight="medium">
+                Select Payment Cycle:
+              </Typography>
+              <TextField
+                select
+                value={selectedCycle ? `${selectedCycle.period}-${selectedCycle.month.getTime()}` : ''}
+                onChange={(e) => {
+                  const [period, monthTime] = e.target.value.split('-');
+                  const month = new Date(parseInt(monthTime));
+                  setSelectedCycle({ period: period as 'first' | 'second', month });
+                }}
+                sx={{ minWidth: 300 }}
+                size="small"
+              >
+                {paymentCycles.map((cycle, idx) => {
+                  const cycleMonth = new Date(cycle.workStart.getFullYear(), cycle.workStart.getMonth(), 1);
+                  const value = `${cycle.period}-${cycleMonth.getTime()}`;
+                  const label = `${cycle.period === 'first' ? 'Period 1' : 'Period 2'}: ${format(cycle.workStart, 'MMM d')} - ${format(cycle.workEnd, 'MMM d, yyyy')} (Pay: ${format(cycle.payDate, 'MMM d, yyyy')})`;
+                  return (
+                    <MenuItem key={idx} value={value}>
+                      {label}
+                    </MenuItem>
+                  );
+                })}
+              </TextField>
+            </Box>
+          </Paper>
+
+          {selectedCycle && paymentCycles.filter(cycle => {
+            const cycleMonth = new Date(cycle.workStart.getFullYear(), cycle.workStart.getMonth(), 1);
+            return cycle.period === selectedCycle.period && 
+                   cycleMonth.getTime() === selectedCycle.month.getTime();
+          }).map((cycle, idx) => {
             const isPastDue = cycle.payDate < new Date() && cycle.employees.some(e => !e.isPaid);
             const pendingCount = cycle.employees.filter(e => !e.isPaid).length;
             const totalPending = cycle.employees.filter(e => !e.isPaid).reduce((sum, e) => sum + e.totalAmount, 0);
@@ -658,6 +742,20 @@ export default function Salaries() {
               </Card>
             );
           })}
+          {selectedCycle && paymentCycles.filter(cycle => {
+            const cycleMonth = new Date(cycle.workStart.getFullYear(), cycle.workStart.getMonth(), 1);
+            return cycle.period === selectedCycle.period && 
+                   cycleMonth.getTime() === selectedCycle.month.getTime();
+          }).length === 0 && (
+            <Paper sx={{ p: 4, textAlign: 'center' }}>
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                No cycle selected
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Please select a payment cycle from the dropdown above
+              </Typography>
+            </Paper>
+          )}
         </Box>
       )}
 
@@ -930,7 +1028,7 @@ export default function Salaries() {
             </Box>
           </Paper>
 
-          {/* Same filters and display as day view */}
+          {/* Filters */}
           <Paper sx={{ p: 2, mb: 3 }}>
             <Grid container spacing={2} alignItems="center">
               <Grid item xs={12} sm={6} md={3}>
@@ -941,6 +1039,13 @@ export default function Salaries() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Employee name, amount..."
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SalaryIcon fontSize="small" />
+                      </InputAdornment>
+                    ),
+                  }}
                 />
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
@@ -960,13 +1065,98 @@ export default function Salaries() {
                   ))}
                 </TextField>
               </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  label="Filter by Period"
+                  fullWidth
+                  select
+                  size="small"
+                  value={filterPeriod}
+                  onChange={(e) => setFilterPeriod(e.target.value)}
+                >
+                  <MenuItem value="all">All Periods</MenuItem>
+                  <MenuItem value="first_half">First Half (1st-15th)</MenuItem>
+                  <MenuItem value="second_half">Second Half (16th-end)</MenuItem>
+                  <MenuItem value="daily">Daily</MenuItem>
+                  <MenuItem value="weekly">Weekly</MenuItem>
+                  <MenuItem value="monthly">Monthly</MenuItem>
+                </TextField>
+              </Grid>
+              {(searchTerm || filterEmployee !== 'all' || filterPeriod !== 'all') && (
+                <Grid item xs={12} sm={6} md={3}>
+                  <Button
+                    variant="outlined"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setFilterEmployee('all');
+                      setFilterPeriod('all');
+                    }}
+                    fullWidth
+                  >
+                    Clear Filters
+                  </Button>
+                </Grid>
+              )}
             </Grid>
           </Paper>
 
+          {/* Summary Cards */}
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={6} md={4}>
+              <Card sx={{ backgroundColor: 'primary.light', color: 'primary.contrastText' }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Total Salaries
+                  </Typography>
+                  <Typography variant="h4">
+                    {formatCurrency(totalSalaries)}
+                  </Typography>
+                  <Typography variant="body2">
+                    {currentPayments.length} payment{currentPayments.length !== 1 ? 's' : ''}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <Card sx={{ backgroundColor: 'info.light', color: 'info.contrastText' }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Fixed Salaries
+                  </Typography>
+                  <Typography variant="h4">
+                    {formatCurrency(totalFixed)}
+                  </Typography>
+                  <Typography variant="body2">
+                    Fixed salary payments
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <Card sx={{ backgroundColor: 'success.light', color: 'success.contrastText' }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Commissions
+                  </Typography>
+                  <Typography variant="h4">
+                    {formatCurrency(totalCommission)}
+                  </Typography>
+                  <Typography variant="body2">
+                    Commission payments
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          {/* Payment List */}
           {currentPayments.length === 0 ? (
             <Paper sx={{ p: 4, textAlign: 'center' }}>
-              <Typography variant="h6" color="text.secondary">
-                No payments found in the selected date range
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                No payments found
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                No payments recorded in the selected date range
               </Typography>
             </Paper>
           ) : (
@@ -975,20 +1165,78 @@ export default function Salaries() {
                 <Grid item xs={12} md={6} key={payment.id}>
                   <Card>
                     <CardContent>
-                      <Typography variant="h6">{payment.employeeName}</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {format(new Date(payment.paidDate), 'MMM d, yyyy')}
-                      </Typography>
-                      <Typography variant="h5" color="success.main" sx={{ mt: 1 }}>
-                        {formatCurrency(payment.totalAmount)}
-                      </Typography>
-                      <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-                        <IconButton size="small" onClick={() => handleOpen(payment)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton size="small" onClick={() => payment.id && handleDelete(payment.id)} color="error">
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                        <PersonIcon sx={{ mr: 1, color: 'primary.main' }} />
+                        <Typography variant="h6" sx={{ flexGrow: 1 }}>
+                          {payment.employeeName}
+                        </Typography>
+                        <Chip 
+                          label={payment.period}
+                          size="small"
+                          color="primary"
+                        />
+                      </Box>
+                      
+                      <Box sx={{ mb: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            Period
+                          </Typography>
+                          <Typography variant="body2">
+                            {format(new Date(payment.periodStart), 'MMM d')} - {format(new Date(payment.periodEnd), 'MMM d, yyyy')}
+                          </Typography>
+                        </Box>
+                        {payment.fixedAmount && (
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                            <Typography variant="body2" color="text.secondary">
+                              Fixed Salary
+                            </Typography>
+                            <Typography variant="body2">
+                              {formatCurrency(payment.fixedAmount)}
+                            </Typography>
+                          </Box>
+                        )}
+                        {payment.commissionAmount && (
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                            <Typography variant="body2" color="text.secondary">
+                              Commission ({payment.totalBags} bags)
+                            </Typography>
+                            <Typography variant="body2">
+                              {formatCurrency(payment.commissionAmount)}
+                            </Typography>
+                          </Box>
+                        )}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2, pt: 1, borderTop: 1, borderColor: 'divider' }}>
+                          <Typography variant="body1" fontWeight="bold">
+                            Total Amount
+                          </Typography>
+                          <Typography variant="h6" color="success.main" fontWeight="bold">
+                            {formatCurrency(payment.totalAmount)}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Paid: {format(new Date(payment.paidDate), 'MMM d, yyyy')}
+                          </Typography>
+                        </Box>
+                        {payment.notes && (
+                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                            {payment.notes}
+                          </Typography>
+                        )}
+                      </Box>
+
+                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                        <Tooltip title="Edit">
+                          <IconButton size="small" onClick={() => handleOpen(payment)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                          <IconButton size="small" onClick={() => payment.id && handleDelete(payment.id)} color="error">
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                       </Box>
                     </CardContent>
                   </Card>

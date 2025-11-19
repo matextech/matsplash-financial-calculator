@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Box, Grid, Paper, Typography, Card, CardContent, Button, SpeedDial, SpeedDialAction, SpeedDialIcon, Fab } from '@mui/material';
+import { Box, Grid, Paper, Typography, Card, CardContent, Button, SpeedDial, SpeedDialAction, SpeedDialIcon, Fab, Alert, Chip } from '@mui/material';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -10,22 +10,50 @@ import {
   Add as AddIcon,
   AttachMoney as MoneyIcon,
   Inventory as MaterialsIcon,
-  AccountBalance as SalariesIcon
+  AccountBalance as SalariesIcon,
+  Warning as WarningIcon,
+  CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { FinancialCalculator } from '../services/financialCalculator';
 import { FinancialReport } from '../types';
+import { InventoryService, InventoryStatus } from '../services/inventoryService';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [todayReport, setTodayReport] = useState<FinancialReport | null>(null);
   const [yesterdayReport, setYesterdayReport] = useState<FinancialReport | null>(null);
+  const [inventoryStatus, setInventoryStatus] = useState<InventoryStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [speedDialOpen, setSpeedDialOpen] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
+    // Reload inventory when component mounts or when navigating back
+    const interval = setInterval(() => {
+      loadInventoryStatus();
+    }, 30000); // Refresh every 30 seconds
+
+    // Refresh when window gains focus (user returns to tab)
+    const handleFocus = () => {
+      loadInventoryStatus();
+      loadDashboardData(); // Also refresh expense data
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Listen for expense updates
+    const handleExpensesUpdated = () => {
+      console.log('Expenses updated, refreshing dashboard...');
+      loadDashboardData();
+    };
+    window.addEventListener('expensesUpdated', handleExpensesUpdated);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('expensesUpdated', handleExpensesUpdated);
+    };
   }, []);
 
   const loadDashboardData = async () => {
@@ -44,12 +72,30 @@ export default function Dashboard() {
         FinancialCalculator.generateReport('daily', yesterdayStart, yesterdayEnd)
       ]);
 
+      console.log('Dashboard - Today Report:', todayData);
+      console.log('Dashboard - Expense Breakdown:', {
+        fuelCosts: todayData.fuelCosts,
+        driverPayments: todayData.driverPayments,
+        materialCosts: todayData.materialCosts,
+        totalSalaries: todayData.totalSalaries
+      });
+
       setTodayReport(todayData);
       setYesterdayReport(yesterdayData);
+      await loadInventoryStatus();
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadInventoryStatus = async () => {
+    try {
+      const status = await InventoryService.getInventoryStatus(10000); // Alert when below 10,000 bags
+      setInventoryStatus(status);
+    } catch (error) {
+      console.error('Error loading inventory status:', error);
     }
   };
 
@@ -143,86 +189,238 @@ export default function Dashboard() {
         ))}
       </Grid>
 
-      <Grid container spacing={3} sx={{ mt: 2 }}>
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Expense Breakdown
-            </Typography>
-            <Box sx={{ mt: 2 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography>Fuel</Typography>
-                <Typography fontWeight="bold">
-                  {formatCurrency(todayReport?.fuelCosts || 0)}
-                </Typography>
+      {/* Inventory Status Alert */}
+      {inventoryStatus && (
+        <Grid container spacing={3} sx={{ mt: 2 }}>
+          <Grid item xs={12}>
+            <Alert 
+              severity={inventoryStatus.needsRestock ? 'warning' : 'success'}
+              icon={inventoryStatus.needsRestock ? <WarningIcon /> : <CheckCircleIcon />}
+              sx={{ mb: 2 }}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    Material Inventory Status
+                  </Typography>
+                  <Typography variant="body2">
+                    {inventoryStatus.needsRestock 
+                      ? `⚠️ Low inventory! Only ${inventoryStatus.totalRemainingBags.toLocaleString()} bags remaining. Restock needed.`
+                      : `✓ Inventory healthy: ${inventoryStatus.totalRemainingBags.toLocaleString()} bags available for production.`
+                    }
+                  </Typography>
+                </Box>
+                <Button
+                  variant="contained"
+                  startIcon={<MaterialsIcon />}
+                  onClick={() => navigate('/materials')}
+                >
+                  View Materials
+                </Button>
               </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography>Drivers Fuel</Typography>
-                <Typography fontWeight="bold">
-                  {formatCurrency(todayReport?.driverPayments || 0)}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography>Materials</Typography>
-                <Typography fontWeight="bold">
-                  {formatCurrency(todayReport?.materialCosts || 0)}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography>Salaries</Typography>
-                <Typography fontWeight="bold">
-                  {formatCurrency(todayReport?.totalSalaries || 0)}
-                </Typography>
-              </Box>
-            </Box>
-          </Paper>
+            </Alert>
+          </Grid>
         </Grid>
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Quick Actions
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2 }}>
-              <Button
-                variant="outlined"
-                startIcon={<ShoppingCart />}
-                onClick={() => navigate('/sales')}
-                fullWidth
-                sx={{ justifyContent: 'flex-start' }}
-              >
-                Record Sale
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<MoneyIcon />}
-                onClick={() => navigate('/expenses')}
-                fullWidth
-                sx={{ justifyContent: 'flex-start' }}
-              >
-                Add Expense
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<MaterialsIcon />}
-                onClick={() => navigate('/materials')}
-                fullWidth
-                sx={{ justifyContent: 'flex-start' }}
-              >
-                Record Material Purchase
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<SalariesIcon />}
-                onClick={() => navigate('/salaries')}
-                fullWidth
-                sx={{ justifyContent: 'flex-start' }}
-              >
-                Record Salary Payment
-              </Button>
-            </Box>
-          </Paper>
+      )}
+
+      {/* Inventory Details */}
+      {inventoryStatus && (
+        <Grid container spacing={3} sx={{ mt: 2 }}>
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <MaterialsIcon sx={{ mr: 1, color: 'primary.main' }} />
+                  <Typography variant="h6">Material Inventory</Typography>
+                </Box>
+                <Box sx={{ mb: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Sachet Rolls
+                    </Typography>
+                    <Typography variant="body2" fontWeight="bold">
+                      {inventoryStatus.sachetRolls.totalRolls} rolls ({inventoryStatus.sachetRolls.totalBagsCapacity.toLocaleString()} bags)
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Remaining Capacity
+                    </Typography>
+                    <Typography variant="body2" fontWeight="bold" color="success.main">
+                      {inventoryStatus.sachetRolls.remainingBags.toLocaleString()} bags
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Packing Nylon
+                    </Typography>
+                    <Typography variant="body2" fontWeight="bold">
+                      {inventoryStatus.packingNylon.totalPackages} packages ({inventoryStatus.packingNylon.totalBagsCapacity.toLocaleString()} bags)
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Remaining Capacity
+                    </Typography>
+                    <Typography variant="body2" fontWeight="bold" color="success.main">
+                      {inventoryStatus.packingNylon.remainingBags.toLocaleString()} bags
+                    </Typography>
+                  </Box>
+                  <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body1" fontWeight="bold">
+                        Total Remaining
+                      </Typography>
+                      <Typography variant="h6" color="primary.main" fontWeight="bold">
+                        {inventoryStatus.totalRemainingBags.toLocaleString()} bags
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Total Used
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {inventoryStatus.totalUsedBags.toLocaleString()} bags
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Quick Actions
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2 }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<ShoppingCart />}
+                  onClick={() => navigate('/sales')}
+                  fullWidth
+                  sx={{ justifyContent: 'flex-start' }}
+                >
+                  Record Sale
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<MoneyIcon />}
+                  onClick={() => navigate('/expenses')}
+                  fullWidth
+                  sx={{ justifyContent: 'flex-start' }}
+                >
+                  Add Expense
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<MaterialsIcon />}
+                  onClick={() => navigate('/materials')}
+                  fullWidth
+                  sx={{ justifyContent: 'flex-start' }}
+                >
+                  Record Material Purchase
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<SalariesIcon />}
+                  onClick={() => navigate('/salaries')}
+                  fullWidth
+                  sx={{ justifyContent: 'flex-start' }}
+                >
+                  Record Salary Payment
+                </Button>
+              </Box>
+            </Paper>
+          </Grid>
         </Grid>
-      </Grid>
+      )}
+
+      {/* Expense Breakdown - Always shown when todayReport is available */}
+      {todayReport && (
+        <Grid container spacing={3} sx={{ mt: 2 }}>
+          <Grid item xs={12} md={inventoryStatus ? 12 : 6}>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Expense Breakdown
+              </Typography>
+              <Box sx={{ mt: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography>Fuel</Typography>
+                  <Typography fontWeight="bold">
+                    {formatCurrency(todayReport.fuelCosts || 0)}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography>Drivers Fuel</Typography>
+                  <Typography fontWeight="bold">
+                    {formatCurrency(todayReport.driverPayments || 0)}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography>Materials</Typography>
+                  <Typography fontWeight="bold">
+                    {formatCurrency(todayReport.materialCosts || 0)}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography>Salaries</Typography>
+                  <Typography fontWeight="bold">
+                    {formatCurrency(todayReport.totalSalaries || 0)}
+                  </Typography>
+                </Box>
+              </Box>
+            </Paper>
+          </Grid>
+          {!inventoryStatus && (
+            <Grid item xs={12} md={6}>
+              <Paper sx={{ p: 3 }}>
+                <Typography variant="h6" gutterBottom>
+                  Quick Actions
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2 }}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<ShoppingCart />}
+                    onClick={() => navigate('/sales')}
+                    fullWidth
+                    sx={{ justifyContent: 'flex-start' }}
+                  >
+                    Record Sale
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<MoneyIcon />}
+                    onClick={() => navigate('/expenses')}
+                    fullWidth
+                    sx={{ justifyContent: 'flex-start' }}
+                  >
+                    Add Expense
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<MaterialsIcon />}
+                    onClick={() => navigate('/materials')}
+                    fullWidth
+                    sx={{ justifyContent: 'flex-start' }}
+                  >
+                    Record Material Purchase
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<SalariesIcon />}
+                    onClick={() => navigate('/salaries')}
+                    fullWidth
+                    sx={{ justifyContent: 'flex-start' }}
+                  >
+                    Record Salary Payment
+                  </Button>
+                </Box>
+              </Paper>
+            </Grid>
+          )}
+        </Grid>
+      )}
 
       {/* Speed Dial for Quick Actions */}
       <SpeedDial

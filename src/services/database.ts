@@ -1,8 +1,10 @@
 import { Employee, Expense, MaterialPurchase, Sale, SalaryPayment, Settings, DEFAULT_SETTINGS } from '../types';
+import { User } from '../types/auth';
+import { ReceptionistSale, StorekeeperEntry, Settlement, AuditLog, Notification } from '../types/sales-log';
 
 class DatabaseService {
   private dbName = 'matsplash_financial_db';
-  private version = 2;
+  private version = 3; // Incremented for new stores
   private db: IDBDatabase | null = null;
 
   async init(): Promise<void> {
@@ -56,6 +58,58 @@ class DatabaseService {
         // Settings store (version 2)
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'id', autoIncrement: true });
+        }
+
+        // Users store (version 3)
+        if (!db.objectStoreNames.contains('users')) {
+          const userStore = db.createObjectStore('users', { keyPath: 'id', autoIncrement: true });
+          userStore.createIndex('phone', 'phone', { unique: true });
+          userStore.createIndex('email', 'email', { unique: false });
+          userStore.createIndex('role', 'role');
+        }
+
+        // Receptionist sales store (version 3)
+        if (!db.objectStoreNames.contains('receptionistSales')) {
+          const salesStore = db.createObjectStore('receptionistSales', { keyPath: 'id', autoIncrement: true });
+          salesStore.createIndex('date', 'date');
+          salesStore.createIndex('driverId', 'driverId');
+          salesStore.createIndex('submittedBy', 'submittedBy');
+          salesStore.createIndex('isSubmitted', 'isSubmitted');
+        }
+
+        // Storekeeper entries store (version 3)
+        if (!db.objectStoreNames.contains('storekeeperEntries')) {
+          const entryStore = db.createObjectStore('storekeeperEntries', { keyPath: 'id', autoIncrement: true });
+          entryStore.createIndex('date', 'date');
+          entryStore.createIndex('driverId', 'driverId');
+          entryStore.createIndex('packerId', 'packerId');
+          entryStore.createIndex('submittedBy', 'submittedBy');
+          entryStore.createIndex('isSubmitted', 'isSubmitted');
+        }
+
+        // Settlements store (version 3)
+        if (!db.objectStoreNames.contains('settlements')) {
+          const settlementStore = db.createObjectStore('settlements', { keyPath: 'id', autoIncrement: true });
+          settlementStore.createIndex('date', 'date');
+          settlementStore.createIndex('receptionistSaleId', 'receptionistSaleId');
+          settlementStore.createIndex('isSettled', 'isSettled');
+        }
+
+        // Audit logs store (version 3)
+        if (!db.objectStoreNames.contains('auditLogs')) {
+          const auditStore = db.createObjectStore('auditLogs', { keyPath: 'id', autoIncrement: true });
+          auditStore.createIndex('entityType', 'entityType');
+          auditStore.createIndex('entityId', 'entityId');
+          auditStore.createIndex('changedBy', 'changedBy');
+          auditStore.createIndex('changedAt', 'changedAt');
+        }
+
+        // Notifications store (version 3)
+        if (!db.objectStoreNames.contains('notifications')) {
+          const notificationStore = db.createObjectStore('notifications', { keyPath: 'id', autoIncrement: true });
+          notificationStore.createIndex('userId', 'userId');
+          notificationStore.createIndex('isRead', 'isRead');
+          notificationStore.createIndex('createdAt', 'createdAt');
         }
       };
     });
@@ -568,6 +622,408 @@ class DatabaseService {
           reject(request.error);
         };
       });
+    });
+  }
+
+  // User operations
+  async addUser(user: Omit<User, 'id'>): Promise<number> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['users'], 'readwrite');
+      const store = transaction.objectStore('users');
+      const request = store.add({
+        ...user,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      request.onsuccess = () => resolve(request.result as number);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async getUsers(): Promise<User[]> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['users'], 'readonly');
+      const store = transaction.objectStore('users');
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async getUser(id: number): Promise<User | null> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['users'], 'readonly');
+      const store = transaction.objectStore('users');
+      const request = store.get(id);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async getUserByPhone(phone: string): Promise<User | null> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['users'], 'readonly');
+      const store = transaction.objectStore('users');
+      const index = store.index('phone');
+      const request = index.get(phone);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async updateUser(id: number, user: Partial<User>): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['users'], 'readwrite');
+      const store = transaction.objectStore('users');
+      const getRequest = store.get(id);
+      getRequest.onsuccess = () => {
+        const existing = getRequest.result;
+        if (!existing) {
+          reject(new Error('User not found'));
+          return;
+        }
+        const updated = { ...existing, ...user, updatedAt: new Date() };
+        const putRequest = store.put(updated);
+        putRequest.onsuccess = () => resolve();
+        putRequest.onerror = () => reject(putRequest.error);
+      };
+      getRequest.onerror = () => reject(getRequest.error);
+    });
+  }
+
+  async deleteUser(id: number): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['users'], 'readwrite');
+      const store = transaction.objectStore('users');
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // Receptionist Sale operations
+  async addReceptionistSale(sale: Omit<ReceptionistSale, 'id'>): Promise<number> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['receptionistSales'], 'readwrite');
+      const store = transaction.objectStore('receptionistSales');
+      const request = store.add({
+        ...sale,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      request.onsuccess = () => resolve(request.result as number);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async getReceptionistSales(startDate?: Date, endDate?: Date): Promise<ReceptionistSale[]> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['receptionistSales'], 'readonly');
+      const store = transaction.objectStore('receptionistSales');
+      const index = store.index('date');
+      const range = startDate && endDate 
+        ? IDBKeyRange.bound(startDate, endDate)
+        : undefined;
+      const request = range ? index.getAll(range) : store.getAll();
+      request.onsuccess = () => {
+        const sales = request.result;
+        const normalized = sales.map((sale: ReceptionistSale) => ({
+          ...sale,
+          date: sale.date instanceof Date ? sale.date : new Date(sale.date),
+          submittedAt: sale.submittedAt instanceof Date ? sale.submittedAt : new Date(sale.submittedAt),
+          createdAt: sale.createdAt instanceof Date ? sale.createdAt : new Date(sale.createdAt),
+          updatedAt: sale.updatedAt instanceof Date ? sale.updatedAt : new Date(sale.updatedAt)
+        }));
+        resolve(normalized.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async updateReceptionistSale(id: number, sale: Partial<ReceptionistSale>): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['receptionistSales'], 'readwrite');
+      const store = transaction.objectStore('receptionistSales');
+      const getRequest = store.get(id);
+      getRequest.onsuccess = () => {
+        const existing = getRequest.result;
+        if (!existing) {
+          reject(new Error('Sale not found'));
+          return;
+        }
+        const updated = { ...existing, ...sale, updatedAt: new Date() };
+        const putRequest = store.put(updated);
+        putRequest.onsuccess = () => resolve();
+        putRequest.onerror = () => reject(putRequest.error);
+      };
+      getRequest.onerror = () => reject(getRequest.error);
+    });
+  }
+
+  async deleteReceptionistSale(id: number): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['receptionistSales'], 'readwrite');
+      const store = transaction.objectStore('receptionistSales');
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // Storekeeper Entry operations
+  async addStorekeeperEntry(entry: Omit<StorekeeperEntry, 'id'>): Promise<number> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['storekeeperEntries'], 'readwrite');
+      const store = transaction.objectStore('storekeeperEntries');
+      const request = store.add({
+        ...entry,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      request.onsuccess = () => resolve(request.result as number);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async getStorekeeperEntries(startDate?: Date, endDate?: Date): Promise<StorekeeperEntry[]> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['storekeeperEntries'], 'readonly');
+      const store = transaction.objectStore('storekeeperEntries');
+      const index = store.index('date');
+      const range = startDate && endDate 
+        ? IDBKeyRange.bound(startDate, endDate)
+        : undefined;
+      const request = range ? index.getAll(range) : store.getAll();
+      request.onsuccess = () => {
+        const entries = request.result;
+        const normalized = entries.map((entry: StorekeeperEntry) => ({
+          ...entry,
+          date: entry.date instanceof Date ? entry.date : new Date(entry.date),
+          submittedAt: entry.submittedAt instanceof Date ? entry.submittedAt : new Date(entry.submittedAt),
+          createdAt: entry.createdAt instanceof Date ? entry.createdAt : new Date(entry.createdAt),
+          updatedAt: entry.updatedAt instanceof Date ? entry.updatedAt : new Date(entry.updatedAt)
+        }));
+        resolve(normalized.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async updateStorekeeperEntry(id: number, entry: Partial<StorekeeperEntry>): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['storekeeperEntries'], 'readwrite');
+      const store = transaction.objectStore('storekeeperEntries');
+      const getRequest = store.get(id);
+      getRequest.onsuccess = () => {
+        const existing = getRequest.result;
+        if (!existing) {
+          reject(new Error('Entry not found'));
+          return;
+        }
+        const updated = { ...existing, ...entry, updatedAt: new Date() };
+        const putRequest = store.put(updated);
+        putRequest.onsuccess = () => resolve();
+        putRequest.onerror = () => reject(putRequest.error);
+      };
+      getRequest.onerror = () => reject(getRequest.error);
+    });
+  }
+
+  async deleteStorekeeperEntry(id: number): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['storekeeperEntries'], 'readwrite');
+      const store = transaction.objectStore('storekeeperEntries');
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // Settlement operations
+  async addSettlement(settlement: Omit<Settlement, 'id'>): Promise<number> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['settlements'], 'readwrite');
+      const store = transaction.objectStore('settlements');
+      const request = store.add({
+        ...settlement,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      request.onsuccess = () => resolve(request.result as number);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async getSettlements(startDate?: Date, endDate?: Date): Promise<Settlement[]> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['settlements'], 'readonly');
+      const store = transaction.objectStore('settlements');
+      const index = store.index('date');
+      const range = startDate && endDate 
+        ? IDBKeyRange.bound(startDate, endDate)
+        : undefined;
+      const request = range ? index.getAll(range) : store.getAll();
+      request.onsuccess = () => {
+        const settlements = request.result;
+        const normalized = settlements.map((s: Settlement) => ({
+          ...s,
+          date: s.date instanceof Date ? s.date : new Date(s.date),
+          settledAt: s.settledAt instanceof Date ? s.settledAt : s.settledAt ? new Date(s.settledAt) : undefined,
+          createdAt: s.createdAt instanceof Date ? s.createdAt : new Date(s.createdAt),
+          updatedAt: s.updatedAt instanceof Date ? s.updatedAt : new Date(s.updatedAt)
+        }));
+        resolve(normalized.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async updateSettlement(id: number, settlement: Partial<Settlement>): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['settlements'], 'readwrite');
+      const store = transaction.objectStore('settlements');
+      const getRequest = store.get(id);
+      getRequest.onsuccess = () => {
+        const existing = getRequest.result;
+        if (!existing) {
+          reject(new Error('Settlement not found'));
+          return;
+        }
+        const updated = { ...existing, ...settlement, updatedAt: new Date() };
+        const putRequest = store.put(updated);
+        putRequest.onsuccess = () => resolve();
+        putRequest.onerror = () => reject(putRequest.error);
+      };
+      getRequest.onerror = () => reject(getRequest.error);
+    });
+  }
+
+  // Audit Log operations
+  async addAuditLog(log: Omit<AuditLog, 'id'>): Promise<number> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['auditLogs'], 'readwrite');
+      const store = transaction.objectStore('auditLogs');
+      const request = store.add({
+        ...log,
+        changedAt: new Date()
+      });
+      request.onsuccess = () => resolve(request.result as number);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async getAuditLogs(entityType?: string, entityId?: number, startDate?: Date, endDate?: Date): Promise<AuditLog[]> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['auditLogs'], 'readonly');
+      const store = transaction.objectStore('auditLogs');
+      let request: IDBRequest;
+      
+      if (entityType && entityId) {
+        const index = store.index('entityType');
+        const range = IDBKeyRange.only(entityType);
+        request = index.getAll(range);
+      } else {
+        request = store.getAll();
+      }
+      
+      request.onsuccess = () => {
+        let logs = request.result;
+        
+        if (entityId) {
+          logs = logs.filter((log: AuditLog) => log.entityId === entityId);
+        }
+        
+        if (startDate && endDate) {
+          logs = logs.filter((log: AuditLog) => {
+            const logDate = log.changedAt instanceof Date ? log.changedAt : new Date(log.changedAt);
+            return logDate >= startDate && logDate <= endDate;
+          });
+        }
+        
+        const normalized = logs.map((log: AuditLog) => ({
+          ...log,
+          changedAt: log.changedAt instanceof Date ? log.changedAt : new Date(log.changedAt)
+        }));
+        resolve(normalized.sort((a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()));
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // Notification operations
+  async addNotification(notification: Omit<Notification, 'id'>): Promise<number> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['notifications'], 'readwrite');
+      const store = transaction.objectStore('notifications');
+      const request = store.add({
+        ...notification,
+        createdAt: new Date()
+      });
+      request.onsuccess = () => resolve(request.result as number);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async getNotifications(userId: number, isRead?: boolean): Promise<Notification[]> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['notifications'], 'readonly');
+      const store = transaction.objectStore('notifications');
+      const index = store.index('userId');
+      const request = index.getAll(userId);
+      request.onsuccess = () => {
+        let notifications = request.result;
+        if (isRead !== undefined) {
+          notifications = notifications.filter((n: Notification) => n.isRead === isRead);
+        }
+        const normalized = notifications.map((n: Notification) => ({
+          ...n,
+          createdAt: n.createdAt instanceof Date ? n.createdAt : new Date(n.createdAt)
+        }));
+        resolve(normalized.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async markNotificationAsRead(id: number): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['notifications'], 'readwrite');
+      const store = transaction.objectStore('notifications');
+      const getRequest = store.get(id);
+      getRequest.onsuccess = () => {
+        const existing = getRequest.result;
+        if (!existing) {
+          reject(new Error('Notification not found'));
+          return;
+        }
+        const updated = { ...existing, isRead: true };
+        const putRequest = store.put(updated);
+        putRequest.onsuccess = () => resolve();
+        putRequest.onerror = () => reject(putRequest.error);
+      };
+      getRequest.onerror = () => reject(getRequest.error);
     });
   }
 }

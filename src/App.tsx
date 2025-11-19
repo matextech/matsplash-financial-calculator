@@ -11,7 +11,15 @@ import Salaries from './components/Salaries';
 import Commissions from './components/Commissions';
 import Settings from './components/Settings';
 import Layout from './components/Layout';
+import Login from './components/auth/Login';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import ReceptionistDashboard from './components/receptionist/ReceptionistDashboard';
+import StorekeeperDashboard from './components/storekeeper/StorekeeperDashboard';
+import ManagerDashboard from './components/manager/ManagerDashboard';
+import DirectorDashboard from './components/director/DirectorDashboard';
 import { dbService } from './services/database';
+import { authService } from './services/authService';
+import { initializeDefaultDirector } from './services/setupService';
 
 const theme = createTheme({
   palette: {
@@ -33,13 +41,8 @@ function App() {
     const initDb = async () => {
       try {
         await dbService.init();
-        // Clear all data - ONE TIME ONLY
-        try {
-          await dbService.clearAllData();
-          console.log('All database data has been cleared.');
-        } catch (error) {
-          console.error('Error clearing data:', error);
-        }
+        // Initialize default director account if needed
+        await initializeDefaultDirector();
         setDbInitialized(true);
       } catch (error) {
         console.error('Failed to initialize database:', error);
@@ -74,24 +77,164 @@ function App() {
     );
   }
 
+  // Check if user is already logged in and redirect
+  const getDefaultRoute = () => {
+    const session = authService.getCurrentSession();
+    if (session && authService.isAuthenticated()) {
+      switch (session.role) {
+        case 'director':
+          return '/director';
+        case 'manager':
+          return '/manager';
+        case 'receptionist':
+          return '/receptionist';
+        case 'storekeeper':
+          return '/storekeeper';
+        default:
+          return '/dashboard';
+      }
+    }
+    return '/login';
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <BrowserRouter>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/employees" element={<Employees />} />
-            <Route path="/expenses" element={<Expenses />} />
-            <Route path="/sales" element={<Sales />} />
-            <Route path="/materials" element={<Materials />} />
-            <Route path="/salaries" element={<Salaries />} />
-            <Route path="/commissions" element={<Commissions />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
-        </Layout>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/login" element={<Login />} />
+          
+          {/* Protected Role-Based Routes */}
+          <Route
+            path="/director"
+            element={
+              <ProtectedRoute allowedRoles={['director']}>
+                <DirectorDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/manager"
+            element={
+              <ProtectedRoute allowedRoles={['manager']}>
+                <ManagerDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/receptionist"
+            element={
+              <ProtectedRoute allowedRoles={['receptionist']}>
+                <ReceptionistDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/storekeeper"
+            element={
+              <ProtectedRoute allowedRoles={['storekeeper']}>
+                <StorekeeperDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Original Dashboard Routes (for director/main system) */}
+          <Route
+            path="/"
+            element={<Navigate to={getDefaultRoute()} replace />}
+          />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={['director']}>
+                <Layout>
+                  <Dashboard />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/employees"
+            element={
+              <ProtectedRoute allowedRoles={['director']}>
+                <Layout>
+                  <Employees />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/expenses"
+            element={
+              <ProtectedRoute allowedRoles={['director']}>
+                <Layout>
+                  <Expenses />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/sales"
+            element={
+              <ProtectedRoute allowedRoles={['director']}>
+                <Layout>
+                  <Sales />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/materials"
+            element={
+              <ProtectedRoute allowedRoles={['director']}>
+                <Layout>
+                  <Materials />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/salaries"
+            element={
+              <ProtectedRoute allowedRoles={['director']}>
+                <Layout>
+                  <Salaries />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/commissions"
+            element={
+              <ProtectedRoute allowedRoles={['director']}>
+                <Layout>
+                  <Commissions />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <ProtectedRoute allowedRoles={['director']}>
+                <Layout>
+                  <Reports />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute allowedRoles={['director']}>
+                <Layout>
+                  <Settings />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
       </BrowserRouter>
     </ThemeProvider>
   );

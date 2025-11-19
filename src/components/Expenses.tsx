@@ -73,6 +73,12 @@ export default function Expenses() {
 
   const loadExpenses = async () => {
     const data = await dbService.getExpenses();
+    console.log('Expenses loaded:', data.length, 'expenses');
+    console.log('Expenses by type:', {
+      fuel: data.filter(e => e.type === 'fuel' || (e as any).type === 'generator_fuel').length,
+      driver_fuel: data.filter(e => e.type === 'driver_fuel' || (e as any).type === 'driver_payment').length,
+      other: data.filter(e => e.type === 'other').length,
+    });
     setExpenses(data);
   };
 
@@ -350,6 +356,8 @@ export default function Expenses() {
       // Reload expenses after a short delay to ensure DB is updated
       setTimeout(() => {
         loadExpenses();
+        // Trigger a custom event to notify Dashboard to refresh
+        window.dispatchEvent(new CustomEvent('expensesUpdated'));
       }, 100);
     } catch (error) {
       console.error('Error saving expenses:', error);
@@ -362,6 +370,8 @@ export default function Expenses() {
       try {
         await dbService.deleteExpense(id);
         loadExpenses();
+        // Trigger a custom event to notify Dashboard to refresh
+        window.dispatchEvent(new CustomEvent('expensesUpdated'));
       } catch (error) {
         console.error('Error deleting expense:', error);
         alert('Error deleting expense. Please try again.');

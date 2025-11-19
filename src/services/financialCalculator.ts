@@ -28,19 +28,42 @@ export class FinancialCalculator {
     const totalRevenue = sales.reduce((sum, sale) => sum + sale.totalAmount, 0);
 
     // Calculate expenses
+    // Filter for fuel expenses (generator fuel)
     const fuelCosts = expenses
-      .filter(e => e.type === 'fuel' || (e as any).type === 'generator_fuel')
-      .reduce((sum, e) => sum + e.amount, 0);
+      .filter(e => {
+        const type = e.type || (e as any).type;
+        return type === 'fuel' || type === 'generator_fuel';
+      })
+      .reduce((sum, e) => sum + (e.amount || 0), 0);
 
+    // Filter for driver fuel expenses
     const driverPayments = expenses
-      .filter(e => e.type === 'driver_fuel' || (e as any).type === 'driver_payment')
-      .reduce((sum, e) => sum + e.amount, 0);
+      .filter(e => {
+        const type = e.type || (e as any).type;
+        return type === 'driver_fuel' || type === 'driver_payment';
+      })
+      .reduce((sum, e) => sum + (e.amount || 0), 0);
+
+    console.log('FinancialCalculator - Expense breakdown:', {
+      totalExpenses: expenses.length,
+      fuelExpenses: expenses.filter(e => {
+        const type = e.type || (e as any).type;
+        return type === 'fuel' || type === 'generator_fuel';
+      }).length,
+      driverFuelExpenses: expenses.filter(e => {
+        const type = e.type || (e as any).type;
+        return type === 'driver_fuel' || type === 'driver_payment';
+      }).length,
+      fuelCosts,
+      driverPayments,
+      dateRange: { start: startDate, end: endDate }
+    });
 
     const otherExpenses = expenses
       .filter(e => e.type === 'other')
       .reduce((sum, e) => sum + e.amount, 0);
 
-    // Calculate material costs
+    // Calculate actual material purchase costs for this period
     let materialCosts = 0;
     for (const purchase of materialPurchases) {
       if (purchase.type === 'sachet_roll') {
@@ -50,7 +73,7 @@ export class FinancialCalculator {
       }
     }
 
-    // Calculate total material cost per bag sold
+    // Calculate total material cost per bag sold (for profit calculation)
     const totalBagsSold = sales.reduce((sum, sale) => sum + sale.bagsSold, 0);
     const sachetRollsPurchased = materialPurchases
       .filter(m => m.type === 'sachet_roll')
@@ -69,6 +92,7 @@ export class FinancialCalculator {
     }
 
     // Calculate material cost allocated to this period (simplified - could be improved with FIFO)
+    // This is used for profit calculation, but actual purchase costs are shown in expense breakdown
     const sachetCostPerBag = settings.sachetRollCost / settings.sachetRollBagsPerRoll;
     const nylonCostPerBag = settings.packingNylonCost / settings.packingNylonBagsPerPackage;
     const materialCostAllocated = totalBagsSold * (sachetCostPerBag + nylonCostPerBag);
@@ -90,7 +114,7 @@ export class FinancialCalculator {
       totalRevenue,
       totalExpenses,
       totalSalaries,
-      materialCosts: materialCostAllocated,
+      materialCosts: materialCosts, // Use actual purchase costs for expense breakdown
       fuelCosts,
       driverPayments,
       profit,

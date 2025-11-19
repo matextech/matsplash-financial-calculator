@@ -433,9 +433,6 @@ export default function Sales() {
         for (const saleData of salesToSave) {
           await dbService.addSale(saleData);
         }
-        if (salesToSave.length > 0) {
-          setLastPricePerBag(salesToSave[0].pricePerBag.toString());
-        }
         console.log(`${salesToSave.length} sale(s) added successfully`);
         handleClose();
         setTimeout(() => {

@@ -31,11 +31,13 @@ import {
 } from '@mui/icons-material';
 import { MaterialPurchase, Settings, DEFAULT_SETTINGS } from '../types';
 import { dbService } from '../services/database';
+import { InventoryService, InventoryStatus } from '../services/inventoryService';
 import { format, startOfDay, endOfDay, isSameDay, isToday, addDays, subDays } from 'date-fns';
 
 export default function Materials() {
   const [purchases, setPurchases] = useState<MaterialPurchase[]>([]);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [inventoryStatus, setInventoryStatus] = useState<InventoryStatus | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<'day' | 'range'>('day');
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
@@ -58,7 +60,17 @@ export default function Materials() {
   useEffect(() => {
     loadPurchases();
     loadSettings();
+    loadInventoryStatus();
   }, []);
+
+  const loadInventoryStatus = async () => {
+    try {
+      const status = await InventoryService.getInventoryStatus(10000);
+      setInventoryStatus(status);
+    } catch (error) {
+      console.error('Error loading inventory status:', error);
+    }
+  };
 
   const loadSettings = async () => {
     try {
@@ -266,6 +278,7 @@ export default function Materials() {
           handleClose();
           setTimeout(() => {
             loadPurchases();
+            loadInventoryStatus();
           }, 100);
         } catch (error) {
           console.error('Error updating purchase:', error);
@@ -278,6 +291,7 @@ export default function Materials() {
           handleClose();
           setTimeout(() => {
             loadPurchases();
+            loadInventoryStatus();
           }, 100);
         } catch (error) {
           console.error('Error adding purchase:', error);
@@ -295,6 +309,7 @@ export default function Materials() {
       try {
         await dbService.deleteMaterialPurchase(id);
         loadPurchases();
+        loadInventoryStatus();
       } catch (error) {
         console.error('Error deleting purchase:', error);
         alert('Error deleting purchase. Please try again.');
@@ -502,7 +517,111 @@ export default function Materials() {
         </Grid>
       </Paper>
 
-      {/* Summary Cards */}
+      {/* Inventory and Capacity Cards - Aligned Vertically */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        {/* Column 1: Sachet Rolls - Inventory on top, Capacity below */}
+        <Grid item xs={12} sm={6} md={4}>
+          {inventoryStatus && (
+            <Card sx={{ backgroundColor: 'info.light', color: 'info.contrastText', mb: 2 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Sachet Rolls - Remaining
+                </Typography>
+                <Typography variant="h4">
+                  {inventoryStatus.sachetRolls.remainingBags.toLocaleString()}
+                </Typography>
+                <Typography variant="body2">
+                  {inventoryStatus.sachetRolls.totalRolls} rolls ({inventoryStatus.sachetRolls.usedBags.toLocaleString()} used)
+                </Typography>
+              </CardContent>
+            </Card>
+          )}
+          <Card sx={{ backgroundColor: 'info.light', color: 'info.contrastText' }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Sachet Rolls - Capacity
+              </Typography>
+              <Typography variant="h4">
+                {formatCurrency(totalByType.sachet_roll)}
+              </Typography>
+              <Typography variant="body2">
+                {groupedPurchases.sachet_roll.length} purchase{groupedPurchases.sachet_roll.length !== 1 ? 's' : ''}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Column 2: Packing Nylon - Inventory on top, Capacity below */}
+        <Grid item xs={12} sm={6} md={4}>
+          {inventoryStatus && (
+            <Card sx={{ backgroundColor: 'warning.light', color: 'warning.contrastText', mb: 2 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Packing Nylon - Remaining
+                </Typography>
+                <Typography variant="h4">
+                  {inventoryStatus.packingNylon.remainingBags.toLocaleString()}
+                </Typography>
+                <Typography variant="body2">
+                  {inventoryStatus.packingNylon.totalPackages} packages ({inventoryStatus.packingNylon.usedBags.toLocaleString()} used)
+                </Typography>
+              </CardContent>
+            </Card>
+          )}
+          <Card sx={{ backgroundColor: 'warning.light', color: 'warning.contrastText' }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Packing Nylon - Capacity
+              </Typography>
+              <Typography variant="h4">
+                {formatCurrency(totalByType.packing_nylon)}
+              </Typography>
+              <Typography variant="body2">
+                {groupedPurchases.packing_nylon.length} purchase{groupedPurchases.packing_nylon.length !== 1 ? 's' : ''}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Column 3: Total - Remaining Inventory on top, Total Capacity below */}
+        <Grid item xs={12} sm={6} md={4}>
+          {inventoryStatus && (
+            <Card sx={{ backgroundColor: inventoryStatus.needsRestock ? 'error.light' : 'success.light', color: inventoryStatus.needsRestock ? 'error.contrastText' : 'success.contrastText', mb: 2 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Total Remaining Inventory
+                </Typography>
+                <Typography variant="h4">
+                  {inventoryStatus.totalRemainingBags.toLocaleString()}
+                </Typography>
+                <Typography variant="body2">
+                  bags available for production
+                </Typography>
+                {inventoryStatus.needsRestock && (
+                  <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold' }}>
+                    ⚠️ Restock needed!
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+          )}
+          <Card sx={{ backgroundColor: 'success.light', color: 'success.contrastText' }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Total Bag Capacity
+              </Typography>
+              <Typography variant="h4">
+                {totalBags.toLocaleString()}
+              </Typography>
+              <Typography variant="body2">
+                bags from purchases
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Total Cost Card */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={4}>
           <Card sx={{ backgroundColor: 'primary.light', color: 'primary.contrastText' }}>
@@ -515,36 +634,6 @@ export default function Materials() {
               </Typography>
               <Typography variant="body2">
                 {currentPurchases.length} purchase{currentPurchases.length !== 1 ? 's' : ''}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <Card sx={{ backgroundColor: 'success.light', color: 'success.contrastText' }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Total Bag Capacity
-              </Typography>
-              <Typography variant="h4">
-                {totalBags.toLocaleString()}
-              </Typography>
-              <Typography variant="body2">
-                bags available
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={4}>
-          <Card sx={{ backgroundColor: 'info.light', color: 'info.contrastText' }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Sachet Rolls
-              </Typography>
-              <Typography variant="h4">
-                {formatCurrency(totalByType.sachet_roll)}
-              </Typography>
-              <Typography variant="body2">
-                {groupedPurchases.sachet_roll.length} purchase{groupedPurchases.sachet_roll.length !== 1 ? 's' : ''}
               </Typography>
             </CardContent>
           </Card>
