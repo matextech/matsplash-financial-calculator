@@ -1,6 +1,6 @@
-import * as express from 'express';
-import * as cors from 'cors';
-import * as dotenv from 'dotenv';
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
 import setupDatabase from './database';
 import { config } from './config';
 import authRoutes from './routes/auth';
@@ -54,22 +54,23 @@ app.use('*', (req, res) => {
   });
 });
 
-// Initialize database and start server
-async function startServer() {
-  try {
-    await setupDatabase();
-    console.log('✅ Database initialized successfully');
-
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
-      console.log(`🌐 Frontend URL: ${config.frontendUrl}`);
+// Start server immediately, initialize database in background
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`🌐 Frontend URL: ${config.frontendUrl}`);
+  console.log('🔄 Initializing database in background...');
+  
+  // Initialize database in background
+  setupDatabase()
+    .then(() => {
+      console.log('✅ Database initialized successfully');
+    })
+    .catch((error: any) => {
+      console.error('❌ Database initialization failed:', error);
+      console.error('Error details:', error.message);
+      console.error('Stack:', error.stack);
+      // Don't exit - server can still run for health checks
     });
-  } catch (error) {
-    console.error('❌ Failed to start server:', error);
-    process.exit(1);
-  }
-}
-
-startServer();
+});
 

@@ -1,6 +1,6 @@
-import * as express from 'express';
-import * as bcrypt from 'bcryptjs';
-import * as jwt from 'jsonwebtoken';
+import express from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { db } from '../database';
 import { config } from '../config';
 

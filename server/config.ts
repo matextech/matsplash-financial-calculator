@@ -16,6 +16,7 @@ export const config = {
     filename: process.env.DATABASE_PATH || './database.sqlite'
   },
   
+  
   // CORS Configuration
   cors: {
     origin: process.env.CORS_ORIGIN || 'http://localhost:5179',

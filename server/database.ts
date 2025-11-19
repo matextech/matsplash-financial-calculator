@@ -1,12 +1,16 @@
 import knex, { Knex } from 'knex';
-import * as bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 import { config } from './config';
 
 // Database configuration
+import path from 'path';
+const dbPath = path.resolve(process.cwd(), config.database.filename);
+console.log('Database path:', dbPath);
+
 const knexConfig: Knex.Config = {
   client: 'sqlite3',
   connection: {
-    filename: config.database.filename
+    filename: dbPath
   },
   useNullAsDefault: true,
   migrations: {
@@ -19,8 +23,10 @@ export const db = knex(knexConfig);
 // Initialize database tables
 export default async function setupDatabase(): Promise<void> {
   try {
+    console.log('🔄 Checking database tables...');
     // Check if users table exists
     const hasUsersTable = await db.schema.hasTable('users');
+    console.log('Users table exists:', hasUsersTable);
     
     if (!hasUsersTable) {
       console.log('Creating database tables...');
@@ -299,15 +305,18 @@ async function initializeDefaultUsers(): Promise<void> {
       is_active: true
     });
     
-    // Initialize default settings
-    await db('settings').insert({
-      sachet_roll_cost: 31000,
-      sachet_roll_bags_per_roll: 450,
-      packing_nylon_cost: 100000,
-      packing_nylon_bags_per_package: 10000,
-      sales_price_1: 250,
-      sales_price_2: 270
-    });
+    // Initialize default settings (only if none exist)
+    const settingsCount = await db('settings').count('id as count').first();
+    if (settingsCount && Number(settingsCount.count) === 0) {
+      await db('settings').insert({
+        sachet_roll_cost: 31000,
+        sachet_roll_bags_per_roll: 450,
+        packing_nylon_cost: 100000,
+        packing_nylon_bags_per_package: 10000,
+        sales_price_1: 250,
+        sales_price_2: 270
+      });
+    }
     
     console.log('Default users and settings initialized');
   } catch (error) {
