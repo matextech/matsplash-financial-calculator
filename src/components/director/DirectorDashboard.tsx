@@ -238,7 +238,7 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
         throw new Error('User not found');
       }
       
-      // Use API service to update the user with new PIN
+      // Update user via backend API
       await apiService.updateUser(userId, {
         pin: newPin,
         pinResetRequired: true
@@ -250,7 +250,6 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
         `✅ PIN reset successful!\n\n` +
         `User: ${user.name}\n` +
         `New temporary PIN: ${newPin}\n\n` +
-        `This PIN is saved in the shared database and will work across all browsers and devices.\n\n` +
         `The user will be required to change this PIN on their next login.`
       );
       
