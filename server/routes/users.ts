@@ -4,13 +4,23 @@ import { db } from '../database';
 
 const router = express.Router();
 
+// Helper function to transform database fields to frontend format
+function transformUser(user: any) {
+  return {
+    ...user,
+    isActive: user.is_active === 1 || user.is_active === true,
+    twoFactorEnabled: user.two_factor_enabled === 1 || user.two_factor_enabled === true,
+    pinResetRequired: user.pin_reset_required === 1 || user.pin_reset_required === true,
+  };
+}
+
 // Get all users
 router.get('/', async (req, res) => {
   try {
     const users = await db('users').select('*').orderBy('name');
     res.json({
       success: true,
-      data: users
+      data: users.map(transformUser)
     });
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -33,7 +43,7 @@ router.get('/:id', async (req, res) => {
     }
     res.json({
       success: true,
-      data: user
+      data: transformUser(user)
     });
   } catch (error) {
     console.error('Error fetching user:', error);
@@ -138,7 +148,7 @@ router.put('/:id', async (req, res) => {
 
     res.json({
       success: true,
-      data: updatedUser,
+      data: transformUser(updatedUser),
       message: 'User updated successfully'
     });
   } catch (error) {
