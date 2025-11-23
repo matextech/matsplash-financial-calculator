@@ -286,7 +286,7 @@ export default function Sales() {
         bagsAtPrice1: '',
         bagsAtPrice2: '',
         combinedBags: '',
-        combinedPrice: settings.salesPrice1.toString(),
+        combinedPrice: (bagPrices[0]?.amount || settings.salesPrice1).toString(),
         notes: '',
         sachetRollPriceId: '',
         packingNylonPriceId: '',
@@ -353,14 +353,15 @@ export default function Sales() {
           driverEmail: isGeneralSale ? undefined : formData.driverEmail?.trim() || undefined,
           employeeId: isGeneralSale ? undefined : matchingEmployee?.id,
           bagsSold: bagsAtPrice1,
-          pricePerBag: settings.salesPrice1,
-          totalAmount: bagsAtPrice1 * settings.salesPrice1,
+          pricePerBag: bagPrices[0]?.amount || settings.salesPrice1,
+          totalAmount: bagsAtPrice1 * (bagPrices[0]?.amount || settings.salesPrice1),
           date: formData.date,
           notes: formData.notes?.trim() || undefined,
           sachetRollPriceId: formData.sachetRollPriceId ? parseInt(String(formData.sachetRollPriceId)) : undefined,
           packingNylonPriceId: formData.packingNylonPriceId ? parseInt(String(formData.packingNylonPriceId)) : undefined,
         });
-        console.log(`Adding sale at ₦${settings.salesPrice1}:`, bagsAtPrice1, 'bags', isGeneralSale ? '(General/Factory sale)' : matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
+        const price1 = bagPrices[0]?.amount || settings.salesPrice1;
+        console.log(`Adding sale at ₦${price1}:`, bagsAtPrice1, 'bags', isGeneralSale ? '(General/Factory sale)' : matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
       }
 
       // Save bags at Price 2 if provided
@@ -370,14 +371,15 @@ export default function Sales() {
           driverEmail: isGeneralSale ? undefined : formData.driverEmail?.trim() || undefined,
           employeeId: isGeneralSale ? undefined : matchingEmployee?.id,
           bagsSold: bagsAtPrice2,
-          pricePerBag: settings.salesPrice2,
-          totalAmount: bagsAtPrice2 * settings.salesPrice2,
+          pricePerBag: bagPrices[1]?.amount || settings.salesPrice2,
+          totalAmount: bagsAtPrice2 * (bagPrices[1]?.amount || settings.salesPrice2),
           date: formData.date,
           notes: formData.notes?.trim() || undefined,
           sachetRollPriceId: formData.sachetRollPriceId ? parseInt(String(formData.sachetRollPriceId)) : undefined,
           packingNylonPriceId: formData.packingNylonPriceId ? parseInt(String(formData.packingNylonPriceId)) : undefined,
         });
-        console.log(`Adding sale at ₦${settings.salesPrice2}:`, bagsAtPrice2, 'bags', isGeneralSale ? '(General/Factory sale)' : matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
+        const price2 = bagPrices[1]?.amount || settings.salesPrice2;
+        console.log(`Adding sale at ₦${price2}:`, bagsAtPrice2, 'bags', isGeneralSale ? '(General/Factory sale)' : matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
       }
 
       // Save combined bags if provided (for other prices or when only one entry is used)
@@ -429,8 +431,8 @@ export default function Sales() {
             driverEmail: isGeneralSaleEdit ? undefined : formData.driverEmail?.trim() || undefined,
             employeeId: isGeneralSaleEdit ? undefined : matchingEmployee?.id,
             bagsSold: bagsAtPrice1,
-            pricePerBag: settings.salesPrice1,
-            totalAmount: bagsAtPrice1 * settings.salesPrice1,
+            pricePerBag: bagPrices[0]?.amount || settings.salesPrice1,
+            totalAmount: bagsAtPrice1 * (bagPrices[0]?.amount || settings.salesPrice1),
             date: formData.date,
             notes: formData.notes?.trim() || undefined,
           };
