@@ -308,6 +308,16 @@ export default async function setupDatabase(): Promise<void> {
         table.index('changed_at');
       });
       console.log('audit_logs table created successfully');
+    } else {
+      // Check if created_at column exists, add it if missing
+      const hasCreatedAt = await db.schema.hasColumn('audit_logs', 'created_at');
+      if (!hasCreatedAt) {
+        console.log('Adding created_at column to audit_logs table...');
+        await db.schema.alterTable('audit_logs', (table) => {
+          table.timestamp('created_at').defaultTo(db.fn.now());
+        });
+        console.log('created_at column added to audit_logs successfully');
+      }
     }
     
     // Add price_breakdown and expected_amount columns to receptionist_sales for dynamic pricing (if they don't exist)

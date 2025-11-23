@@ -5,6 +5,36 @@ const router = express.Router();
 
 console.log('📝 Audit logs route module loaded');
 
+// Test endpoint to verify table exists
+router.get('/test', async (req, res) => {
+  try {
+    const tableExists = await db.schema.hasTable('audit_logs');
+    if (!tableExists) {
+      return res.status(500).json({
+        success: false,
+        message: 'audit_logs table does not exist',
+        tableExists: false
+      });
+    }
+    
+    // Try a simple query
+    const count = await db('audit_logs').count('* as count').first();
+    
+    res.json({
+      success: true,
+      tableExists: true,
+      recordCount: count?.count || 0,
+      message: 'Table exists and is accessible'
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Error testing table',
+      error: error.message
+    });
+  }
+});
+
 // Helper to transform audit log data from DB to frontend format
 function transformAuditLog(log: any) {
   if (!log) return null;
@@ -63,18 +93,7 @@ router.get('/', async (req, res) => {
 
 // Create new audit log
 router.post('/', async (req, res) => {
-  console.log('📝 POST /api/audit-logs - Creating audit log:', req.body);
   try {
-    // First, check if table exists
-    const tableExists = await db.schema.hasTable('audit_logs');
-    if (!tableExists) {
-      console.error('❌ audit_logs table does not exist!');
-      return res.status(500).json({
-        success: false,
-        message: 'Database table not found. Please restart the server to create the table.'
-      });
-    }
-
     const { 
       entityType, 
       entityId, 
@@ -94,7 +113,10 @@ router.post('/', async (req, res) => {
       });
     }
 
-    const insertData: any = {
+    // Format timestamps - use ISO string format like other routes
+    const changedAtValue = changedAt ? new Date(changedAt).toISOString() : new Date().toISOString();
+
+    const [id] = await db('audit_logs').insert({
       entity_type: entityType,
       entity_id: entityId,
       action,
@@ -102,35 +124,12 @@ router.post('/', async (req, res) => {
       old_value: oldValue !== undefined && oldValue !== null ? String(oldValue) : null,
       new_value: newValue !== undefined && newValue !== null ? String(newValue) : null,
       changed_by: changedBy,
+      changed_at: changedAtValue,
       reason: reason || null,
-      created_at: new Date().toISOString(),
-    };
-    
-    // Handle timestamps
-    if (changedAt) {
-      insertData.changed_at = new Date(changedAt).toISOString();
-    } else {
-      insertData.changed_at = new Date().toISOString();
-    }
-    
-    console.log('📝 Inserting audit log with data:', insertData);
-    
-    const result = await db('audit_logs').insert(insertData);
-    console.log('📝 Insert result:', result);
-    
-    // SQLite returns lastInsertRowid, handle both array and number
-    const id = Array.isArray(result) ? result[0] : result;
-    console.log('📝 Extracted ID:', id);
+      // Note: created_at column will be added by migration on next server restart
+    });
 
     const newLog = await db('audit_logs').where('id', id).first();
-    
-    if (!newLog) {
-      console.error('❌ Failed to retrieve inserted log with id:', id);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve created audit log'
-      });
-    }
 
     res.status(201).json({
       success: true,
@@ -138,10 +137,14 @@ router.post('/', async (req, res) => {
       message: 'Audit log created successfully'
     });
   } catch (error: any) {
-    console.error('❌ Error creating audit log:', error);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
-    console.error('Request body:', req.body);
+    console.error('Error creating audit log:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      errno: error.errno,
+      sql: error.sql,
+      sqlMessage: error.sqlMessage
+    });
     res.status(500).json({
       success: false,
       message: 'Internal server error',
