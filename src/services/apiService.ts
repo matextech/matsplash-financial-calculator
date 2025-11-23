@@ -57,10 +57,19 @@ class ApiService {
   }
 
   async changePin(userId: number, newPin: string) {
-    return this.request('/auth/change-pin', {
+    const response = await fetch(`${API_BASE_URL}/auth/change-pin`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, newPin }),
     });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to change PIN');
+    }
+
+    return data;
   }
 
   async verifyToken() {
