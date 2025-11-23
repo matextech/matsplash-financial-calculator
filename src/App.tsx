@@ -43,7 +43,12 @@ function App() {
     const initDb = async () => {
       try {
         console.log('Initializing database...');
-        await dbService.init();
+        await Promise.race([
+          dbService.init(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Database initialization timeout')), 10000)
+          )
+        ]);
         console.log('Database initialized successfully');
         
         // Initialize default director account if needed
@@ -64,11 +69,12 @@ function App() {
           message: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined
         });
-        // Still set initialized to true after a timeout to prevent infinite loading
+        // Still set initialized to true after a shorter timeout to prevent infinite loading
         timeoutId = setTimeout(() => {
-          console.warn('Database initialization timed out, proceeding anyway...');
+          console.warn('Database initialization failed or timed out, proceeding anyway...');
+          console.warn('Some features may not work. Please refresh the page or clear IndexedDB.');
           setDbInitialized(true);
-        }, 5000);
+        }, 3000);
       }
     };
 
