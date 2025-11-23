@@ -308,10 +308,21 @@ class ApiService {
     });
   }
 
-  // Audit log endpoints (placeholder - to be implemented)
+  // Audit log endpoints
   async getAuditLogs(entityType?: string, entityId?: number, startDate?: Date, endDate?: Date) {
-    // Placeholder - return empty array for now
-    return [];
+    let url = '/audit-logs?';
+    if (entityType) url += `entityType=${entityType}&`;
+    if (entityId) url += `entityId=${entityId}&`;
+    if (startDate) url += `startDate=${startDate.toISOString()}&`;
+    if (endDate) url += `endDate=${endDate.toISOString()}&`;
+    return this.request<any[]>(url);
+  }
+
+  async createAuditLog(logData: any) {
+    return this.request('/audit-logs', {
+      method: 'POST',
+      body: JSON.stringify(logData),
+    });
   }
 
   // Notifications endpoints (placeholder - to be implemented)

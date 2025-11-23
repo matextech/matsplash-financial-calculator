@@ -1,4 +1,4 @@
-import { dbService } from './database';
+import { apiService } from './apiService';
 import { authService } from './authService';
 import { AuditLog } from '../types/sales-log';
 
@@ -21,7 +21,7 @@ export class AuditService {
         return;
       }
 
-      await dbService.addAuditLog({
+      await apiService.createAuditLog({
         entityType,
         entityId,
         action: 'update',
@@ -51,7 +51,7 @@ export class AuditService {
         return;
       }
 
-      await dbService.addAuditLog({
+      await apiService.createAuditLog({
         entityType,
         entityId,
         action: 'create',
@@ -78,7 +78,7 @@ export class AuditService {
         return;
       }
 
-      await dbService.addAuditLog({
+      await apiService.createAuditLog({
         entityType,
         entityId,
         action: 'delete',
@@ -105,7 +105,7 @@ export class AuditService {
         return;
       }
 
-      await dbService.addAuditLog({
+      await apiService.createAuditLog({
         entityType,
         entityId,
         action: 'submit',

@@ -43,7 +43,7 @@ import {
   ChevronRight,
 } from '@mui/icons-material';
 import { ReceptionistSale, StorekeeperEntry, Settlement, SettlementPayment, Notification } from '../../types/sales-log';
-import { Settings, DEFAULT_SETTINGS, Employee } from '../../types';
+import { Settings, DEFAULT_SETTINGS, Employee, BagPrice } from '../../types';
 import { apiService } from '../../services/apiService';
 import { authService } from '../../services/authService';
 import { AuditService } from '../../services/auditService';
@@ -58,6 +58,7 @@ export default function ManagerDashboard() {
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [bagPrices, setBagPrices] = useState<BagPrice[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<'month' | 'day' | 'range'>('month');
@@ -122,17 +123,22 @@ export default function ManagerDashboard() {
         endDate = endOfDay(dateRange.end);
       }
       
-      const [salesData, entriesData, settlementsData, settingsData] = await Promise.all([
+      const [salesData, entriesData, settlementsData, settingsData, bagPricesData] = await Promise.all([
         apiService.getReceptionistSales(startDate, endDate),
         apiService.getStorekeeperEntries(startDate, endDate),
         apiService.getSettlements(startDate, endDate),
         apiService.getSettings(),
+        apiService.getBagPrices(),
       ]);
 
       setSales(salesData);
       setEntries(entriesData);
       setSettlements(settlementsData);
       setSettings(settingsData || DEFAULT_SETTINGS);
+      
+      // Filter and sort active bag prices
+      const activePrices = bagPricesData.filter(p => p.isActive).sort((a, b) => a.sortOrder - b.sortOrder);
+      setBagPrices(activePrices);
     } catch (error) {
       console.error('Error loading data:', error);
     }
@@ -752,8 +758,7 @@ export default function ManagerDashboard() {
                   <TableRow>
                     <TableCell>Date</TableCell>
                     <TableCell>Driver/Type</TableCell>
-                    <TableCell>Bags @ ₦{settings.salesPrice1}</TableCell>
-                    <TableCell>Bags @ ₦{settings.salesPrice2}</TableCell>
+                    <TableCell>Price Breakdown</TableCell>
                     <TableCell>Total Bags</TableCell>
                     <TableCell>Expected Amount</TableCell>
                     <TableCell>Settlement Status</TableCell>
@@ -762,8 +767,18 @@ export default function ManagerDashboard() {
                 </TableHead>
                 <TableBody>
                   {filteredSales.map((sale) => {
-                  const expectedAmount = (sale.bagsAtPrice1 * settings.salesPrice1) + 
-                                       (sale.bagsAtPrice2 * settings.salesPrice2);
+                  // Calculate expected amount using dynamic pricing if available
+                  let expectedAmount = 0;
+                  if (sale.priceBreakdown && sale.priceBreakdown.length > 0) {
+                    // Use dynamic price breakdown
+                    expectedAmount = sale.priceBreakdown.reduce((sum, item) => 
+                      sum + (item.bags * item.amount), 0
+                    );
+                  } else {
+                    // Fallback to legacy 2-price system
+                    expectedAmount = (sale.bagsAtPrice1 * settings.salesPrice1) + 
+                                   (sale.bagsAtPrice2 * settings.salesPrice2);
+                  }
                   const settlement = settlements.find(s => s.receptionistSaleId === sale.id);
                   return (
                     <TableRow key={sale.id}>
@@ -772,8 +787,31 @@ export default function ManagerDashboard() {
                         {sale.saleType === 'driver' ? sale.driverName : 
                          sale.saleType === 'general' ? 'General Sales' : 'Mini Store'}
                       </TableCell>
-                      <TableCell>{sale.bagsAtPrice1.toLocaleString()}</TableCell>
-                      <TableCell>{sale.bagsAtPrice2.toLocaleString()}</TableCell>
+                      <TableCell>
+                        {sale.priceBreakdown && sale.priceBreakdown.length > 0 ? (
+                          <Box>
+                            {sale.priceBreakdown.map((item, idx) => (
+                              <Typography key={idx} variant="body2">
+                                {item.bags.toLocaleString()} @ ₦{item.amount.toLocaleString()}
+                                {item.label ? ` (${item.label})` : ''}
+                              </Typography>
+                            ))}
+                          </Box>
+                        ) : (
+                          <Box>
+                            {sale.bagsAtPrice1 > 0 && (
+                              <Typography variant="body2">
+                                {sale.bagsAtPrice1.toLocaleString()} @ ₦{settings.salesPrice1}
+                              </Typography>
+                            )}
+                            {sale.bagsAtPrice2 > 0 && (
+                              <Typography variant="body2">
+                                {sale.bagsAtPrice2.toLocaleString()} @ ₦{settings.salesPrice2}
+                              </Typography>
+                            )}
+                          </Box>
+                        )}
+                      </TableCell>
                       <TableCell>{sale.totalBags.toLocaleString()}</TableCell>
                       <TableCell>{formatCurrency(expectedAmount)}</TableCell>
                       <TableCell>
@@ -1143,8 +1181,12 @@ export default function ManagerDashboard() {
                   required
                   helperText="Select which field you want to update"
                 >
-                  <MenuItem value="bagsAtPrice1">Bags at Price 1 (₦250)</MenuItem>
-                  <MenuItem value="bagsAtPrice2">Bags at Price 2 (₦270)</MenuItem>
+                  {/* Dynamic bag prices as update options */}
+                  {bagPrices.map((price, index) => (
+                    <MenuItem key={price.id} value={`bagsAtPrice${index + 1}`}>
+                      Bags at ₦{price.amount.toLocaleString()} {price.label ? `(${price.label})` : ''}
+                    </MenuItem>
+                  ))}
                 </TextField>
                 <TextField
                   label="New Value"
