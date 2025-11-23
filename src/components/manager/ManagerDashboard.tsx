@@ -1082,6 +1082,11 @@ export default function ManagerDashboard() {
         <DialogTitle>Update Entry</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <Alert severity="info">
+              {updateType === 'sale' 
+                ? 'Update the number of bags sold. This can only be done BEFORE any settlement payment.'
+                : 'Update the storekeeper entry. This action will be recorded in the audit log.'}
+            </Alert>
             <TextField
               label="Field to Update"
               fullWidth
@@ -1089,11 +1094,15 @@ export default function ManagerDashboard() {
               value={updateField}
               onChange={(e) => setUpdateField(e.target.value)}
               required
+              helperText="Select which field you want to update"
+              SelectProps={{
+                native: false,
+              }}
             >
               {updateType === 'sale' ? (
                 <>
-                  <MenuItem value="bagsAtPrice1">Bags at Price 1</MenuItem>
-                  <MenuItem value="bagsAtPrice2">Bags at Price 2</MenuItem>
+                  <MenuItem value="bagsAtPrice1">Bags at Price 1 (₦250)</MenuItem>
+                  <MenuItem value="bagsAtPrice2">Bags at Price 2 (₦270)</MenuItem>
                   <MenuItem value="notes">Notes</MenuItem>
                 </>
               ) : (
@@ -1110,6 +1119,9 @@ export default function ManagerDashboard() {
               value={updateValue}
               onChange={(e) => setUpdateValue(e.target.value)}
               required
+              placeholder={updateField.includes('bags') || updateField === 'bagsCount' ? 'Enter number of bags' : 'Enter new value'}
+              helperText={updateField ? `Current value: ${(updateItem as any)?.[updateField] || 'N/A'}` : 'Select a field first'}
+              disabled={!updateField}
             />
             <TextField
               label="Reason for Update"
