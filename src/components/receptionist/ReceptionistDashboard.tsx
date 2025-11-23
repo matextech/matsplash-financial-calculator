@@ -204,28 +204,13 @@ export default function ReceptionistDashboard() {
     return new Date(year, month - 1, day);
   };
 
-  // Filter sales by date
-  const visibleSales = sales.filter(sale => {
-    const saleDate = sale.date instanceof Date ? sale.date : new Date(sale.date);
-    
-    switch (dateFilter) {
-      case 'today':
-        return isSameDay(saleDate, new Date());
-      case 'yesterday':
-        return isSameDay(saleDate, subDays(new Date(), 1));
-      case '2days':
-        return saleDate >= startOfDay(subDays(new Date(), 2));
-      case 'custom':
-        return isSameDay(saleDate, selectedDate);
-      default:
-        return true;
-    }
-  });
-
-  // Apply filter type
+  // Since backend already filters by date, just apply type filter
+  // (The sales array already contains the date-filtered data from the API)
   const filteredSales = filterType === 'all' 
-    ? visibleSales 
-    : visibleSales.filter(sale => sale.saleType === filterType);
+    ? sales 
+    : sales.filter(sale => sale.saleType === filterType);
+  
+  const visibleSales = sales; // For backward compatibility with stats display
 
   // Group sales by type
   const groupedSales = {

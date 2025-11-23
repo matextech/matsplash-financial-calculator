@@ -190,28 +190,13 @@ export default function StorekeeperDashboard() {
     return new Date(year, month - 1, day);
   };
 
-  // Filter entries by date
-  const visibleEntries = entries.filter(entry => {
-    const entryDate = entry.date instanceof Date ? entry.date : new Date(entry.date);
-    
-    switch (dateFilter) {
-      case 'today':
-        return isSameDay(entryDate, new Date());
-      case 'yesterday':
-        return isSameDay(entryDate, subDays(new Date(), 1));
-      case '2days':
-        return entryDate >= startOfDay(subDays(new Date(), 2));
-      case 'custom':
-        return isSameDay(entryDate, selectedDate);
-      default:
-        return true;
-    }
-  });
-
-  // Apply filter type
+  // Since backend already filters by date, just apply type filter
+  // (The entries array already contains the date-filtered data from the API)
   const filteredEntries = filterType === 'all' 
-    ? visibleEntries 
-    : visibleEntries.filter(entry => entry.entryType === filterType);
+    ? entries 
+    : entries.filter(entry => entry.entryType === filterType);
+  
+  const visibleEntries = entries; // For backward compatibility with stats display
 
   // Group entries by type
   const groupedEntries = {
