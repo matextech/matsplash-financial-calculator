@@ -342,6 +342,28 @@ export default async function setupDatabase(): Promise<void> {
       }
     }
     
+    // Add material price ID columns to sales table (if they don't exist)
+    const hasSalesTable = await db.schema.hasTable('sales');
+    if (hasSalesTable) {
+      const hasSachetRollPriceId = await db.schema.hasColumn('sales', 'sachet_roll_price_id');
+      if (!hasSachetRollPriceId) {
+        console.log('Adding sachet_roll_price_id column to sales...');
+        await db.schema.alterTable('sales', (table) => {
+          table.integer('sachet_roll_price_id');
+        });
+        console.log('sachet_roll_price_id column added successfully');
+      }
+      
+      const hasPackingNylonPriceId = await db.schema.hasColumn('sales', 'packing_nylon_price_id');
+      if (!hasPackingNylonPriceId) {
+        console.log('Adding packing_nylon_price_id column to sales...');
+        await db.schema.alterTable('sales', (table) => {
+          table.integer('packing_nylon_price_id');
+        });
+        console.log('packing_nylon_price_id column added successfully');
+      }
+    }
+    
     // Initialize default users if they don't exist
     await initializeDefaultUsers();
     

@@ -91,17 +91,49 @@ export class FinancialCalculator {
       settings = DEFAULT_SETTINGS;
     }
 
-    // Calculate material cost allocated to this period (simplified - could be improved with FIFO)
-    // This is used for profit calculation, but actual purchase costs are shown in expense breakdown
-    const sachetCostPerBag = settings.sachetRollCost / settings.sachetRollBagsPerRoll;
-    const nylonCostPerBag = settings.packingNylonCost / settings.packingNylonBagsPerPackage;
-    const materialCostAllocated = totalBagsSold * (sachetCostPerBag + nylonCostPerBag);
+    // Calculate material cost allocated to this period
+    // Use selected material prices from sales if available, otherwise use default settings
+    // Load material prices for calculations
+    let materialPricesMap: { [key: number]: any } = {};
+    try {
+      const { apiService } = await import('./apiService');
+      const allMaterialPrices = await apiService.getMaterialPrices(undefined, true); // Include inactive
+      allMaterialPrices.forEach(price => {
+        materialPricesMap[price.id!] = price;
+      });
+    } catch (error) {
+      console.error('Error loading material prices for calculations:', error);
+    }
+    
+    // Calculate material cost per bag for each sale using selected prices or defaults
+    let totalMaterialCostAllocated = 0;
+    for (const sale of sales) {
+      let sachetCostPerBag: number;
+      let nylonCostPerBag: number;
+      
+      // Use selected material price if available, otherwise use default from settings
+      if (sale.sachetRollPriceId && materialPricesMap[sale.sachetRollPriceId]) {
+        const selectedPrice = materialPricesMap[sale.sachetRollPriceId];
+        sachetCostPerBag = selectedPrice.cost / selectedPrice.bagsPerUnit;
+      } else {
+        sachetCostPerBag = settings.sachetRollCost / settings.sachetRollBagsPerRoll;
+      }
+      
+      if (sale.packingNylonPriceId && materialPricesMap[sale.packingNylonPriceId]) {
+        const selectedPrice = materialPricesMap[sale.packingNylonPriceId];
+        nylonCostPerBag = selectedPrice.cost / selectedPrice.bagsPerUnit;
+      } else {
+        nylonCostPerBag = settings.packingNylonCost / settings.packingNylonBagsPerPackage;
+      }
+      
+      totalMaterialCostAllocated += sale.bagsSold * (sachetCostPerBag + nylonCostPerBag);
+    }
 
     // Calculate salaries
     const totalSalaries = salaryPayments.reduce((sum, payment) => sum + payment.totalAmount, 0);
 
     // Calculate total expenses
-    const totalExpenses = fuelCosts + driverPayments + otherExpenses + materialCostAllocated + totalSalaries;
+    const totalExpenses = fuelCosts + driverPayments + otherExpenses + totalMaterialCostAllocated + totalSalaries;
 
     // Calculate profit
     const profit = totalRevenue - totalExpenses;
