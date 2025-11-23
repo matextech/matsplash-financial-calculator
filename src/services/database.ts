@@ -18,13 +18,7 @@ class DatabaseService {
 
       request.onblocked = () => {
         console.warn('Database upgrade blocked - please close other tabs with this app open');
-        // Still proceed after a delay
-        setTimeout(() => {
-          if (request.result) {
-            this.db = request.result;
-            resolve();
-          }
-        }, 1000);
+        alert('Database upgrade is blocked. Please close all other tabs with this app and refresh the page.');
       };
 
       request.onsuccess = () => {
