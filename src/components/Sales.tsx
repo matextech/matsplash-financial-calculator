@@ -34,8 +34,9 @@ import {
   TrendingUp,
   LocalShipping,
 } from '@mui/icons-material';
-import { Sale, Employee, Settings, DEFAULT_SETTINGS } from '../types';
+import { Sale, Employee, Settings, DEFAULT_SETTINGS, MaterialPrice } from '../types';
 import { dbService } from '../services/database';
+import { apiService } from '../services/apiService';
 import { format, startOfDay, endOfDay, isSameDay, isToday, addDays, subDays } from 'date-fns';
 
 export default function Sales() {
@@ -62,13 +63,27 @@ export default function Sales() {
     combinedBags: '',
     combinedPrice: '',
     notes: '',
+    sachetRollPriceId: '' as string | number,
+    packingNylonPriceId: '' as string | number,
   });
 
   useEffect(() => {
     loadSales();
     loadEmployees();
     loadSettings();
+    loadMaterialPrices();
   }, []);
+
+  const loadMaterialPrices = async () => {
+    try {
+      const prices = await apiService.getMaterialPrices();
+      setMaterialPrices(prices);
+      setSachetRollPrices(prices.filter(p => p.type === 'sachet_roll' && p.isActive));
+      setPackingNylonPrices(prices.filter(p => p.type === 'packing_nylon' && p.isActive));
+    } catch (error) {
+      console.error('Error loading material prices:', error);
+    }
+  };
 
   const loadSettings = async () => {
     try {
@@ -231,6 +246,8 @@ export default function Sales() {
         combinedBags: (pricePerBag !== settings.salesPrice1 && pricePerBag !== settings.salesPrice2) ? sale.bagsSold.toString() : '',
         combinedPrice: (pricePerBag !== settings.salesPrice1 && pricePerBag !== settings.salesPrice2) ? pricePerBag.toString() : settings.salesPrice1.toString(),
         notes: sale.notes || '',
+        sachetRollPriceId: sale.sachetRollPriceId || '',
+        packingNylonPriceId: sale.packingNylonPriceId || '',
       });
       console.log('Opening sale for editing:', sale);
     } else {
@@ -244,6 +261,8 @@ export default function Sales() {
         combinedBags: '',
         combinedPrice: settings.salesPrice1.toString(),
         notes: '',
+        sachetRollPriceId: '',
+        packingNylonPriceId: '',
       });
     }
     setOpen(true);
@@ -311,6 +330,8 @@ export default function Sales() {
           totalAmount: bagsAtPrice1 * settings.salesPrice1,
           date: formData.date,
           notes: formData.notes?.trim() || undefined,
+          sachetRollPriceId: formData.sachetRollPriceId ? parseInt(String(formData.sachetRollPriceId)) : undefined,
+          packingNylonPriceId: formData.packingNylonPriceId ? parseInt(String(formData.packingNylonPriceId)) : undefined,
         });
         console.log(`Adding sale at ₦${settings.salesPrice1}:`, bagsAtPrice1, 'bags', isGeneralSale ? '(General/Factory sale)' : matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
       }
@@ -326,6 +347,8 @@ export default function Sales() {
           totalAmount: bagsAtPrice2 * settings.salesPrice2,
           date: formData.date,
           notes: formData.notes?.trim() || undefined,
+          sachetRollPriceId: formData.sachetRollPriceId ? parseInt(String(formData.sachetRollPriceId)) : undefined,
+          packingNylonPriceId: formData.packingNylonPriceId ? parseInt(String(formData.packingNylonPriceId)) : undefined,
         });
         console.log(`Adding sale at ₦${settings.salesPrice2}:`, bagsAtPrice2, 'bags', isGeneralSale ? '(General/Factory sale)' : matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
       }
@@ -345,6 +368,8 @@ export default function Sales() {
           totalAmount: combinedBags * combinedPrice,
           date: formData.date,
           notes: formData.notes?.trim() || undefined,
+          sachetRollPriceId: formData.sachetRollPriceId ? parseInt(String(formData.sachetRollPriceId)) : undefined,
+          packingNylonPriceId: formData.packingNylonPriceId ? parseInt(String(formData.packingNylonPriceId)) : undefined,
         });
         console.log('Adding combined sale:', combinedBags, 'bags at ₦' + combinedPrice, isGeneralSale ? '(General/Factory sale)' : matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
       }
@@ -392,6 +417,8 @@ export default function Sales() {
             totalAmount: bagsAtPrice2 * settings.salesPrice2,
             date: formData.date,
             notes: formData.notes?.trim() || undefined,
+            sachetRollPriceId: formData.sachetRollPriceId ? parseInt(String(formData.sachetRollPriceId)) : undefined,
+            packingNylonPriceId: formData.packingNylonPriceId ? parseInt(String(formData.packingNylonPriceId)) : undefined,
           };
         } else if (combinedBags !== null) {
           if (isNaN(combinedPrice) || combinedPrice <= 0) {
@@ -407,6 +434,8 @@ export default function Sales() {
             totalAmount: combinedBags * combinedPrice,
             date: formData.date,
             notes: formData.notes?.trim() || undefined,
+            sachetRollPriceId: formData.sachetRollPriceId ? parseInt(String(formData.sachetRollPriceId)) : undefined,
+            packingNylonPriceId: formData.packingNylonPriceId ? parseInt(String(formData.packingNylonPriceId)) : undefined,
           };
         }
 
@@ -905,6 +934,44 @@ export default function Sales() {
                 )}
               </Typography>
             </Box>
+
+            <Divider sx={{ my: 2 }}>Material Prices (for Profit Calculations)</Divider>
+            
+            {sachetRollPrices.length > 0 && (
+              <TextField
+                label="Sachet Roll Price Model (Optional)"
+                fullWidth
+                select
+                value={formData.sachetRollPriceId || ''}
+                onChange={(e) => setFormData({ ...formData, sachetRollPriceId: e.target.value ? parseInt(e.target.value) : '' })}
+                helperText="Select which sachet roll price model to use for profit calculations"
+              >
+                <MenuItem value="">Use default from settings</MenuItem>
+                {sachetRollPrices.map((price) => (
+                  <MenuItem key={price.id} value={price.id}>
+                    {price.label || 'Unnamed'} - ₦{price.cost.toLocaleString()} per roll ({price.bagsPerUnit} bags) = ₦{(price.cost / price.bagsPerUnit).toFixed(2)}/bag
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+
+            {packingNylonPrices.length > 0 && (
+              <TextField
+                label="Packing Nylon Price Model (Optional)"
+                fullWidth
+                select
+                value={formData.packingNylonPriceId || ''}
+                onChange={(e) => setFormData({ ...formData, packingNylonPriceId: e.target.value ? parseInt(e.target.value) : '' })}
+                helperText="Select which packing nylon price model to use for profit calculations"
+              >
+                <MenuItem value="">Use default from settings</MenuItem>
+                {packingNylonPrices.map((price) => (
+                  <MenuItem key={price.id} value={price.id}>
+                    {price.label || 'Unnamed'} - ₦{price.cost.toLocaleString()} per package ({price.bagsPerUnit} bags) = ₦{(price.cost / price.bagsPerUnit).toFixed(2)}/bag
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
 
             <TextField
               label="Notes (Optional)"

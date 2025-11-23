@@ -41,6 +41,9 @@ export interface Sale {
   totalAmount: number;
   date: Date;
   notes?: string;
+  // Material price selections (optional - for profit calculations)
+  sachetRollPriceId?: number; // Selected sachet roll price model
+  packingNylonPriceId?: number; // Selected packing nylon price model
   createdAt?: Date;
 }
 
