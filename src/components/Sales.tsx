@@ -411,31 +411,30 @@ export default function Sales() {
           );
         }
 
-        if (bagsAtPrice1 !== null) {
-          saleDataToUpdate = {
-            driverName: isGeneralSaleEdit ? 'General/Factory' : formData.driverName.trim(),
-            driverEmail: isGeneralSaleEdit ? undefined : formData.driverEmail?.trim() || undefined,
-            employeeId: isGeneralSaleEdit ? undefined : matchingEmployee?.id,
-            bagsSold: bagsAtPrice1,
-            pricePerBag: bagPrices[0]?.amount || settings.salesPrice1,
-            totalAmount: bagsAtPrice1 * (bagPrices[0]?.amount || settings.salesPrice1),
-            date: formData.date,
-            notes: formData.notes?.trim() || undefined,
-          };
-        } else if (bagsAtPrice2 !== null) {
-          saleDataToUpdate = {
-            driverName: isGeneralSaleEdit ? 'General/Factory' : formData.driverName.trim(),
-            driverEmail: isGeneralSaleEdit ? undefined : formData.driverEmail?.trim() || undefined,
-            employeeId: isGeneralSaleEdit ? undefined : matchingEmployee?.id,
-            bagsSold: bagsAtPrice2,
-            pricePerBag: bagPrices[1]?.amount || settings.salesPrice2,
-            totalAmount: bagsAtPrice2 * (bagPrices[1]?.amount || settings.salesPrice2),
-            date: formData.date,
-            notes: formData.notes?.trim() || undefined,
-            sachetRollPriceId: formData.sachetRollPriceId ? parseInt(String(formData.sachetRollPriceId)) : undefined,
-            packingNylonPriceId: formData.packingNylonPriceId ? parseInt(String(formData.packingNylonPriceId)) : undefined,
-          };
-        } else if (combinedBags !== null) {
+        // Check if any bag price has bags entered
+        let foundBagPriceEntry = false;
+        for (const price of bagPrices) {
+          if (!price.id) continue;
+          const bagsCount = parseBags(formData.bagsByPriceId[price.id]);
+          if (bagsCount !== null && bagsCount > 0) {
+            saleDataToUpdate = {
+              driverName: isGeneralSaleEdit ? 'General/Factory' : formData.driverName.trim(),
+              driverEmail: isGeneralSaleEdit ? undefined : formData.driverEmail?.trim() || undefined,
+              employeeId: isGeneralSaleEdit ? undefined : matchingEmployee?.id,
+              bagsSold: bagsCount,
+              pricePerBag: price.amount,
+              totalAmount: bagsCount * price.amount,
+              date: formData.date,
+              notes: formData.notes?.trim() || undefined,
+              sachetRollPriceId: formData.sachetRollPriceId ? parseInt(String(formData.sachetRollPriceId)) : undefined,
+              packingNylonPriceId: formData.packingNylonPriceId ? parseInt(String(formData.packingNylonPriceId)) : undefined,
+            };
+            foundBagPriceEntry = true;
+            break; // Only update with first found price (single sale edit)
+          }
+        }
+
+        if (!foundBagPriceEntry && combinedBags !== null) {
           if (isNaN(combinedPrice) || combinedPrice <= 0) {
             alert('Please enter a valid price for combined bags.');
             return;
