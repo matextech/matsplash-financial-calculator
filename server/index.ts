@@ -12,6 +12,7 @@ import settlementsRoutes from './routes/settlements';
 import settlementPaymentsRoutes from './routes/settlement-payments';
 import settingsRoutes from './routes/settings';
 import bagPricesRoutes from './routes/bag-prices';
+import materialPricesRoutes from './routes/material-prices';
 import auditLogsRoutes from './routes/audit-logs';
 
 // Load environment variables
@@ -41,6 +42,7 @@ app.use('/api/settlements', settlementsRoutes);
 app.use('/api/settlement-payments', settlementPaymentsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/bag-prices', bagPricesRoutes);
+app.use('/api/material-prices', materialPricesRoutes);
 app.use('/api/audit-logs', auditLogsRoutes);
 console.log('✅ All routes registered, including /api/audit-logs');
 

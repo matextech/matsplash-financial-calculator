@@ -84,13 +84,27 @@ export interface BagPrice {
   updatedAt?: Date;
 }
 
+export interface MaterialPrice {
+  id?: number;
+  type: 'sachet_roll' | 'packing_nylon';
+  cost: number; // Cost per roll/package
+  bagsPerUnit: number; // Number of bags per roll/package
+  label?: string; // Optional label like "Supplier A", "Premium Quality", etc.
+  sortOrder: number; // Display order
+  isActive: boolean; // Show/hide from users
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 export interface Settings {
   id?: number;
-  // Material Costs
-  sachetRollCost: number; // Price per roll
-  sachetRollBagsPerRoll: number; // Number of bags per roll
-  packingNylonCost: number; // Price per package
-  packingNylonBagsPerPackage: number; // Number of bags per package
+  // Material Costs - Legacy single values (for backward compatibility)
+  sachetRollCost: number; // Price per roll (deprecated - use materialPrices)
+  sachetRollBagsPerRoll: number; // Number of bags per roll (deprecated - use materialPrices)
+  packingNylonCost: number; // Price per package (deprecated - use materialPrices)
+  packingNylonBagsPerPackage: number; // Number of bags per package (deprecated - use materialPrices)
+  // Material Prices - DYNAMIC ARRAYS
+  materialPrices?: MaterialPrice[]; // Array of material prices (unlimited)
   // Sales Prices - DYNAMIC ARRAY
   bagPrices: BagPrice[]; // Array of bag prices (unlimited)
   // Legacy fields for backward compatibility

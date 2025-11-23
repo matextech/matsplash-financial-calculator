@@ -295,6 +295,39 @@ class ApiService {
     });
   }
 
+  // Material Prices endpoints
+  async getMaterialPrices(type?: 'sachet_roll' | 'packing_nylon', includeInactive = false) {
+    let params = includeInactive ? '?includeInactive=true' : '';
+    if (type) {
+      params += params ? `&type=${type}` : `?type=${type}`;
+    }
+    return this.request<any[]>(`/material-prices${params}`);
+  }
+
+  async getMaterialPrice(id: number) {
+    return this.request<any>(`/material-prices/${id}`);
+  }
+
+  async createMaterialPrice(priceData: any) {
+    return this.request('/material-prices', {
+      method: 'POST',
+      body: JSON.stringify(priceData),
+    });
+  }
+
+  async updateMaterialPrice(id: number, priceData: any) {
+    return this.request(`/material-prices/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(priceData),
+    });
+  }
+
+  async deleteMaterialPrice(id: number) {
+    return this.request(`/material-prices/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   async updateBagPrice(id: number, priceData: any) {
     return this.request(`/bag-prices/${id}`, {
       method: 'PUT',

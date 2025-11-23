@@ -435,6 +435,33 @@ async function initializeDefaultUsers(): Promise<void> {
       ]);
     }
     
+    // Check and create material_prices table if it doesn't exist
+    const hasMaterialPricesTable = await db.schema.hasTable('material_prices');
+    if (!hasMaterialPricesTable) {
+      console.log('Creating material_prices table...');
+      await db.schema.createTable('material_prices', (table) => {
+        table.increments('id').primary();
+        table.string('type').notNullable(); // 'sachet_roll' or 'packing_nylon'
+        table.decimal('cost', 10, 2).notNullable(); // Cost per roll/package
+        table.integer('bags_per_unit').notNullable(); // Number of bags per roll/package
+        table.string('label'); // Optional label
+        table.integer('sort_order').defaultTo(0);
+        table.integer('is_active').defaultTo(1); // SQLite uses 0/1 for boolean
+        table.timestamp('created_at').defaultTo(db.fn.now());
+        table.timestamp('updated_at').defaultTo(db.fn.now());
+        table.index('type');
+        table.index('is_active');
+      });
+      console.log('material_prices table created successfully');
+      
+      // Initialize default material prices
+      await db('material_prices').insert([
+        { type: 'sachet_roll', cost: 31000, bags_per_unit: 450, label: 'Standard Roll', sort_order: 1, is_active: 1 },
+        { type: 'packing_nylon', cost: 100000, bags_per_unit: 10000, label: 'Standard Package', sort_order: 1, is_active: 1 }
+      ]);
+      console.log('Default material prices initialized');
+    }
+    
     console.log('Default users, settings, and bag prices initialized');
   } catch (error) {
     console.error('Error initializing default users:', error);

@@ -94,6 +94,17 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
   }, [settlementDetailsOpen, selectedSettlement?.id]);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [bagPrices, setBagPrices] = useState<BagPrice[]>([]);
+  const [materialPrices, setMaterialPrices] = useState<any[]>([]);
+  const [editingMaterialPrice, setEditingMaterialPrice] = useState<any | null>(null);
+  const [materialPriceDialogOpen, setMaterialPriceDialogOpen] = useState(false);
+  const [materialPriceFormData, setMaterialPriceFormData] = useState({
+    type: 'sachet_roll' as 'sachet_roll' | 'packing_nylon',
+    cost: 0,
+    bagsPerUnit: 0,
+    label: '',
+    sortOrder: 0,
+    isActive: true,
+  });
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [viewMode, setViewMode] = useState<'year' | 'month' | 'day' | 'range'>('year');
   const [selectedMonth, setSelectedMonth] = useState(new Date());
@@ -183,12 +194,14 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
         setAuditLogs(logsData);
       } else if (tabValue === 4) {
         // Settings
-        const [settingsData, bagPricesData] = await Promise.all([
+        const [settingsData, bagPricesData, materialPricesData] = await Promise.all([
           apiService.getSettings(),
-          apiService.getBagPrices()
+          apiService.getBagPrices(true), // Include inactive for management
+          apiService.getMaterialPrices(undefined, true) // Include inactive for management
         ]);
         setSettings(settingsData || DEFAULT_SETTINGS);
         setBagPrices(bagPricesData || []);
+        setMaterialPrices(materialPricesData || []);
       }
       
       // Load users for audit log display
@@ -1420,78 +1433,194 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
               </Card>
             </Grid>
 
-            {/* Material Costs */}
+            {/* Material Prices Management */}
             <Grid item xs={12}>
               <Card>
                 <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Material Costs
-                  </Typography>
-                  <Alert severity="info" sx={{ mb: 3 }}>
-                    Configure material costs for profit calculation (used in analytics).
-                  </Alert>
-                  
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} md={6}>
-                      <TextField
-                        fullWidth
-                        label="Sachet Roll Cost (₦)"
-                        type="number"
-                        value={settings.sachetRollCost}
-                        onChange={(e) => setSettings({ ...settings, sachetRollCost: parseFloat(e.target.value) || 0 })}
-                        InputProps={{
-                          startAdornment: <InputAdornment position="start">₦</InputAdornment>,
-                        }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <TextField
-                        fullWidth
-                        label="Bags Per Roll"
-                        type="number"
-                        value={settings.sachetRollBagsPerRoll}
-                        onChange={(e) => setSettings({ ...settings, sachetRollBagsPerRoll: parseInt(e.target.value) || 0 })}
-                      />
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <TextField
-                        fullWidth
-                        label="Packing Nylon Cost (₦)"
-                        type="number"
-                        value={settings.packingNylonCost}
-                        onChange={(e) => setSettings({ ...settings, packingNylonCost: parseFloat(e.target.value) || 0 })}
-                        InputProps={{
-                          startAdornment: <InputAdornment position="start">₦</InputAdornment>,
-                        }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <TextField
-                        fullWidth
-                        label="Bags Per Package"
-                        type="number"
-                        value={settings.packingNylonBagsPerPackage}
-                        onChange={(e) => setSettings({ ...settings, packingNylonBagsPerPackage: parseInt(e.target.value) || 0 })}
-                      />
-                    </Grid>
-                  </Grid>
-
-                  <Box sx={{ mt: 3 }}>
-                    <Button 
-                      variant="contained" 
-                      onClick={async () => {
-                        try {
-                          await apiService.updateSettings(settings);
-                          alert('Material costs updated successfully!');
-                        } catch (error) {
-                          console.error('Error updating settings:', error);
-                          alert('Error updating settings. Please try again.');
-                        }
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h6">
+                      Material Prices
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      startIcon={<AddIcon />}
+                      onClick={() => {
+                        setEditingMaterialPrice(null);
+                        setMaterialPriceFormData({
+                          type: 'sachet_roll',
+                          cost: 31000,
+                          bagsPerUnit: 450,
+                          label: '',
+                          sortOrder: 0,
+                          isActive: true,
+                        });
+                        setMaterialPriceDialogOpen(true);
                       }}
                     >
-                      Save Material Costs
+                      Add Material Price
                     </Button>
                   </Box>
+                  <Alert severity="info" sx={{ mb: 3 }}>
+                    Configure multiple price models for sachet rolls and packing nylon. These prices can be selected when entering sales.
+                  </Alert>
+
+                  {/* Sachet Roll Prices */}
+                  <Typography variant="subtitle1" sx={{ mt: 3, mb: 2, fontWeight: 'bold' }}>
+                    Sachet Roll Prices
+                  </Typography>
+                  <TableContainer component={Paper} sx={{ mb: 3 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Label</TableCell>
+                          <TableCell>Cost (₦)</TableCell>
+                          <TableCell>Bags/Roll</TableCell>
+                          <TableCell>Cost/Bag</TableCell>
+                          <TableCell>Sort Order</TableCell>
+                          <TableCell>Status</TableCell>
+                          <TableCell>Actions</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {materialPrices
+                          .filter(p => p.type === 'sachet_roll')
+                          .sort((a, b) => a.sortOrder - b.sortOrder)
+                          .map((price) => (
+                            <TableRow key={price.id}>
+                              <TableCell>{price.label || 'Unnamed'}</TableCell>
+                              <TableCell>{price.cost.toLocaleString()}</TableCell>
+                              <TableCell>{price.bagsPerUnit.toLocaleString()}</TableCell>
+                              <TableCell>₦{(price.cost / price.bagsPerUnit).toFixed(2)}</TableCell>
+                              <TableCell>{price.sortOrder}</TableCell>
+                              <TableCell>
+                                <Chip 
+                                  label={price.isActive ? 'Active' : 'Inactive'} 
+                                  color={price.isActive ? 'success' : 'default'} 
+                                  size="small"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <IconButton size="small" onClick={() => {
+                                  setEditingMaterialPrice(price);
+                                  setMaterialPriceFormData({
+                                    type: price.type,
+                                    cost: price.cost,
+                                    bagsPerUnit: price.bagsPerUnit,
+                                    label: price.label || '',
+                                    sortOrder: price.sortOrder,
+                                    isActive: price.isActive,
+                                  });
+                                  setMaterialPriceDialogOpen(true);
+                                }}>
+                                  <EditIcon />
+                                </IconButton>
+                                <IconButton size="small" onClick={async () => {
+                                  if (window.confirm('Are you sure you want to delete this material price?')) {
+                                    try {
+                                      await apiService.deleteMaterialPrice(price.id!);
+                                      await loadData();
+                                    } catch (error) {
+                                      console.error('Error deleting material price:', error);
+                                      alert('Error deleting material price. Please try again.');
+                                    }
+                                  }
+                                }}>
+                                  <DeleteIcon />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        {materialPrices.filter(p => p.type === 'sachet_roll').length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={7} align="center">
+                              <Typography variant="body2" color="text.secondary">
+                                No sachet roll prices configured. Click "Add Material Price" to add one.
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+
+                  {/* Packing Nylon Prices */}
+                  <Typography variant="subtitle1" sx={{ mt: 3, mb: 2, fontWeight: 'bold' }}>
+                    Packing Nylon Prices
+                  </Typography>
+                  <TableContainer component={Paper}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Label</TableCell>
+                          <TableCell>Cost (₦)</TableCell>
+                          <TableCell>Bags/Package</TableCell>
+                          <TableCell>Cost/Bag</TableCell>
+                          <TableCell>Sort Order</TableCell>
+                          <TableCell>Status</TableCell>
+                          <TableCell>Actions</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {materialPrices
+                          .filter(p => p.type === 'packing_nylon')
+                          .sort((a, b) => a.sortOrder - b.sortOrder)
+                          .map((price) => (
+                            <TableRow key={price.id}>
+                              <TableCell>{price.label || 'Unnamed'}</TableCell>
+                              <TableCell>{price.cost.toLocaleString()}</TableCell>
+                              <TableCell>{price.bagsPerUnit.toLocaleString()}</TableCell>
+                              <TableCell>₦{(price.cost / price.bagsPerUnit).toFixed(2)}</TableCell>
+                              <TableCell>{price.sortOrder}</TableCell>
+                              <TableCell>
+                                <Chip 
+                                  label={price.isActive ? 'Active' : 'Inactive'} 
+                                  color={price.isActive ? 'success' : 'default'} 
+                                  size="small"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <IconButton size="small" onClick={() => {
+                                  setEditingMaterialPrice(price);
+                                  setMaterialPriceFormData({
+                                    type: price.type,
+                                    cost: price.cost,
+                                    bagsPerUnit: price.bagsPerUnit,
+                                    label: price.label || '',
+                                    sortOrder: price.sortOrder,
+                                    isActive: price.isActive,
+                                  });
+                                  setMaterialPriceDialogOpen(true);
+                                }}>
+                                  <EditIcon />
+                                </IconButton>
+                                <IconButton size="small" onClick={async () => {
+                                  if (window.confirm('Are you sure you want to delete this material price?')) {
+                                    try {
+                                      await apiService.deleteMaterialPrice(price.id!);
+                                      await loadData();
+                                    } catch (error) {
+                                      console.error('Error deleting material price:', error);
+                                      alert('Error deleting material price. Please try again.');
+                                    }
+                                  }
+                                }}>
+                                  <DeleteIcon />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        {materialPrices.filter(p => p.type === 'packing_nylon').length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={7} align="center">
+                              <Typography variant="body2" color="text.secondary">
+                                No packing nylon prices configured. Click "Add Material Price" to add one.
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                 </CardContent>
               </Card>
             </Grid>
@@ -1896,6 +2025,128 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSettlementDetailsOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Material Price Dialog */}
+      <Dialog 
+        open={materialPriceDialogOpen} 
+        onClose={() => setMaterialPriceDialogOpen(false)} 
+        maxWidth="sm" 
+        fullWidth
+        fullScreen={window.innerWidth < 600}
+        PaperProps={{
+          sx: {
+            m: { xs: 0, sm: 2 },
+            height: { xs: '100%', sm: 'auto' }
+          }
+        }}
+      >
+        <DialogTitle>
+          {editingMaterialPrice ? 'Edit Material Price' : 'Add Material Price'}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField
+              label="Type"
+              fullWidth
+              select
+              value={materialPriceFormData.type}
+              onChange={(e) => setMaterialPriceFormData({ ...materialPriceFormData, type: e.target.value as 'sachet_roll' | 'packing_nylon' })}
+              required
+            >
+              <MenuItem value="sachet_roll">Sachet Roll</MenuItem>
+              <MenuItem value="packing_nylon">Packing Nylon</MenuItem>
+            </TextField>
+
+            <TextField
+              label="Label (Optional)"
+              fullWidth
+              value={materialPriceFormData.label}
+              onChange={(e) => setMaterialPriceFormData({ ...materialPriceFormData, label: e.target.value })}
+              placeholder="e.g., Supplier A, Premium Quality"
+            />
+
+            <TextField
+              label={materialPriceFormData.type === 'sachet_roll' ? 'Cost per Roll (₦)' : 'Cost per Package (₦)'}
+              fullWidth
+              type="number"
+              value={materialPriceFormData.cost}
+              onChange={(e) => setMaterialPriceFormData({ ...materialPriceFormData, cost: parseFloat(e.target.value) || 0 })}
+              required
+              InputProps={{
+                startAdornment: <InputAdornment position="start">₦</InputAdornment>,
+              }}
+            />
+
+            <TextField
+              label={materialPriceFormData.type === 'sachet_roll' ? 'Bags per Roll' : 'Bags per Package'}
+              fullWidth
+              type="number"
+              value={materialPriceFormData.bagsPerUnit}
+              onChange={(e) => setMaterialPriceFormData({ ...materialPriceFormData, bagsPerUnit: parseInt(e.target.value) || 0 })}
+              required
+              inputProps={{ min: 1 }}
+            />
+
+            {materialPriceFormData.cost > 0 && materialPriceFormData.bagsPerUnit > 0 && (
+              <Alert severity="info">
+                Cost per bag: ₦{(materialPriceFormData.cost / materialPriceFormData.bagsPerUnit).toFixed(2)}
+              </Alert>
+            )}
+
+            <TextField
+              label="Sort Order"
+              fullWidth
+              type="number"
+              value={materialPriceFormData.sortOrder}
+              onChange={(e) => setMaterialPriceFormData({ ...materialPriceFormData, sortOrder: parseInt(e.target.value) || 0 })}
+              helperText="Lower numbers appear first"
+            />
+
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={materialPriceFormData.isActive}
+                  onChange={(e) => setMaterialPriceFormData({ ...materialPriceFormData, isActive: e.target.checked })}
+                />
+              }
+              label="Active (visible in sales entry)"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMaterialPriceDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={async () => {
+              try {
+                if (!materialPriceFormData.cost || materialPriceFormData.cost <= 0) {
+                  alert('Please enter a valid cost');
+                  return;
+                }
+                if (!materialPriceFormData.bagsPerUnit || materialPriceFormData.bagsPerUnit <= 0) {
+                  alert('Please enter a valid bags per unit');
+                  return;
+                }
+
+                if (editingMaterialPrice) {
+                  await apiService.updateMaterialPrice(editingMaterialPrice.id!, materialPriceFormData);
+                  alert('Material price updated successfully!');
+                } else {
+                  await apiService.createMaterialPrice(materialPriceFormData);
+                  alert('Material price created successfully!');
+                }
+                setMaterialPriceDialogOpen(false);
+                await loadData();
+              } catch (error) {
+                console.error('Error saving material price:', error);
+                alert('Error saving material price. Please try again.');
+              }
+            }}
+          >
+            {editingMaterialPrice ? 'Update' : 'Create'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
