@@ -6,6 +6,10 @@ import { config } from './config';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import employeeRoutes from './routes/employees';
+import receptionistSalesRoutes from './routes/receptionist-sales';
+import storekeeperEntriesRoutes from './routes/storekeeper-entries';
+import settlementsRoutes from './routes/settlements';
+import settingsRoutes from './routes/settings';
 
 // Load environment variables
 dotenv.config();
@@ -28,6 +32,10 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api/receptionist-sales', receptionistSalesRoutes);
+app.use('/api/storekeeper-entries', storekeeperEntriesRoutes);
+app.use('/api/settlements', settlementsRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

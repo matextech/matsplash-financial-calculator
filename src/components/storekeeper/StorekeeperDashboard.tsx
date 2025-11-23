@@ -27,7 +27,6 @@ import {
 } from '@mui/icons-material';
 import { StorekeeperEntry } from '../../types/sales-log';
 import { Employee } from '../../types';
-import { dbService } from '../../services/database';
 import { apiService } from '../../services/apiService';
 import { authService } from '../../services/authService';
 import { AuditService } from '../../services/auditService';
@@ -61,19 +60,16 @@ export default function StorekeeperDashboard() {
 
   const loadData = async () => {
     try {
+      // Calculate date range (default to last 2 days)
+      const twoDaysAgo = startOfDay(subDays(new Date(), 2));
+      const today = endOfDay(new Date());
+
       const [entriesData, employeesData] = await Promise.all([
-        dbService.getStorekeeperEntries(),
+        apiService.getStorekeeperEntries(twoDaysAgo, today),
         apiService.getEmployees(),
       ]);
 
-      // Filter to last 2 days only
-      const twoDaysAgo = subDays(new Date(), 2);
-      const filteredEntries = entriesData.filter(entry => {
-        const entryDate = entry.date instanceof Date ? entry.date : new Date(entry.date);
-        return entryDate >= startOfDay(twoDaysAgo);
-      });
-
-      setEntries(filteredEntries);
+      setEntries(entriesData);
       setDrivers(employeesData.filter(e => e.role === 'Driver'));
       setPackers(employeesData.filter(e => e.role === 'Packers'));
     } catch (error) {
@@ -155,7 +151,7 @@ export default function StorekeeperDashboard() {
         return;
       }
 
-      const entryId = await dbService.addStorekeeperEntry({
+      const result = await apiService.createStorekeeperEntry({
         ...pendingEntry,
         submittedAt: new Date(),
         submittedBy: session.userId,
@@ -163,7 +159,9 @@ export default function StorekeeperDashboard() {
       });
 
       // Log the submission
-      await AuditService.logSubmit('storekeeper_entry', entryId);
+      if (result && result.id) {
+        await AuditService.logSubmit('storekeeper_entry', result.id);
+      }
 
       setConfirmOpen(false);
       setPendingEntry(null);

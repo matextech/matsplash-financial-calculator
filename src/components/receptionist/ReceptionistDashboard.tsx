@@ -29,7 +29,6 @@ import {
 import { ReceptionistSale, Notification } from '../../types/sales-log';
 import { Employee } from '../../types';
 import { Settings, DEFAULT_SETTINGS } from '../../types';
-import { dbService } from '../../services/database';
 import { apiService } from '../../services/apiService';
 import { authService } from '../../services/authService';
 import { AuditService } from '../../services/auditService';
@@ -70,7 +69,7 @@ export default function ReceptionistDashboard() {
     try {
       const session = authService.getCurrentSession();
       if (session) {
-        const notifs = await dbService.getNotifications(session.userId, false);
+        const notifs = await apiService.getNotifications(session.userId, false);
         setNotifications(notifs);
       }
     } catch (error) {
@@ -80,20 +79,17 @@ export default function ReceptionistDashboard() {
 
   const loadData = async () => {
     try {
+      // Calculate date range (default to last 2 days)
+      const twoDaysAgo = startOfDay(subDays(new Date(), 2));
+      const today = endOfDay(new Date());
+
       const [salesData, employeesData, settingsData] = await Promise.all([
-        dbService.getReceptionistSales(),
+        apiService.getReceptionistSales(twoDaysAgo, today),
         apiService.getEmployees(),
-        dbService.getSettings(),
+        apiService.getSettings(),
       ]);
 
-      // Filter to last 2 days only
-      const twoDaysAgo = subDays(new Date(), 2);
-      const filteredSales = salesData.filter(sale => {
-        const saleDate = sale.date instanceof Date ? sale.date : new Date(sale.date);
-        return saleDate >= startOfDay(twoDaysAgo);
-      });
-
-      setSales(filteredSales);
+      setSales(salesData);
       setDrivers(employeesData.filter(e => e.role === 'Driver'));
       setSettings(settingsData || DEFAULT_SETTINGS);
     } catch (error) {
@@ -169,7 +165,7 @@ export default function ReceptionistDashboard() {
         return;
       }
 
-      const saleId = await dbService.addReceptionistSale({
+      const result = await apiService.createReceptionistSale({
         ...pendingSale,
         submittedAt: new Date(),
         submittedBy: session.userId,
@@ -177,7 +173,9 @@ export default function ReceptionistDashboard() {
       });
 
       // Log the submission
-      await AuditService.logSubmit('receptionist_sale', saleId);
+      if (result && result.id) {
+        await AuditService.logSubmit('receptionist_sale', result.id);
+      }
 
       setConfirmOpen(false);
       setPendingSale(null);
@@ -331,11 +329,11 @@ export default function ReceptionistDashboard() {
               label={notifications.length}
               color="error"
               size="small"
-              onClick={() => {
+              onClick={async () => {
                 // Mark all as read
-                notifications.forEach(n => {
-                  if (n.id) dbService.markNotificationAsRead(n.id);
-                });
+                for (const n of notifications) {
+                  if (n.id) await apiService.markNotificationAsRead(n.id);
+                }
                 loadNotifications();
               }}
             />

@@ -44,7 +44,7 @@ import {
 } from '@mui/icons-material';
 import { ReceptionistSale, StorekeeperEntry, Settlement, Notification } from '../../types/sales-log';
 import { Settings, DEFAULT_SETTINGS, Employee } from '../../types';
-import { dbService } from '../../services/database';
+import { apiService } from '../../services/apiService';
 import { authService } from '../../services/authService';
 import { AuditService } from '../../services/auditService';
 import { useNavigate } from 'react-router-dom';
@@ -96,7 +96,7 @@ export default function ManagerDashboard() {
 
   const loadEmployees = async () => {
     try {
-      const data = await dbService.getEmployees();
+      const data = await apiService.getEmployees();
       setEmployees(data.filter(e => e.role === 'Driver'));
     } catch (error) {
       console.error('Error loading employees:', error);
@@ -120,10 +120,10 @@ export default function ManagerDashboard() {
       }
       
       const [salesData, entriesData, settlementsData, settingsData] = await Promise.all([
-        dbService.getReceptionistSales(startDate, endDate),
-        dbService.getStorekeeperEntries(startDate, endDate),
-        dbService.getSettlements(startDate, endDate),
-        dbService.getSettings(),
+        apiService.getReceptionistSales(startDate, endDate),
+        apiService.getStorekeeperEntries(startDate, endDate),
+        apiService.getSettlements(startDate, endDate),
+        apiService.getSettings(),
       ]);
 
       setSales(salesData);
@@ -139,7 +139,7 @@ export default function ManagerDashboard() {
     try {
       const session = authService.getCurrentSession();
       if (session) {
-        const notifs = await dbService.getNotifications(session.userId, false);
+        const notifs = await apiService.getNotifications(session.userId, false);
         setNotifications(notifs);
       }
     } catch (error) {
@@ -180,14 +180,14 @@ export default function ManagerDashboard() {
       const existingSettlement = settlements.find(s => s.receptionistSaleId === selectedSale.id);
       
       if (existingSettlement) {
-        await dbService.updateSettlement(existingSettlement.id!, {
+        await apiService.updateSettlement(existingSettlement.id!, {
           settledAmount: settledAmt,
           remainingBalance: remainingBalance,
           isSettled: isSettled,
           settledAt: isSettled ? new Date() : undefined,
         });
       } else {
-        await dbService.addSettlement({
+        await apiService.createSettlement({
           date: selectedSale.date,
           receptionistSaleId: selectedSale.id!,
           expectedAmount: expectedAmount,
@@ -200,18 +200,8 @@ export default function ManagerDashboard() {
       }
 
       // Create notification for receptionist
-      if (isSettled && selectedSale.submittedBy) {
-        await dbService.addNotification({
-          userId: selectedSale.submittedBy,
-          type: 'settlement_complete',
-          title: 'Settlement Complete',
-          message: `Settlement for ${format(new Date(selectedSale.date), 'MMM d, yyyy')} has been completed.`,
-          isRead: false,
-          relatedEntityType: 'settlement',
-          relatedEntityId: existingSettlement?.id,
-          createdAt: new Date(),
-        });
-      }
+      // Note: Notifications API not yet implemented, skipping for now
+      // TODO: Implement notifications backend when ready
 
       setSettlementDialogOpen(false);
       setSelectedSale(null);
@@ -268,9 +258,9 @@ export default function ManagerDashboard() {
         if (updateField === 'bagsAtPrice1' || updateField === 'bagsAtPrice2') {
           updatedSale.totalBags = (updatedSale.bagsAtPrice1 || 0) + (updatedSale.bagsAtPrice2 || 0);
         }
-        await dbService.updateReceptionistSale(sale.id!, updatedSale);
+        await apiService.updateReceptionistSale(sale.id!, updatedSale);
       } else {
-        await dbService.updateStorekeeperEntry(updateItem.id!, { [updateField]: newValue });
+        await apiService.updateStorekeeperEntry(updateItem.id!, { [updateField]: newValue });
       }
 
       setUpdateDialogOpen(false);

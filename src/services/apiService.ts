@@ -146,28 +146,135 @@ class ApiService {
     });
   }
 
-  // Sales endpoints (placeholder)
-  async getReceptionistSales(startDate: Date, endDate: Date) {
-    // Placeholder - return empty array for now
-    return [];
+  // Receptionist Sales endpoints
+  async getReceptionistSales(startDate?: Date, endDate?: Date) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
+    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    
+    const queryString = params.toString();
+    return this.request<any[]>(`/receptionist-sales${queryString ? '?' + queryString : ''}`);
   }
 
-  // Storekeeper endpoints (placeholder)
-  async getStorekeeperEntries(startDate: Date, endDate: Date) {
-    // Placeholder - return empty array for now
-    return [];
+  async getReceptionistSale(id: number) {
+    return this.request<any>(`/receptionist-sales/${id}`);
   }
 
-  // Settlement endpoints (placeholder)
-  async getSettlements(startDate: Date, endDate: Date) {
-    // Placeholder - return empty array for now
-    return [];
+  async createReceptionistSale(saleData: any) {
+    return this.request('/receptionist-sales', {
+      method: 'POST',
+      body: JSON.stringify(saleData),
+    });
   }
 
-  // Audit log endpoints (placeholder)
+  async updateReceptionistSale(id: number, saleData: any) {
+    return this.request(`/receptionist-sales/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(saleData),
+    });
+  }
+
+  async deleteReceptionistSale(id: number) {
+    return this.request(`/receptionist-sales/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Storekeeper Entries endpoints
+  async getStorekeeperEntries(startDate?: Date, endDate?: Date) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
+    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    
+    const queryString = params.toString();
+    return this.request<any[]>(`/storekeeper-entries${queryString ? '?' + queryString : ''}`);
+  }
+
+  async getStorekeeperEntry(id: number) {
+    return this.request<any>(`/storekeeper-entries/${id}`);
+  }
+
+  async createStorekeeperEntry(entryData: any) {
+    return this.request('/storekeeper-entries', {
+      method: 'POST',
+      body: JSON.stringify(entryData),
+    });
+  }
+
+  async updateStorekeeperEntry(id: number, entryData: any) {
+    return this.request(`/storekeeper-entries/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(entryData),
+    });
+  }
+
+  async deleteStorekeeperEntry(id: number) {
+    return this.request(`/storekeeper-entries/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Settlement endpoints
+  async getSettlements(startDate?: Date, endDate?: Date) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
+    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    
+    const queryString = params.toString();
+    return this.request<any[]>(`/settlements${queryString ? '?' + queryString : ''}`);
+  }
+
+  async getSettlement(id: number) {
+    return this.request<any>(`/settlements/${id}`);
+  }
+
+  async createSettlement(settlementData: any) {
+    return this.request('/settlements', {
+      method: 'POST',
+      body: JSON.stringify(settlementData),
+    });
+  }
+
+  async updateSettlement(id: number, settlementData: any) {
+    return this.request(`/settlements/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(settlementData),
+    });
+  }
+
+  async deleteSettlement(id: number) {
+    return this.request(`/settlements/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Settings endpoints
+  async getSettings() {
+    return this.request<any>('/settings');
+  }
+
+  async updateSettings(settingsData: any) {
+    return this.request('/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settingsData),
+    });
+  }
+
+  // Audit log endpoints (placeholder - to be implemented)
   async getAuditLogs(entityType?: string, entityId?: number, startDate?: Date, endDate?: Date) {
     // Placeholder - return empty array for now
     return [];
+  }
+
+  // Notifications endpoints (placeholder - to be implemented)
+  async getNotifications(userId: number, isRead?: boolean) {
+    // Placeholder - return empty array for now
+    return [];
+  }
+
+  async markNotificationAsRead(id: number) {
+    // Placeholder
+    return { success: true };
   }
 }
 
