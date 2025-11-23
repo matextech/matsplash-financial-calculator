@@ -277,6 +277,7 @@ async function initializeDefaultUsers(): Promise<void> {
       phone: '08012345678',
       pin_hash: managerPinHash,
       role: 'manager',
+      pin_reset_required: 0, // Default PIN is known, no reset needed
       two_factor_enabled: 0, // SQLite uses 0/1
       is_active: 1 // SQLite uses 0/1
     });
@@ -289,6 +290,7 @@ async function initializeDefaultUsers(): Promise<void> {
       phone: '08012345679',
       pin_hash: receptionistPinHash,
       role: 'receptionist',
+      pin_reset_required: 0, // Default PIN is known, no reset needed
       two_factor_enabled: 0, // SQLite uses 0/1
       is_active: 1 // SQLite uses 0/1
     });
@@ -301,6 +303,7 @@ async function initializeDefaultUsers(): Promise<void> {
       phone: '08012345680',
       pin_hash: storekeeperPinHash,
       role: 'storekeeper',
+      pin_reset_required: 0, // Default PIN is known, no reset needed
       two_factor_enabled: 0, // SQLite uses 0/1
       is_active: 1 // SQLite uses 0/1
     });

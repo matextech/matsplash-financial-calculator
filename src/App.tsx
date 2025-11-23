@@ -20,7 +20,7 @@ import DirectorDashboard from './components/director/DirectorDashboard';
 import DirectorDashboardWrapper from './components/director/DirectorDashboardWrapper';
 import { dbService } from './services/database';
 import { authService } from './services/authService';
-import { initializeDefaultDirector, initializeDefaultAccounts } from './services/setupService';
+// import { initializeDefaultDirector, initializeDefaultAccounts } from './services/setupService';
 
 const theme = createTheme({
   palette: {
@@ -46,22 +46,13 @@ function App() {
         console.log('Database initialized successfully');
         
         // Initialize default director account if needed
-        try {
-          await initializeDefaultDirector();
-          console.log('Default director account check completed');
-        } catch (setupError) {
-          console.warn('Failed to initialize default director (non-critical):', setupError);
-          // Don't block app initialization if setup fails
-        }
+        // NOTE: Default users including director are created by backend on first run
+        console.log('Default users are created by backend API on initialization');
         
-        // Initialize default accounts (manager, receptionist, storekeeper) and update existing ones
-        try {
-          await initializeDefaultAccounts();
-          console.log('Default accounts check completed');
-        } catch (setupError) {
-          console.warn('Failed to initialize default accounts (non-critical):', setupError);
-          // Don't block app initialization if setup fails
-        }
+        // NOTE: User accounts are now managed by the backend API
+        // The frontend no longer creates or updates users via IndexedDB
+        // All user management is done through the /api/users endpoints
+        console.log('User management is handled by backend API');
         
         setDbInitialized(true);
         console.log('App initialization complete');
