@@ -53,6 +53,9 @@ export default function Sales() {
   const [searchTerm, setSearchTerm] = useState('');
   const [open, setOpen] = useState(false);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
+  const [materialPrices, setMaterialPrices] = useState<MaterialPrice[]>([]);
+  const [sachetRollPrices, setSachetRollPrices] = useState<MaterialPrice[]>([]);
+  const [packingNylonPrices, setPackingNylonPrices] = useState<MaterialPrice[]>([]);
   
   const [formData, setFormData] = useState({
     driverName: '',
@@ -937,7 +940,7 @@ export default function Sales() {
 
             <Divider sx={{ my: 2 }}>Material Prices (for Profit Calculations)</Divider>
             
-            {sachetRollPrices.length > 0 && (
+            {sachetRollPrices && sachetRollPrices.length > 0 && (
               <TextField
                 label="Sachet Roll Price Model (Optional)"
                 fullWidth
@@ -955,7 +958,7 @@ export default function Sales() {
               </TextField>
             )}
 
-            {packingNylonPrices.length > 0 && (
+            {packingNylonPrices && packingNylonPrices.length > 0 && (
               <TextField
                 label="Packing Nylon Price Model (Optional)"
                 fullWidth
