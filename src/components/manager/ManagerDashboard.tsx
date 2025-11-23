@@ -334,8 +334,18 @@ export default function ManagerDashboard() {
     }
 
     try {
-      const oldValue = (updateItem as any)[fieldToUpdate];
-      const newValue = fieldToUpdate.includes('bags') || fieldToUpdate === 'bagsCount' 
+      // Get old value - handle price breakdown items
+      let oldValue: any;
+      if (fieldToUpdate.startsWith('price_')) {
+        const priceId = parseInt(fieldToUpdate.replace('price_', ''));
+        const sale = updateItem as ReceptionistSale;
+        const priceItem = sale.priceBreakdown?.find(p => p.priceId === priceId);
+        oldValue = priceItem?.bags || 0;
+      } else {
+        oldValue = (updateItem as any)[fieldToUpdate];
+      }
+      
+      const newValue = fieldToUpdate.includes('bags') || fieldToUpdate === 'bagsCount' || fieldToUpdate.startsWith('price_')
         ? parseInt(updateValue) 
         : updateValue;
 
@@ -352,10 +362,60 @@ export default function ManagerDashboard() {
       // Update the item
       if (updateType === 'sale') {
         const sale = updateItem as ReceptionistSale;
-        const updatedSale: any = { ...sale, [fieldToUpdate]: newValue };
-        if (fieldToUpdate === 'bagsAtPrice1' || fieldToUpdate === 'bagsAtPrice2') {
-          updatedSale.totalBags = (updatedSale.bagsAtPrice1 || 0) + (updatedSale.bagsAtPrice2 || 0);
+        let updatedSale: any = { ...sale };
+        
+        // Check if updating a price breakdown item
+        if (fieldToUpdate.startsWith('price_')) {
+          const priceId = parseInt(fieldToUpdate.replace('price_', ''));
+          const price = bagPrices.find(p => p.id === priceId);
+          
+          if (!price) {
+            alert('Price not found. Please try again.');
+            return;
+          }
+          
+          // Get or create priceBreakdown array
+          let priceBreakdown = sale.priceBreakdown ? [...sale.priceBreakdown] : [];
+          
+          // Find existing price item or create new one
+          const existingIndex = priceBreakdown.findIndex(p => p.priceId === priceId);
+          const bagsValue = parseInt(updateValue);
+          
+          if (existingIndex >= 0) {
+            // Update existing price item
+            if (bagsValue > 0) {
+              priceBreakdown[existingIndex] = {
+                ...priceBreakdown[existingIndex],
+                bags: bagsValue,
+                amount: price.amount,
+                label: price.label
+              };
+            } else {
+              // Remove if bags is 0
+              priceBreakdown.splice(existingIndex, 1);
+            }
+          } else if (bagsValue > 0) {
+            // Add new price item
+            priceBreakdown.push({
+              priceId: price.id!,
+              amount: price.amount,
+              bags: bagsValue,
+              label: price.label
+            });
+          }
+          
+          // Recalculate totalBags and expectedAmount
+          updatedSale.priceBreakdown = priceBreakdown;
+          updatedSale.totalBags = priceBreakdown.reduce((sum, item) => sum + item.bags, 0);
+          updatedSale.expectedAmount = priceBreakdown.reduce((sum, item) => sum + (item.bags * item.amount), 0);
+        } else {
+          // Legacy field update (for backward compatibility)
+          updatedSale[fieldToUpdate] = newValue;
+          if (fieldToUpdate === 'bagsAtPrice1' || fieldToUpdate === 'bagsAtPrice2') {
+            updatedSale.totalBags = (updatedSale.bagsAtPrice1 || 0) + (updatedSale.bagsAtPrice2 || 0);
+          }
         }
+        
         await apiService.updateReceptionistSale(sale.id!, updatedSale);
       } else {
         await apiService.updateStorekeeperEntry(updateItem.id!, { [fieldToUpdate]: newValue });
@@ -1304,16 +1364,23 @@ export default function ManagerDashboard() {
                     setUpdateField(e.target.value);
                     // Set initial value for the field
                     if (updateItem) {
-                      const currentVal = (updateItem as any)[e.target.value];
-                      setUpdateValue(currentVal !== undefined ? String(currentVal) : '');
+                      if (e.target.value.startsWith('price_')) {
+                        const priceId = parseInt(e.target.value.replace('price_', ''));
+                        const sale = updateItem as ReceptionistSale;
+                        const priceItem = sale.priceBreakdown?.find(p => p.priceId === priceId);
+                        setUpdateValue(priceItem ? String(priceItem.bags) : '0');
+                      } else {
+                        const currentVal = (updateItem as any)[e.target.value];
+                        setUpdateValue(currentVal !== undefined ? String(currentVal) : '');
+                      }
                     }
                   }}
                   required
                   helperText="Select which field you want to update"
                 >
                   {/* Dynamic bag prices as update options */}
-                  {bagPrices.map((price, index) => (
-                    <MenuItem key={price.id} value={`bagsAtPrice${index + 1}`}>
+                  {bagPrices.map((price) => (
+                    <MenuItem key={price.id} value={`price_${price.id}`}>
                       Bags at ₦{price.amount.toLocaleString()} {price.label ? `(${price.label})` : ''}
                     </MenuItem>
                   ))}
@@ -1326,7 +1393,15 @@ export default function ManagerDashboard() {
                   onChange={(e) => setUpdateValue(e.target.value)}
                   required
                   placeholder="Enter number of bags"
-                  helperText={updateField ? `Current value: ${(updateItem as any)?.[updateField] || 'N/A'}` : 'Select a field first'}
+                  helperText={updateField ? (() => {
+                    if (updateField.startsWith('price_')) {
+                      const priceId = parseInt(updateField.replace('price_', ''));
+                      const sale = updateItem as ReceptionistSale;
+                      const priceItem = sale.priceBreakdown?.find(p => p.priceId === priceId);
+                      return `Current value: ${priceItem?.bags || 0} bags`;
+                    }
+                    return `Current value: ${(updateItem as any)?.[updateField] || 'N/A'}`;
+                  })() : 'Select a field first'}
                   disabled={!updateField}
                 />
               </>
