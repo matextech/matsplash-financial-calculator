@@ -45,6 +45,7 @@ import {
   ChevronRight,
   Visibility as VisibilityIcon,
   Info as InfoIcon,
+  Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { User } from '../../types/auth';
 import { ReceptionistSale, StorekeeperEntry, Settlement, AuditLog } from '../../types/sales-log';
