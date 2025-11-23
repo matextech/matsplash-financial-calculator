@@ -200,8 +200,21 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
           apiService.getMaterialPrices(undefined, true) // Include inactive for management
         ]);
         setSettings(settingsData || DEFAULT_SETTINGS);
-        setBagPrices(bagPricesData || []);
-        setMaterialPrices(materialPricesData || []);
+        // API service already extracts data.data || data, so these should be arrays
+        if (Array.isArray(bagPricesData)) {
+          setBagPrices(bagPricesData);
+          console.log('Loaded bag prices:', bagPricesData.length, 'prices');
+        } else {
+          console.error('Bag prices data is not an array:', bagPricesData);
+          setBagPrices([]);
+        }
+        if (Array.isArray(materialPricesData)) {
+          setMaterialPrices(materialPricesData);
+          console.log('Loaded material prices:', materialPricesData.length, 'prices');
+        } else {
+          console.error('Material prices data is not an array:', materialPricesData);
+          setMaterialPrices([]);
+        }
       }
       
       // Load users for audit log display
