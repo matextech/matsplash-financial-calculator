@@ -43,6 +43,7 @@ export default function ReceptionistDashboard() {
   const [open, setOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingSale, setPendingSale] = useState<Omit<ReceptionistSale, 'id' | 'submittedAt' | 'submittedBy' | 'isSubmitted' | 'createdAt' | 'updatedAt'> | null>(null);
+  const [filterType, setFilterType] = useState<'all' | 'driver' | 'general' | 'mini_store'>('all');
   
   const [formData, setFormData] = useState({
     date: new Date(),
@@ -208,10 +209,100 @@ export default function ReceptionistDashboard() {
     return saleDate >= startOfDay(twoDaysAgo);
   });
 
+  // Apply filter type
+  const filteredSales = filterType === 'all' 
+    ? visibleSales 
+    : visibleSales.filter(sale => sale.saleType === filterType);
+
+  // Group sales by type
+  const groupedSales = {
+    driver: filteredSales.filter(s => s.saleType === 'driver'),
+    general: filteredSales.filter(s => s.saleType === 'general'),
+    mini_store: filteredSales.filter(s => s.saleType === 'mini_store'),
+  };
+
   const todaySales = visibleSales.filter(sale => {
     const saleDate = sale.date instanceof Date ? sale.date : new Date(sale.date);
     return isSameDay(saleDate, new Date());
   });
+
+  const getSaleTypeLabel = (type: string) => {
+    switch (type) {
+      case 'driver':
+        return 'Driver Sales';
+      case 'general':
+        return 'General Sales';
+      case 'mini_store':
+        return 'Mini Store Dispatch';
+      default:
+        return type;
+    }
+  };
+
+  const renderSaleCard = (sale: ReceptionistSale) => (
+    <Card>
+      <CardContent>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 2 }}>
+          <Box>
+            <Typography variant="h6">
+              {sale.saleType === 'driver' ? sale.driverName : 
+               sale.saleType === 'general' ? 'General Sales' : 'Mini Store Dispatch'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {format(new Date(sale.date), 'MMM d, yyyy')}
+            </Typography>
+          </Box>
+          <Box sx={{ textAlign: 'right' }}>
+            <Typography variant="h5" color="primary">
+              {sale.totalBags.toLocaleString()}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              bags
+            </Typography>
+          </Box>
+        </Box>
+        
+        {(sale.bagsAtPrice1 > 0 || sale.bagsAtPrice2 > 0) && (
+          <Box sx={{ mb: 1 }}>
+            {sale.bagsAtPrice1 > 0 && (
+              <Typography variant="body2">
+                @ ₦{settings.salesPrice1}/bag: {sale.bagsAtPrice1.toLocaleString()} bags
+              </Typography>
+            )}
+            {sale.bagsAtPrice2 > 0 && (
+              <Typography variant="body2">
+                @ ₦{settings.salesPrice2}/bag: {sale.bagsAtPrice2.toLocaleString()} bags
+              </Typography>
+            )}
+          </Box>
+        )}
+
+        {sale.notes && (
+          <Typography variant="body2" sx={{ mt: 1 }}>
+            Note: {sale.notes}
+          </Typography>
+        )}
+
+        <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+          {sale.isSubmitted ? (
+            <>
+              <CheckCircleIcon color="success" fontSize="small" />
+              <Typography variant="caption" color="success.main">
+                Submitted {sale.submittedAt ? format(new Date(sale.submittedAt), 'MMM d, h:mm a') : ''}
+              </Typography>
+            </>
+          ) : (
+            <>
+              <WarningIcon color="warning" fontSize="small" />
+              <Typography variant="caption" color="warning.main">
+                Pending submission
+              </Typography>
+            </>
+          )}
+        </Box>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <Box>
@@ -311,8 +402,8 @@ export default function ReceptionistDashboard() {
         </Grid>
       </Grid>
 
-      {/* Add Sale Button */}
-      <Box sx={{ mb: 3 }}>
+      {/* Add Sale Button and Filters */}
+      <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         <Button
           variant="contained"
           size="large"
@@ -321,67 +412,102 @@ export default function ReceptionistDashboard() {
         >
           Record Sale
         </Button>
+        
+        {/* Filter Buttons */}
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Chip 
+            label="All" 
+            onClick={() => setFilterType('all')}
+            color={filterType === 'all' ? 'primary' : 'default'}
+            variant={filterType === 'all' ? 'filled' : 'outlined'}
+          />
+          <Chip 
+            label="Driver Sales" 
+            onClick={() => setFilterType('driver')}
+            color={filterType === 'driver' ? 'primary' : 'default'}
+            variant={filterType === 'driver' ? 'filled' : 'outlined'}
+          />
+          <Chip 
+            label="General Sales" 
+            onClick={() => setFilterType('general')}
+            color={filterType === 'general' ? 'primary' : 'default'}
+            variant={filterType === 'general' ? 'filled' : 'outlined'}
+          />
+          <Chip 
+            label="Mini Store" 
+            onClick={() => setFilterType('mini_store')}
+            color={filterType === 'mini_store' ? 'primary' : 'default'}
+            variant={filterType === 'mini_store' ? 'filled' : 'outlined'}
+          />
+        </Box>
       </Box>
 
-      {/* Sales List */}
-      {visibleSales.length === 0 ? (
+      {/* Sales List - Grouped by Type */}
+      {filteredSales.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <Typography variant="h6" color="text.secondary">
-            No sales recorded in the last 2 days
+            {filterType === 'all' 
+              ? 'No sales recorded in the last 2 days' 
+              : `No ${getSaleTypeLabel(filterType)} in the last 2 days`}
           </Typography>
         </Paper>
-      ) : (
-        <Grid container spacing={2}>
-          {visibleSales.map((sale) => (
-            <Grid item xs={12} md={6} key={sale.id}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 2 }}>
-                    <Box>
-                      <Typography variant="h6">
-                        {sale.saleType === 'driver' ? sale.driverName : 
-                         sale.saleType === 'general' ? 'General Sales' : 'Mini Store Dispatch'}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {format(new Date(sale.date), 'MMM d, yyyy')}
-                      </Typography>
-                    </Box>
-                    {sale.isSubmitted ? (
-                      <Chip
-                        icon={<CheckCircleIcon />}
-                        label="Submitted"
-                        color="success"
-                        size="small"
-                      />
-                    ) : (
-                      <Chip
-                        icon={<WarningIcon />}
-                        label="Draft"
-                        color="warning"
-                        size="small"
-                      />
-                    )}
-                  </Box>
-                  
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      Bags at ₦{settings.salesPrice1}: {sale.bagsAtPrice1.toLocaleString()}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Bags at ₦{settings.salesPrice2}: {sale.bagsAtPrice2.toLocaleString()}
-                    </Typography>
-                    <Typography variant="h6" sx={{ mt: 1 }}>
-                      Total: {sale.totalBags.toLocaleString()} bags
-                    </Typography>
-                  </Box>
+      ) : filterType === 'all' ? (
+        // Show grouped view when "All" is selected
+        <Box>
+          {groupedSales.driver.length > 0 && (
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                Driver Sales
+                <Chip label={groupedSales.driver.length} size="small" color="primary" />
+              </Typography>
+              <Grid container spacing={2}>
+                {groupedSales.driver.map((sale) => (
+                  <Grid item xs={12} md={6} key={sale.id}>
+                    {renderSaleCard(sale)}
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+          )}
 
-                  {sale.notes && (
-                    <Typography variant="body2" color="text.secondary">
-                      Notes: {sale.notes}
-                    </Typography>
-                  )}
-                </CardContent>
-              </Card>
+          {groupedSales.general.length > 0 && (
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                General Sales
+                <Chip label={groupedSales.general.length} size="small" color="success" />
+              </Typography>
+              <Grid container spacing={2}>
+                {groupedSales.general.map((sale) => (
+                  <Grid item xs={12} md={6} key={sale.id}>
+                    {renderSaleCard(sale)}
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+          )}
+
+          {groupedSales.mini_store.length > 0 && (
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                Mini Store Dispatch
+                <Chip label={groupedSales.mini_store.length} size="small" color="warning" />
+              </Typography>
+              <Grid container spacing={2}>
+                {groupedSales.mini_store.map((sale) => (
+                  <Grid item xs={12} md={6} key={sale.id}>
+                    {renderSaleCard(sale)}
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+          )}
+        </Box>
+      ) : (
+        // Show filtered view
+        <Grid container spacing={2}>
+          {filteredSales.map((sale) => (
+            <Grid item xs={12} md={6} key={sale.id}>
+              {renderSaleCard(sale)}
             </Grid>
           ))}
         </Grid>
