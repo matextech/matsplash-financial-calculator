@@ -358,13 +358,17 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
 
   const handleAddPrice = async () => {
     try {
-      await apiService.createBagPrice({
+      const newPrice = await apiService.createBagPrice({
         amount: 250, // Default to 250, user can edit
         label: 'New Price',
         sortOrder: bagPrices.length + 1,
         isActive: true,
       });
-      await loadData(); // Reload to get new price
+      
+      // Reload bag prices to get the updated list
+      const updatedBagPrices = await apiService.getBagPrices(true); // Include inactive
+      setBagPrices(updatedBagPrices || []);
+      
       alert('New price added! Please update the amount and label.');
     } catch (error) {
       console.error('Error adding price:', error);
@@ -389,7 +393,9 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
     }
     try {
       await apiService.deleteBagPrice(priceId);
-      setBagPrices(bagPrices.filter(p => p.id !== priceId));
+      // Reload bag prices to get the updated list
+      const updatedBagPrices = await apiService.getBagPrices(true); // Include inactive
+      setBagPrices(updatedBagPrices || []);
       alert('Price deleted successfully');
     } catch (error) {
       console.error('Error deleting price:', error);
