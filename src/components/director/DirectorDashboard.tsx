@@ -135,30 +135,30 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
       if (tabValue === 0) {
         // Main dashboard view
         const [salesData, entriesData, settlementsData] = await Promise.all([
-          dbService.getReceptionistSales(startDate, endDate),
-          dbService.getStorekeeperEntries(startDate, endDate),
-          dbService.getSettlements(startDate, endDate),
+          apiService.getReceptionistSales(startDate, endDate),
+          apiService.getStorekeeperEntries(startDate, endDate),
+          apiService.getSettlements(startDate, endDate),
         ]);
         setSales(salesData);
         setEntries(entriesData);
         setSettlements(settlementsData);
       } else if (tabValue === 1) {
         // User management
-        const usersData = await dbService.getUsers();
+        const usersData = await apiService.getUsers();
         setUsers(usersData);
       } else if (tabValue === 2) {
         // Employee management
-        const employeesData = await dbService.getEmployees();
+        const employeesData = await apiService.getEmployees();
         setEmployees(employeesData.filter(e => e.role === 'Driver' || e.role === 'Packers'));
       } else if (tabValue === 3) {
         // Audit logs
-        const logsData = await dbService.getAuditLogs(undefined, undefined, startDate, endDate);
+        const logsData = await apiService.getAuditLogs(undefined, undefined, startDate, endDate);
         setAuditLogs(logsData);
       }
       
       // Load users for audit log display
       if (tabValue === 1 || tabValue === 3) {
-        const usersData = await dbService.getUsers();
+        const usersData = await apiService.getUsers();
         setAllUsers(usersData);
       }
     } catch (error) {
@@ -198,9 +198,9 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
   const handleSaveUser = async () => {
     try {
       if (editingUser) {
-        await dbService.updateUser(editingUser.id!, userFormData);
+        await apiService.updateUser(editingUser.id!, userFormData);
       } else {
-        await dbService.addUser(userFormData);
+        await apiService.createUser(userFormData);
       }
       setUserDialogOpen(false);
       await loadData();
@@ -284,14 +284,14 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
   const handleSaveEmployee = async () => {
     try {
       if (editingEmployee) {
-        await dbService.updateEmployee(editingEmployee.id!, {
+        await apiService.updateEmployee(editingEmployee.id!, {
           name: employeeFormData.name,
           email: employeeFormData.email,
           phone: employeeFormData.phone,
           role: employeeFormData.role,
         });
       } else {
-        await dbService.addEmployee({
+        await apiService.createEmployee({
           name: employeeFormData.name,
           email: employeeFormData.email,
           phone: employeeFormData.phone,

@@ -116,6 +116,49 @@ class ApiService {
       method: 'DELETE',
     });
   }
+
+  // Employee endpoints (placeholder - will use users for now)
+  async getEmployees() {
+    // For now, return empty array as employees are separate from users
+    // This can be implemented when employees endpoint is added to backend
+    return [];
+  }
+
+  async createEmployee(employeeData: any) {
+    // Placeholder - implement when backend supports employees
+    console.warn('Employee creation not yet implemented in backend');
+    return { success: true, message: 'Employee feature coming soon' };
+  }
+
+  async updateEmployee(id: number, employeeData: any) {
+    // Placeholder - implement when backend supports employees
+    console.warn('Employee update not yet implemented in backend');
+    return { success: true, message: 'Employee feature coming soon' };
+  }
+
+  // Sales endpoints (placeholder)
+  async getReceptionistSales(startDate: Date, endDate: Date) {
+    // Placeholder - return empty array for now
+    return [];
+  }
+
+  // Storekeeper endpoints (placeholder)
+  async getStorekeeperEntries(startDate: Date, endDate: Date) {
+    // Placeholder - return empty array for now
+    return [];
+  }
+
+  // Settlement endpoints (placeholder)
+  async getSettlements(startDate: Date, endDate: Date) {
+    // Placeholder - return empty array for now
+    return [];
+  }
+
+  // Audit log endpoints (placeholder)
+  async getAuditLogs(entityType?: string, entityId?: number, startDate?: Date, endDate?: Date) {
+    // Placeholder - return empty array for now
+    return [];
+  }
 }
 
 export const apiService = new ApiService();
