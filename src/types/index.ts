@@ -74,6 +74,12 @@ export interface FinancialReport {
   profitMargin: number; // Percentage
 }
 
+export interface BagPrice {
+  id?: number;
+  price: number;
+  label?: string; // Optional label like "Standard", "Premium", etc.
+}
+
 export interface Settings {
   id?: number;
   // Material Costs
@@ -81,9 +87,11 @@ export interface Settings {
   sachetRollBagsPerRoll: number; // Number of bags per roll
   packingNylonCost: number; // Price per package
   packingNylonBagsPerPackage: number; // Number of bags per package
-  // Sales Prices
-  salesPrice1: number; // Default ₦250
-  salesPrice2: number; // Default ₦270
+  // Sales Prices - DYNAMIC ARRAY
+  bagPrices: BagPrice[]; // Array of bag prices (unlimited)
+  // Legacy fields for backward compatibility
+  salesPrice1?: number; // Deprecated - use bagPrices[0]
+  salesPrice2?: number; // Deprecated - use bagPrices[1]
   updatedAt?: Date;
 }
 
@@ -93,8 +101,12 @@ export const DEFAULT_SETTINGS: Settings = {
   sachetRollBagsPerRoll: 450,
   packingNylonCost: 100000,
   packingNylonBagsPerPackage: 10000,
-  salesPrice1: 250,
-  salesPrice2: 270,
+  bagPrices: [
+    { price: 250, label: 'Standard' },
+    { price: 270, label: 'Premium' },
+  ],
+  salesPrice1: 250, // Deprecated
+  salesPrice2: 270, // Deprecated
 };
 
 // Legacy constant for backward compatibility (will be replaced by settings)

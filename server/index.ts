@@ -10,6 +10,7 @@ import receptionistSalesRoutes from './routes/receptionist-sales';
 import storekeeperEntriesRoutes from './routes/storekeeper-entries';
 import settlementsRoutes from './routes/settlements';
 import settingsRoutes from './routes/settings';
+import bagPricesRoutes from './routes/bag-prices';
 
 // Load environment variables
 dotenv.config();
@@ -36,6 +37,7 @@ app.use('/api/receptionist-sales', receptionistSalesRoutes);
 app.use('/api/storekeeper-entries', storekeeperEntriesRoutes);
 app.use('/api/settlements', settlementsRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/bag-prices', bagPricesRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

@@ -260,6 +260,36 @@ class ApiService {
     });
   }
 
+  // Bag Prices endpoints
+  async getBagPrices(includeInactive = false) {
+    const params = includeInactive ? '?includeInactive=true' : '';
+    return this.request<any[]>(`/bag-prices${params}`);
+  }
+
+  async getBagPrice(id: number) {
+    return this.request<any>(`/bag-prices/${id}`);
+  }
+
+  async createBagPrice(priceData: any) {
+    return this.request('/bag-prices', {
+      method: 'POST',
+      body: JSON.stringify(priceData),
+    });
+  }
+
+  async updateBagPrice(id: number, priceData: any) {
+    return this.request(`/bag-prices/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(priceData),
+    });
+  }
+
+  async deleteBagPrice(id: number) {
+    return this.request(`/bag-prices/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Audit log endpoints (placeholder - to be implemented)
   async getAuditLogs(entityType?: string, entityId?: number, startDate?: Date, endDate?: Date) {
     // Placeholder - return empty array for now

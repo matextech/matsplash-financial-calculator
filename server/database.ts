@@ -140,6 +140,19 @@ export default async function setupDatabase(): Promise<void> {
         table.timestamp('updated_at').defaultTo(db.fn.now());
       });
       
+      // Bag Prices table (dynamic unlimited prices)
+      await db.schema.createTable('bag_prices', (table) => {
+        table.increments('id').primary();
+        table.decimal('price', 10, 2).notNullable();
+        table.string('label'); // Optional label like "Standard", "Premium"
+        table.integer('sort_order').defaultTo(0); // For ordering prices
+        table.integer('is_active').defaultTo(1); // Can disable prices
+        table.timestamp('created_at').defaultTo(db.fn.now());
+        table.timestamp('updated_at').defaultTo(db.fn.now());
+        table.index('is_active');
+        table.index('sort_order');
+      });
+      
       // Receptionist sales table
       await db.schema.createTable('receptionist_sales', (table) => {
         table.increments('id').primary();
@@ -321,7 +334,16 @@ async function initializeDefaultUsers(): Promise<void> {
       });
     }
     
-    console.log('Default users and settings initialized');
+    // Initialize default bag prices (only if none exist)
+    const bagPricesCount = await db('bag_prices').count('id as count').first();
+    if (bagPricesCount && Number(bagPricesCount.count) === 0) {
+      await db('bag_prices').insert([
+        { price: 250, label: 'Standard', sort_order: 1, is_active: 1 },
+        { price: 270, label: 'Premium', sort_order: 2, is_active: 1 }
+      ]);
+    }
+    
+    console.log('Default users, settings, and bag prices initialized');
   } catch (error) {
     console.error('Error initializing default users:', error);
     // Don't throw - allow server to start even if initialization fails

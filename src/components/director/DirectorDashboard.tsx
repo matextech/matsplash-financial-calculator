@@ -46,7 +46,7 @@ import {
 } from '@mui/icons-material';
 import { User } from '../../types/auth';
 import { ReceptionistSale, StorekeeperEntry, Settlement, AuditLog } from '../../types/sales-log';
-import { Employee, Settings, DEFAULT_SETTINGS } from '../../types';
+import { Employee, Settings, DEFAULT_SETTINGS, BagPrice } from '../../types';
 import { dbService } from '../../services/database';
 import { authService } from '../../services/authService';
 import { apiService } from '../../services/apiService';
@@ -68,6 +68,7 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [bagPrices, setBagPrices] = useState<BagPrice[]>([]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [viewMode, setViewMode] = useState<'year' | 'month' | 'day' | 'range'>('year');
   const [selectedMonth, setSelectedMonth] = useState(new Date());
@@ -157,8 +158,12 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
         setAuditLogs(logsData);
       } else if (tabValue === 4) {
         // Settings
-        const settingsData = await apiService.getSettings();
+        const [settingsData, bagPricesData] = await Promise.all([
+          apiService.getSettings(),
+          apiService.getBagPrices()
+        ]);
         setSettings(settingsData || DEFAULT_SETTINGS);
+        setBagPrices(bagPricesData || []);
       }
       
       // Load users for audit log display
