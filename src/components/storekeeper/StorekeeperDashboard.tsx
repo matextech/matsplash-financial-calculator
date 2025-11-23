@@ -40,6 +40,7 @@ export default function StorekeeperDashboard() {
   const [open, setOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingEntry, setPendingEntry] = useState<Omit<StorekeeperEntry, 'id' | 'submittedAt' | 'submittedBy' | 'isSubmitted' | 'createdAt' | 'updatedAt'> | null>(null);
+  const [filterType, setFilterType] = useState<'all' | 'driver_pickup' | 'general_sales' | 'packer_production' | 'ministore_pickup'>('all');
   
   const [formData, setFormData] = useState({
     date: new Date(),
@@ -194,6 +195,19 @@ export default function StorekeeperDashboard() {
     return entryDate >= startOfDay(twoDaysAgo);
   });
 
+  // Apply filter type
+  const filteredEntries = filterType === 'all' 
+    ? visibleEntries 
+    : visibleEntries.filter(entry => entry.entryType === filterType);
+
+  // Group entries by type
+  const groupedEntries = {
+    driver_pickup: filteredEntries.filter(e => e.entryType === 'driver_pickup'),
+    general_sales: filteredEntries.filter(e => e.entryType === 'general_sales'),
+    packer_production: filteredEntries.filter(e => e.entryType === 'packer_production'),
+    ministore_pickup: filteredEntries.filter(e => e.entryType === 'ministore_pickup'),
+  };
+
   const todayEntries = visibleEntries.filter(entry => {
     const entryDate = entry.date instanceof Date ? entry.date : new Date(entry.date);
     return isSameDay(entryDate, new Date());
@@ -213,6 +227,57 @@ export default function StorekeeperDashboard() {
         return type;
     }
   };
+
+  const renderEntryCard = (entry: StorekeeperEntry) => (
+    <Card>
+      <CardContent>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 2 }}>
+          <Box>
+            <Typography variant="h6">
+              {getEntryTypeLabel(entry.entryType)}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {entry.entryType === 'ministore_pickup' ? 'Mini Store' : 
+               entry.driverName || entry.packerName || 'N/A'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {format(new Date(entry.date), 'MMM d, yyyy')}
+            </Typography>
+          </Box>
+          <Box sx={{ textAlign: 'right' }}>
+            <Typography variant="h5" color="primary">
+              {entry.bagsCount.toLocaleString()}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              bags
+            </Typography>
+          </Box>
+        </Box>
+        {entry.notes && (
+          <Typography variant="body2" sx={{ mt: 1 }}>
+            Note: {entry.notes}
+          </Typography>
+        )}
+        <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+          {entry.isSubmitted ? (
+            <>
+              <CheckCircleIcon color="success" fontSize="small" />
+              <Typography variant="caption" color="success.main">
+                Submitted {entry.submittedAt ? format(new Date(entry.submittedAt), 'MMM d, h:mm a') : ''}
+              </Typography>
+            </>
+          ) : (
+            <>
+              <WarningIcon color="warning" fontSize="small" />
+              <Typography variant="caption" color="warning.main">
+                Pending submission
+              </Typography>
+            </>
+          )}
+        </Box>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <Box>
@@ -281,8 +346,8 @@ export default function StorekeeperDashboard() {
         </Grid>
       </Grid>
 
-      {/* Add Entry Button */}
-      <Box sx={{ mb: 3 }}>
+      {/* Add Entry Button and Filters */}
+      <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         <Button
           variant="contained"
           size="large"
@@ -291,62 +356,124 @@ export default function StorekeeperDashboard() {
         >
           Record Entry
         </Button>
+        
+        {/* Filter Buttons */}
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Chip 
+            label="All" 
+            onClick={() => setFilterType('all')}
+            color={filterType === 'all' ? 'primary' : 'default'}
+            variant={filterType === 'all' ? 'filled' : 'outlined'}
+          />
+          <Chip 
+            label="Driver Pickup" 
+            onClick={() => setFilterType('driver_pickup')}
+            color={filterType === 'driver_pickup' ? 'primary' : 'default'}
+            variant={filterType === 'driver_pickup' ? 'filled' : 'outlined'}
+          />
+          <Chip 
+            label="General Sales" 
+            onClick={() => setFilterType('general_sales')}
+            color={filterType === 'general_sales' ? 'primary' : 'default'}
+            variant={filterType === 'general_sales' ? 'filled' : 'outlined'}
+          />
+          <Chip 
+            label="Packer Production" 
+            onClick={() => setFilterType('packer_production')}
+            color={filterType === 'packer_production' ? 'primary' : 'default'}
+            variant={filterType === 'packer_production' ? 'filled' : 'outlined'}
+          />
+          <Chip 
+            label="Mini Store" 
+            onClick={() => setFilterType('ministore_pickup')}
+            color={filterType === 'ministore_pickup' ? 'primary' : 'default'}
+            variant={filterType === 'ministore_pickup' ? 'filled' : 'outlined'}
+          />
+        </Box>
       </Box>
 
-      {/* Entries List */}
-      {visibleEntries.length === 0 ? (
+      {/* Entries List - Grouped by Type */}
+      {filteredEntries.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <Typography variant="h6" color="text.secondary">
-            No entries recorded in the last 2 days
+            {filterType === 'all' 
+              ? 'No entries recorded in the last 2 days' 
+              : `No ${getEntryTypeLabel(filterType)} entries in the last 2 days`}
           </Typography>
         </Paper>
-      ) : (
-        <Grid container spacing={2}>
-          {visibleEntries.map((entry) => (
-            <Grid item xs={12} md={6} key={entry.id}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 2 }}>
-                    <Box>
-                      <Typography variant="h6">
-                        {getEntryTypeLabel(entry.entryType)}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {entry.entryType === 'ministore_pickup' ? 'Mini Store' : 
-                         entry.driverName || entry.packerName || 'N/A'}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {format(new Date(entry.date), 'MMM d, yyyy')}
-                      </Typography>
-                    </Box>
-                    {entry.isSubmitted ? (
-                      <Chip
-                        icon={<CheckCircleIcon />}
-                        label="Submitted"
-                        color="success"
-                        size="small"
-                      />
-                    ) : (
-                      <Chip
-                        icon={<WarningIcon />}
-                        label="Draft"
-                        color="warning"
-                        size="small"
-                      />
-                    )}
-                  </Box>
-                  
-                  <Typography variant="h6">
-                    {entry.bagsCount.toLocaleString()} bags
-                  </Typography>
+      ) : filterType === 'all' ? (
+        // Show grouped view when "All" is selected
+        <Box>
+          {groupedEntries.driver_pickup.length > 0 && (
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                Driver Pickup
+                <Chip label={groupedEntries.driver_pickup.length} size="small" color="primary" />
+              </Typography>
+              <Grid container spacing={2}>
+                {groupedEntries.driver_pickup.map((entry) => (
+                  <Grid item xs={12} md={6} key={entry.id}>
+                    {renderEntryCard(entry)}
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+          )}
 
-                  {entry.notes && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                      Notes: {entry.notes}
-                    </Typography>
-                  )}
-                </CardContent>
-              </Card>
+          {groupedEntries.general_sales.length > 0 && (
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                General Sales
+                <Chip label={groupedEntries.general_sales.length} size="small" color="success" />
+              </Typography>
+              <Grid container spacing={2}>
+                {groupedEntries.general_sales.map((entry) => (
+                  <Grid item xs={12} md={6} key={entry.id}>
+                    {renderEntryCard(entry)}
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+          )}
+
+          {groupedEntries.packer_production.length > 0 && (
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                Packer Production
+                <Chip label={groupedEntries.packer_production.length} size="small" color="info" />
+              </Typography>
+              <Grid container spacing={2}>
+                {groupedEntries.packer_production.map((entry) => (
+                  <Grid item xs={12} md={6} key={entry.id}>
+                    {renderEntryCard(entry)}
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+          )}
+
+          {groupedEntries.ministore_pickup.length > 0 && (
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                Mini Store Pickup
+                <Chip label={groupedEntries.ministore_pickup.length} size="small" color="warning" />
+              </Typography>
+              <Grid container spacing={2}>
+                {groupedEntries.ministore_pickup.map((entry) => (
+                  <Grid item xs={12} md={6} key={entry.id}>
+                    {renderEntryCard(entry)}
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
+          )}
+        </Box>
+      ) : (
+        // Show filtered view
+        <Grid container spacing={2}>
+          {filteredEntries.map((entry) => (
+            <Grid item xs={12} md={6} key={entry.id}>
+              {renderEntryCard(entry)}
             </Grid>
           ))}
         </Grid>
