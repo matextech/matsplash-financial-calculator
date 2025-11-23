@@ -13,6 +13,9 @@ import {
   Alert,
   Snackbar,
   InputAdornment,
+  IconButton,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import {
   Settings as SettingsIcon,
@@ -20,17 +23,23 @@ import {
   Inventory as MaterialsIcon,
   AttachMoney as MoneyIcon,
 } from '@mui/icons-material';
-import { Settings as SettingsType, DEFAULT_SETTINGS } from '../types';
+import { Settings as SettingsType, DEFAULT_SETTINGS, BagPrice } from '../types';
 import { dbService } from '../services/database';
+import { apiService } from '../services/apiService';
+import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 export default function Settings() {
   const [settings, setSettings] = useState<SettingsType>(DEFAULT_SETTINGS);
+  const [bagPrices, setBagPrices] = useState<BagPrice[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
   useEffect(() => {
     loadSettings();
+    loadBagPrices();
   }, []);
 
   const loadSettings = async () => {
@@ -43,6 +52,57 @@ export default function Settings() {
       setSnackbar({ open: true, message: 'Error loading settings', severity: 'error' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadBagPrices = async () => {
+    try {
+      const prices = await apiService.getBagPrices(true); // Include inactive
+      const pricesArray = Array.isArray(prices) ? prices : (prices?.data || []);
+      setBagPrices(pricesArray);
+    } catch (error) {
+      console.error('Error loading bag prices:', error);
+      setBagPrices([]);
+    }
+  };
+
+  const handleAddBagPrice = async () => {
+    try {
+      await apiService.createBagPrice({
+        amount: 250,
+        label: 'New Price',
+        sortOrder: bagPrices.length + 1,
+        isActive: true,
+      });
+      await loadBagPrices();
+      setSnackbar({ open: true, message: 'Bag price added successfully', severity: 'success' });
+    } catch (error) {
+      console.error('Error adding bag price:', error);
+      setSnackbar({ open: true, message: 'Error adding bag price', severity: 'error' });
+    }
+  };
+
+  const handleUpdateBagPrice = async (priceId: number, updates: Partial<BagPrice>) => {
+    try {
+      await apiService.updateBagPrice(priceId, updates);
+      await loadBagPrices();
+    } catch (error) {
+      console.error('Error updating bag price:', error);
+      setSnackbar({ open: true, message: 'Error updating bag price', severity: 'error' });
+    }
+  };
+
+  const handleDeleteBagPrice = async (priceId: number) => {
+    if (!window.confirm('Are you sure you want to delete this bag price?')) {
+      return;
+    }
+    try {
+      await apiService.deleteBagPrice(priceId);
+      await loadBagPrices();
+      setSnackbar({ open: true, message: 'Bag price deleted successfully', severity: 'success' });
+    } catch (error) {
+      console.error('Error deleting bag price:', error);
+      setSnackbar({ open: true, message: 'Error deleting bag price', severity: 'error' });
     }
   };
 
@@ -67,10 +127,7 @@ export default function Settings() {
         setSnackbar({ open: true, message: 'Packing nylon cost and bags per package must be greater than 0', severity: 'error' });
         return;
       }
-      if (settings.salesPrice1 <= 0 || settings.salesPrice2 <= 0) {
-        setSnackbar({ open: true, message: 'Sales prices must be greater than 0', severity: 'error' });
-        return;
-      }
+      // Note: Bag prices are now managed separately, so we don't validate salesPrice1/salesPrice2 here
 
       await dbService.updateSettings(settings);
       setSnackbar({ open: true, message: 'Settings saved successfully!', severity: 'success' });
@@ -200,46 +257,106 @@ export default function Settings() {
           </Card>
         </Grid>
 
-        {/* Sales Prices Section */}
+        {/* Sales Prices Section - Dynamic Bag Prices */}
         <Grid item xs={12}>
           <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                <MoneyIcon sx={{ mr: 1, color: 'primary.main' }} />
-                <Typography variant="h5" component="h2">
-                  Sales Prices
-                </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <MoneyIcon sx={{ mr: 1, color: 'primary.main' }} />
+                  <Typography variant="h5" component="h2">
+                    Bag Sales Prices
+                  </Typography>
+                </Box>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={handleAddBagPrice}
+                  size="small"
+                >
+                  Add Price
+                </Button>
               </Box>
               <Divider sx={{ mb: 3 }} />
+              <Alert severity="info" sx={{ mb: 3 }}>
+                Manage bag prices for sales entries. These prices will be available when entering sales.
+              </Alert>
 
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Sales Price 1"
-                    type="number"
-                    value={settings.salesPrice1}
-                    onChange={(e) => handleChange('salesPrice1', e.target.value)}
-                    InputProps={{
-                      startAdornment: <InputAdornment position="start">₦</InputAdornment>,
-                    }}
-                    helperText="Default price per bag (e.g., ₦250)"
-                  />
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Sales Price 2"
-                    type="number"
-                    value={settings.salesPrice2}
-                    onChange={(e) => handleChange('salesPrice2', e.target.value)}
-                    InputProps={{
-                      startAdornment: <InputAdornment position="start">₦</InputAdornment>,
-                    }}
-                    helperText="Alternative price per bag (e.g., ₦270)"
-                  />
-                </Grid>
-              </Grid>
+              {bagPrices.length === 0 ? (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  No bag prices configured. Click "Add Price" to create your first price tier.
+                </Alert>
+              ) : (
+                <Box sx={{ mb: 3 }}>
+                  {bagPrices
+                    .sort((a, b) => a.sortOrder - b.sortOrder)
+                    .map((price) => (
+                      <Box
+                        key={price.id}
+                        sx={{
+                          display: 'flex',
+                          gap: 2,
+                          mb: 2,
+                          alignItems: 'center',
+                          p: 2,
+                          bgcolor: price.isActive ? 'background.paper' : 'action.disabledBackground',
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          borderRadius: 1,
+                        }}
+                      >
+                        <TextField
+                          label="Price Amount (₦)"
+                          type="number"
+                          value={price.amount}
+                          onChange={(e) => handleUpdateBagPrice(price.id!, { amount: parseFloat(e.target.value) || 0 })}
+                          size="small"
+                          sx={{ width: '150px' }}
+                          InputProps={{
+                            startAdornment: <InputAdornment position="start">₦</InputAdornment>,
+                          }}
+                        />
+                        <TextField
+                          label="Label"
+                          value={price.label}
+                          onChange={(e) => handleUpdateBagPrice(price.id!, { label: e.target.value })}
+                          size="small"
+                          sx={{ flexGrow: 1 }}
+                          placeholder="e.g., Standard, Premium, Deluxe"
+                        />
+                        <TextField
+                          label="Order"
+                          type="number"
+                          value={price.sortOrder}
+                          onChange={(e) => handleUpdateBagPrice(price.id!, { sortOrder: parseInt(e.target.value) || 0 })}
+                          size="small"
+                          sx={{ width: '80px' }}
+                          helperText="Display order"
+                        />
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={price.isActive}
+                              onChange={(e) => handleUpdateBagPrice(price.id!, { isActive: e.target.checked })}
+                              size="small"
+                            />
+                          }
+                          label="Active"
+                          labelPlacement="top"
+                        />
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          startIcon={<DeleteIcon />}
+                          onClick={() => handleDeleteBagPrice(price.id!)}
+                          size="small"
+                        >
+                          Delete
+                        </Button>
+                      </Box>
+                    ))}
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
