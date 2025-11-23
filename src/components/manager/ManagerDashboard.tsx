@@ -1204,6 +1204,23 @@ export default function ManagerDashboard() {
                   <strong>Total Bags:</strong> {selectedSale.totalBags.toLocaleString()}
                 </Typography>
                 
+                {selectedSale.priceBreakdown && selectedSale.priceBreakdown.length > 0 && (
+                  <Box sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                      Price Breakdown:
+                    </Typography>
+                    {selectedSale.priceBreakdown.map((item, idx) => (
+                      <Typography key={idx} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
+                        • {item.bags.toLocaleString()} bags @ ₦{item.amount.toLocaleString()}
+                        {item.label ? ` (${item.label})` : ''}
+                        <span style={{ marginLeft: '8px', color: '#666' }}>
+                          = ₦{(item.bags * item.amount).toLocaleString()}
+                        </span>
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+                
                 <Box sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
                   <Typography variant="h6" color="primary">
                     Total Expected: {formatCurrency(expectedAmount)}
@@ -1258,6 +1275,26 @@ export default function ManagerDashboard() {
             {updateType === 'sale' ? (
               // For receptionist sales, show dropdown to select which field
               <>
+                {updateItem && (updateItem as ReceptionistSale).priceBreakdown && (updateItem as ReceptionistSale).priceBreakdown!.length > 0 && (
+                  <Box sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 1, border: '1px solid', borderColor: 'divider', mb: 2 }}>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                      Current Price Breakdown:
+                    </Typography>
+                    {(updateItem as ReceptionistSale).priceBreakdown!.map((item, idx) => (
+                      <Typography key={idx} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
+                        • {item.bags.toLocaleString()} bags @ ₦{item.amount.toLocaleString()}
+                        {item.label ? ` (${item.label})` : ''}
+                        <span style={{ marginLeft: '8px', color: '#666' }}>
+                          = ₦{(item.bags * item.amount).toLocaleString()}
+                        </span>
+                      </Typography>
+                    ))}
+                    <Typography variant="body2" sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider', fontWeight: 'bold' }}>
+                      Total: ₦{(updateItem as ReceptionistSale).expectedAmount?.toLocaleString() || 
+                        (updateItem as ReceptionistSale).priceBreakdown!.reduce((sum, item) => sum + (item.bags * item.amount), 0).toLocaleString()}
+                    </Typography>
+                  </Box>
+                )}
                 <TextField
                   label="Field to Update"
                   fullWidth

@@ -300,6 +300,9 @@ export default function ReceptionistDashboard() {
             {sale.priceBreakdown.map((item, idx) => (
               <Typography key={idx} variant="body2">
                 @ ₦{item.amount.toLocaleString()}/bag {item.label ? `(${item.label})` : ''}: {item.bags.toLocaleString()} bags
+                <span style={{ marginLeft: '8px', color: '#666' }}>
+                  = ₦{(item.bags * item.amount).toLocaleString()}
+                </span>
               </Typography>
             ))}
           </Box>
@@ -722,6 +725,9 @@ export default function ReceptionistDashboard() {
                 pendingSale.priceBreakdown.map((item, idx) => (
                   <Typography key={idx} variant="body2" gutterBottom>
                     <strong>Bags at ₦{item.amount.toLocaleString()} {item.label ? `(${item.label})` : ''}:</strong> {item.bags.toLocaleString()}
+                    <span style={{ marginLeft: '8px', color: '#666' }}>
+                      = ₦{(item.bags * item.amount).toLocaleString()}
+                    </span>
                   </Typography>
                 ))
               ) : (

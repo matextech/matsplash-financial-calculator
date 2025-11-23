@@ -762,18 +762,43 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
                       <TableCell>Date</TableCell>
                       <TableCell>Type</TableCell>
                       <TableCell>Driver</TableCell>
+                      <TableCell>Price Breakdown</TableCell>
                       <TableCell>Total Bags</TableCell>
+                      <TableCell>Expected Amount</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {filteredSales.map((sale) => (
-                      <TableRow key={sale.id}>
-                        <TableCell>{format(new Date(sale.date), 'MMM d, yyyy')}</TableCell>
-                        <TableCell>{sale.saleType}</TableCell>
-                        <TableCell>{sale.driverName || 'N/A'}</TableCell>
-                        <TableCell>{sale.totalBags.toLocaleString()}</TableCell>
-                      </TableRow>
-                    ))}
+                    {filteredSales.map((sale) => {
+                      const expectedAmount = sale.expectedAmount || 0;
+                      return (
+                        <TableRow key={sale.id}>
+                          <TableCell>{format(new Date(sale.date), 'MMM d, yyyy')}</TableCell>
+                          <TableCell>{sale.saleType}</TableCell>
+                          <TableCell>{sale.driverName || 'N/A'}</TableCell>
+                          <TableCell>
+                            {sale.priceBreakdown && sale.priceBreakdown.length > 0 ? (
+                              <Box>
+                                {sale.priceBreakdown.map((item, idx) => (
+                                  <Typography key={idx} variant="body2">
+                                    {item.bags.toLocaleString()} @ ₦{item.amount.toLocaleString()}
+                                    {item.label ? ` (${item.label})` : ''}
+                                  </Typography>
+                                ))}
+                              </Box>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                {sale.bagsAtPrice1 > 0 && `${sale.bagsAtPrice1} @ ₦250`}
+                                {sale.bagsAtPrice1 > 0 && sale.bagsAtPrice2 > 0 && ', '}
+                                {sale.bagsAtPrice2 > 0 && `${sale.bagsAtPrice2} @ ₦270`}
+                                {!sale.bagsAtPrice1 && !sale.bagsAtPrice2 && 'N/A'}
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell>{sale.totalBags.toLocaleString()}</TableCell>
+                          <TableCell>{formatCurrency(expectedAmount)}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </TableContainer>
