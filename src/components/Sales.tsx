@@ -856,50 +856,45 @@ export default function Sales() {
             />
 
             {/* Dynamic Bag Prices - Show first two active prices */}
-            {bagPrices.length > 0 && bagPrices[0] && (
-              <>
-                <Divider>Bags at ₦{bagPrices[0].amount} {bagPrices[0].label ? `(${bagPrices[0].label})` : ''}</Divider>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor: 'success.50', borderRadius: 1 }}>
-                  <TextField
-                    label={`Bags Sold at ₦${bagPrices[0].amount}`}
-                    fullWidth
-                    type="number"
-                    value={formData.bagsAtPrice1}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setFormData({ ...formData, bagsAtPrice1: value });
-                    }}
-                    inputProps={{ min: 0, step: 1 }}
-                    placeholder="Enter number of bags"
-                    helperText={formData.bagsAtPrice1 ? `${formData.bagsAtPrice1} bags × ₦${bagPrices[0].amount} = ${formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice1 || '0')) * bagPrices[0].amount)}` : `Optional: Enter bags sold at ₦${bagPrices[0].amount}`}
-                  />
-                </Box>
-              </>
-            )}
-
-            {bagPrices.length > 1 && bagPrices[1] && (
-              <>
-                <Divider>Bags at ₦{bagPrices[1].amount} {bagPrices[1].label ? `(${bagPrices[1].label})` : ''}</Divider>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor: 'info.50', borderRadius: 1 }}>
-                  <TextField
-                    label={`Bags Sold at ₦${bagPrices[1].amount}`}
-                    fullWidth
-                    type="number"
-                    value={formData.bagsAtPrice2}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setFormData({ ...formData, bagsAtPrice2: value });
-                    }}
-                    inputProps={{ min: 0, step: 1 }}
-                    placeholder="Enter number of bags"
-                    helperText={formData.bagsAtPrice2 ? `${formData.bagsAtPrice2} bags × ₦${bagPrices[1].amount} = ${formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice2 || '0')) * bagPrices[1].amount)}` : `Optional: Enter bags sold at ₦${bagPrices[1].amount}`}
-                  />
-                </Box>
-              </>
-            )}
-
-            {/* Fallback to settings if no bag prices loaded */}
-            {bagPrices.length === 0 && (
+            {/* Dynamic Bag Prices - Show ALL active prices */}
+            {bagPrices.length > 0 ? (
+              bagPrices.map((price, index) => {
+                if (!price.id) return null;
+                const bagsValue = formData.bagsByPriceId[price.id] || '';
+                const bagsCount = parseFloat(bagsValue) || 0;
+                const backgroundColor = index % 2 === 0 ? 'success.50' : 'info.50';
+                
+                return (
+                  <Box key={price.id}>
+                    <Divider sx={{ my: 2 }}>
+                      Bags at ₦{price.amount} {price.label ? `(${price.label})` : ''}
+                    </Divider>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor, borderRadius: 1 }}>
+                      <TextField
+                        label={`Bags Sold at ₦${price.amount}${price.label ? ` (${price.label})` : ''}`}
+                        fullWidth
+                        type="number"
+                        value={bagsValue}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setFormData({
+                            ...formData,
+                            bagsByPriceId: {
+                              ...formData.bagsByPriceId,
+                              [price.id!]: value,
+                            },
+                          });
+                        }}
+                        inputProps={{ min: 0, step: 1 }}
+                        placeholder="Enter number of bags"
+                        helperText={bagsValue ? `${bagsValue} bags × ₦${price.amount} = ${formatCurrency(bagsCount * price.amount)}` : `Optional: Enter bags sold at ₦${price.amount}`}
+                      />
+                    </Box>
+                  </Box>
+                );
+              })
+            ) : (
+              // Fallback to settings if no bag prices loaded
               <>
                 <Divider>Bags at ₦{settings.salesPrice1}</Divider>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor: 'success.50', borderRadius: 1 }}>
@@ -907,14 +902,16 @@ export default function Sales() {
                     label={`Bags Sold at ₦${settings.salesPrice1}`}
                     fullWidth
                     type="number"
-                    value={formData.bagsAtPrice1}
+                    value={formData.bagsByPriceId[0] || ''}
                     onChange={(e) => {
-                      const value = e.target.value;
-                      setFormData({ ...formData, bagsAtPrice1: value });
+                      setFormData({
+                        ...formData,
+                        bagsByPriceId: { ...formData.bagsByPriceId, 0: e.target.value },
+                      });
                     }}
                     inputProps={{ min: 0, step: 1 }}
                     placeholder="Enter number of bags"
-                    helperText={formData.bagsAtPrice1 ? `${formData.bagsAtPrice1} bags × ₦${settings.salesPrice1} = ${formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice1 || '0')) * settings.salesPrice1)}` : `Optional: Enter bags sold at ₦${settings.salesPrice1}`}
+                    helperText={formData.bagsByPriceId[0] ? `${formData.bagsByPriceId[0]} bags × ₦${settings.salesPrice1} = ${formatCurrency((parseFloat(formData.bagsByPriceId[0]) || 0) * settings.salesPrice1)}` : `Optional: Enter bags sold at ₦${settings.salesPrice1}`}
                   />
                 </Box>
 
@@ -924,14 +921,16 @@ export default function Sales() {
                     label={`Bags Sold at ₦${settings.salesPrice2}`}
                     fullWidth
                     type="number"
-                    value={formData.bagsAtPrice2}
+                    value={formData.bagsByPriceId[1] || ''}
                     onChange={(e) => {
-                      const value = e.target.value;
-                      setFormData({ ...formData, bagsAtPrice2: value });
+                      setFormData({
+                        ...formData,
+                        bagsByPriceId: { ...formData.bagsByPriceId, 1: e.target.value },
+                      });
                     }}
                     inputProps={{ min: 0, step: 1 }}
                     placeholder="Enter number of bags"
-                    helperText={formData.bagsAtPrice2 ? `${formData.bagsAtPrice2} bags × ₦${settings.salesPrice2} = ${formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice2 || '0')) * settings.salesPrice2)}` : `Optional: Enter bags sold at ₦${settings.salesPrice2}`}
+                    helperText={formData.bagsByPriceId[1] ? `${formData.bagsByPriceId[1]} bags × ₦${settings.salesPrice2} = ${formatCurrency((parseFloat(formData.bagsByPriceId[1]) || 0) * settings.salesPrice2)}` : `Optional: Enter bags sold at ₦${settings.salesPrice2}`}
                   />
                 </Box>
               </>
