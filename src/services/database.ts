@@ -10,6 +10,7 @@ class DatabaseService {
   async init(): Promise<void> {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.version);
+      let upgradeCompleted = false;
 
       request.onerror = () => {
         console.error('Database open error:', request.error);
@@ -18,28 +19,51 @@ class DatabaseService {
 
       request.onblocked = () => {
         console.warn('Database upgrade blocked - please close other tabs with this app open');
-        alert('Database upgrade is blocked. Please close all other tabs with this app and refresh the page.');
+        // Don't alert, just log - the upgrade will proceed once other tabs are closed
       };
 
       request.onsuccess = () => {
         this.db = request.result;
         console.log('Database opened successfully, version:', this.db.version);
-        resolve();
+        if (!upgradeCompleted) {
+          // If no upgrade was needed, resolve immediately
+          resolve();
+        } else {
+          // If upgrade was needed, wait a bit for it to complete
+          setTimeout(() => {
+            resolve();
+          }, 100);
+        }
       };
 
       request.onupgradeneeded = (event) => {
         try {
+          upgradeCompleted = true;
           console.log('Database upgrade needed, old version:', event.oldVersion, 'new version:', event.newVersion);
           const db = (event.target as IDBOpenDBRequest).result;
           
           // Add error handler for upgrade
           db.onerror = (error) => {
             console.error('Database upgrade error:', error);
+            reject(new Error('Database upgrade failed'));
           };
           
           db.onabort = () => {
             console.error('Database upgrade aborted');
+            reject(new Error('Database upgrade was aborted'));
           };
+          
+          // Wait for upgrade transaction to complete
+          const transaction = db.transaction ? db.transaction([], 'readwrite') : null;
+          if (transaction) {
+            transaction.oncomplete = () => {
+              console.log('Database upgrade transaction completed');
+            };
+            transaction.onerror = () => {
+              console.error('Database upgrade transaction error:', transaction.error);
+              reject(transaction.error);
+            };
+          }
 
         // Employees store
         if (!db.objectStoreNames.contains('employees')) {
@@ -142,6 +166,9 @@ class DatabaseService {
         }
 
           console.log('Database upgrade completed. Object stores:', Array.from(db.objectStoreNames));
+          
+          // The upgrade will complete when the transaction finishes
+          // We don't resolve here - let onsuccess handle it
         } catch (error) {
           console.error('Error during database upgrade:', error);
           reject(error instanceof Error ? error : new Error(String(error)));
