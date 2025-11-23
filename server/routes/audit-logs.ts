@@ -84,7 +84,7 @@ router.post('/', async (req, res) => {
       });
     }
 
-    const [id] = await db('audit_logs').insert({
+    const insertData: any = {
       entity_type: entityType,
       entity_id: entityId,
       action,
@@ -92,10 +92,16 @@ router.post('/', async (req, res) => {
       old_value: oldValue || null,
       new_value: newValue || null,
       changed_by: changedBy,
-      changed_at: changedAt ? new Date(changedAt).toISOString() : new Date().toISOString(),
       reason: reason || null,
-      created_at: new Date().toISOString()
-    });
+    };
+    
+    // Handle timestamps - let SQLite handle defaults if not provided
+    if (changedAt) {
+      insertData.changed_at = new Date(changedAt).toISOString();
+    }
+    // created_at will use the default from the database
+    
+    const [id] = await db('audit_logs').insert(insertData);
 
     const newLog = await db('audit_logs').where('id', id).first();
 
@@ -104,11 +110,15 @@ router.post('/', async (req, res) => {
       data: transformAuditLog(newLog),
       message: 'Audit log created successfully'
     });
-  } catch (error) {
-    console.error('Error creating audit log:', error);
+  } catch (error: any) {
+    console.error('❌ Error creating audit log:', error);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('Request body:', req.body);
     res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });

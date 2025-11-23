@@ -240,6 +240,7 @@ export default async function setupDatabase(): Promise<void> {
         table.text('reason');
         table.string('ip_address');
         table.text('user_agent');
+        table.timestamp('created_at').defaultTo(db.fn.now());
         table.index('entity_type');
         table.index('entity_id');
         table.index('changed_by');
@@ -281,6 +282,32 @@ export default async function setupDatabase(): Promise<void> {
         table.index('paid_at');
       });
       console.log('settlement_payments table created successfully');
+    }
+    
+    // Check and create audit_logs table if it doesn't exist (for existing databases)
+    const hasAuditLogsTable = await db.schema.hasTable('audit_logs');
+    if (!hasAuditLogsTable) {
+      console.log('Creating audit_logs table...');
+      await db.schema.createTable('audit_logs', (table) => {
+        table.increments('id').primary();
+        table.string('entity_type').notNullable();
+        table.integer('entity_id').notNullable();
+        table.string('action').notNullable();
+        table.string('field');
+        table.text('old_value');
+        table.text('new_value');
+        table.integer('changed_by').notNullable();
+        table.timestamp('changed_at').defaultTo(db.fn.now());
+        table.text('reason');
+        table.string('ip_address');
+        table.text('user_agent');
+        table.timestamp('created_at').defaultTo(db.fn.now());
+        table.index('entity_type');
+        table.index('entity_id');
+        table.index('changed_by');
+        table.index('changed_at');
+      });
+      console.log('audit_logs table created successfully');
     }
     
     // Add price_breakdown and expected_amount columns to receptionist_sales for dynamic pricing (if they don't exist)
