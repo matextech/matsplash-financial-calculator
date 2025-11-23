@@ -10,47 +10,60 @@ class DatabaseService {
   async init(): Promise<void> {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.version);
-      let upgradeCompleted = false;
+      let upgradeInProgress = false;
+      let hasError = false;
 
       request.onerror = () => {
         console.error('Database open error:', request.error);
-        reject(request.error);
+        hasError = true;
+        reject(request.error || new Error('Failed to open database'));
       };
 
       request.onblocked = () => {
         console.warn('Database upgrade blocked - please close other tabs with this app open');
-        // Don't alert, just log - the upgrade will proceed once other tabs are closed
+        // The upgrade will proceed once other tabs are closed
+        // Don't reject here, just wait
       };
 
       request.onsuccess = () => {
+        if (hasError) return; // Don't resolve if there was an error
+        
         this.db = request.result;
         console.log('Database opened successfully, version:', this.db.version);
-        if (!upgradeCompleted) {
-          // If no upgrade was needed, resolve immediately
-          resolve();
-        } else {
-          // If upgrade was needed, wait a bit for it to complete
-          setTimeout(() => {
-            resolve();
-          }, 100);
-        }
+        
+        // Always resolve immediately - onsuccess only fires after upgrade completes
+        resolve();
       };
 
       request.onupgradeneeded = (event) => {
+        upgradeInProgress = true;
+        console.log('Database upgrade needed, old version:', event.oldVersion, 'new version:', event.newVersion);
+        
         try {
-          upgradeCompleted = true;
-          console.log('Database upgrade needed, old version:', event.oldVersion, 'new version:', event.newVersion);
           const db = (event.target as IDBOpenDBRequest).result;
           
-          // Add error handler for upgrade
-          db.onerror = (error) => {
-            console.error('Database upgrade error:', error);
-            reject(new Error('Database upgrade failed'));
-          };
+          // Get the upgrade transaction
+          const transaction = (event.target as IDBOpenDBRequest).transaction;
           
-          db.onabort = () => {
-            console.error('Database upgrade aborted');
-            reject(new Error('Database upgrade was aborted'));
+          if (transaction) {
+            transaction.onerror = (error) => {
+              console.error('Database upgrade transaction error:', transaction.error);
+              hasError = true;
+              reject(transaction.error || new Error('Database upgrade transaction failed'));
+            };
+            
+            transaction.onabort = () => {
+              console.error('Database upgrade transaction aborted');
+              hasError = true;
+              reject(new Error('Database upgrade transaction was aborted'));
+            };
+          }
+          
+          // Add error handler for database
+          db.onerror = (error) => {
+            console.error('Database error during upgrade:', error);
+            hasError = true;
+            reject(new Error('Database error during upgrade'));
           };
 
         // Employees store
