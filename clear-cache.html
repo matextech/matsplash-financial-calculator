@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Cache - Matsplash</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            background: white;
+            color: #333;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #667eea;
+            text-align: center;
+        }
+        .button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            margin: 10px 0;
+            transition: background 0.3s;
+        }
+        .button:hover {
+            background: #764ba2;
+        }
+        .success {
+            background: #4CAF50;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
+        }
+        .info {
+            background: #2196F3;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .warning {
+            background: #ff9800;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        ul {
+            text-align: left;
+            line-height: 2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Clear Browser Cache</h1>
+        
+        <div class="warning">
+            <strong>⚠️ Why do you need this?</strong>
+            <p>Your browser has old login data stored. We need to clear it to use the new backend database.</p>
+        </div>
+        
+        <button class="button" onclick="clearAllData()">
+            🗑️ Clear All Cached Data
+        </button>
+        
+        <div id="successMessage" class="success">
+            ✅ Cache cleared! Reloading app in 2 seconds...
+        </div>
+        
+        <div class="info">
+            <strong>📋 What this clears:</strong>
+            <ul>
+                <li>✅ localStorage (old sessions)</li>
+                <li>✅ sessionStorage (temporary data)</li>
+                <li>✅ IndexedDB (old user database)</li>
+                <li>✅ Service Workers (if any)</li>
+            </ul>
+        </div>
+        
+        <div class="info">
+            <strong>📝 After clearing:</strong>
+            <ul>
+                <li>Login with: <strong>manager@matsplash.com</strong></li>
+                <li>PIN: <strong>1234</strong></li>
+            </ul>
+        </div>
+        
+        <div class="info">
+            <strong>🔐 To test PIN reset:</strong>
+            <ol>
+                <li>Login as Director: director@matsplash.com / admin123</li>
+                <li>Go to <strong>Management</strong> section</li>
+                <li>Click reset icon for any user</li>
+                <li>Copy the temporary PIN shown</li>
+                <li>Logout and login with that user</li>
+                <li>Enter the temporary PIN</li>
+                <li>You'll see PIN Change Dialog</li>
+                <li>Set a new PIN</li>
+                <li>Test in another browser - it will work!</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        async function clearAllData() {
+            console.log('🗑️ Clearing all cached data...');
+            
+            // Clear localStorage
+            try {
+                localStorage.clear();
+                console.log('✅ localStorage cleared');
+            } catch (e) {
+                console.error('❌ Failed to clear localStorage:', e);
+            }
+            
+            // Clear sessionStorage
+            try {
+                sessionStorage.clear();
+                console.log('✅ sessionStorage cleared');
+            } catch (e) {
+                console.error('❌ Failed to clear sessionStorage:', e);
+            }
+            
+            // Clear IndexedDB
+            try {
+                const databases = await window.indexedDB.databases();
+                for (const db of databases) {
+                    if (db.name) {
+                        window.indexedDB.deleteDatabase(db.name);
+                        console.log('✅ Deleted IndexedDB:', db.name);
+                    }
+                }
+            } catch (e) {
+                console.error('❌ Failed to clear IndexedDB:', e);
+            }
+            
+            // Clear Service Workers
+            try {
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (const registration of registrations) {
+                        await registration.unregister();
+                        console.log('✅ Unregistered service worker');
+                    }
+                }
+            } catch (e) {
+                console.error('❌ Failed to clear service workers:', e);
+            }
+            
+            // Show success message
+            document.getElementById('successMessage').style.display = 'block';
+            
+            // Redirect to app after 2 seconds
+            setTimeout(() => {
+                window.location.href = 'http://localhost:5179';
+            }, 2000);
+        }
+        
+        // Auto-clear on load if ?auto=1 in URL
+        if (window.location.search.includes('auto=1')) {
+            clearAllData();
+        }
+    </script>
+</body>
+</html>
+
