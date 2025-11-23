@@ -1837,13 +1837,28 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
                     </Box>
                   )}
 
-                  <Box sx={{ display: 'flex', gap: 2 }}>
+                  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                     <Button 
                       startIcon={<AddIcon />} 
                       onClick={handleAddPrice} 
                       variant="outlined"
                     >
                       Add New Price
+                    </Button>
+                    <Button 
+                      variant="outlined" 
+                      onClick={async () => {
+                        console.log('Manual refresh clicked');
+                        const refreshed = await apiService.getBagPrices(true);
+                        console.log('Refreshed bag prices:', refreshed);
+                        if (Array.isArray(refreshed)) {
+                          setBagPrices([...refreshed]);
+                          console.log('State updated with', refreshed.length, 'prices');
+                        }
+                      }}
+                      startIcon={<RefreshIcon />}
+                    >
+                      Refresh
                     </Button>
                     <Button 
                       variant="contained" 
