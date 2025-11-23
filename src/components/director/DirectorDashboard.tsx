@@ -197,76 +197,50 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
       } else if (tabValue === 4) {
         // Settings
         console.log('Loading Settings tab data...');
+        
+        // Load bag prices independently so it doesn't fail if material prices fails
         try {
-          // Make direct API call to see raw response
           const token = localStorage.getItem('authToken');
-          const directResponse = await fetch('http://localhost:3001/api/bag-prices?includeInactive=true', {
+          const bagPricesResponse = await fetch('http://localhost:3001/api/bag-prices?includeInactive=true', {
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json',
             },
           });
-          const directData = await directResponse.json();
-          console.log('DIRECT API CALL RESULT:', directData);
-          console.log('Direct data.data:', directData.data);
-          console.log('Direct data.data is array?', Array.isArray(directData.data));
+          const bagPricesResult = await bagPricesResponse.json();
+          console.log('Bag prices API result:', bagPricesResult);
           
-          const [settingsData, bagPricesData, materialPricesData] = await Promise.all([
-            apiService.getSettings(),
-            apiService.getBagPrices(true), // Include inactive for management
-            apiService.getMaterialPrices(undefined, true) // Include inactive for management
-          ]);
-          console.log('Settings data received:', { 
-            settingsData, 
-            bagPricesData, 
-            bagPricesDataType: typeof bagPricesData,
-            bagPricesIsArray: Array.isArray(bagPricesData),
-            bagPricesDataValue: bagPricesData,
-            materialPricesData 
-          });
-          setSettings(settingsData || DEFAULT_SETTINGS);
-          
-          // Try multiple ways to extract the data
-          let finalBagPrices: any[] = [];
-          
-          // Method 1: Check if it's already an array
-          if (Array.isArray(bagPricesData)) {
-            finalBagPrices = bagPricesData;
-            console.log('Method 1: bagPricesData is array, length:', finalBagPrices.length);
-          } 
-          // Method 2: Check if it has a data property
-          else if (bagPricesData && typeof bagPricesData === 'object' && 'data' in bagPricesData) {
-            const extracted = (bagPricesData as any).data;
-            if (Array.isArray(extracted)) {
-              finalBagPrices = extracted;
-              console.log('Method 2: Extracted from data property, length:', finalBagPrices.length);
-            }
-          }
-          // Method 3: Use direct API response
-          else if (directData && directData.data && Array.isArray(directData.data)) {
-            finalBagPrices = directData.data;
-            console.log('Method 3: Using direct API response, length:', finalBagPrices.length);
-          }
-          
-          console.log('Final bag prices to set:', finalBagPrices);
-          if (finalBagPrices.length > 0) {
-            setBagPrices([...finalBagPrices]); // Create new array to force re-render
-            console.log('✅ State updated with', finalBagPrices.length, 'prices');
+          if (bagPricesResult && bagPricesResult.data && Array.isArray(bagPricesResult.data)) {
+            setBagPrices([...bagPricesResult.data]);
+            console.log('✅ Bag prices loaded:', bagPricesResult.data.length, 'prices');
           } else {
-            console.error('❌ No bag prices found after all extraction methods');
+            console.error('❌ Bag prices data format unexpected:', bagPricesResult);
             setBagPrices([]);
           }
-          
+        } catch (error) {
+          console.error('Error loading bag prices:', error);
+          setBagPrices([]);
+        }
+        
+        // Load settings
+        try {
+          const settingsData = await apiService.getSettings();
+          setSettings(settingsData || DEFAULT_SETTINGS);
+        } catch (error) {
+          console.error('Error loading settings:', error);
+        }
+        
+        // Load material prices (optional - don't fail if this fails)
+        try {
+          const materialPricesData = await apiService.getMaterialPrices(undefined, true);
           if (Array.isArray(materialPricesData)) {
-            setMaterialPrices([...materialPricesData]); // Create new array to force re-render
-            console.log('Loaded material prices:', materialPricesData.length, 'prices');
+            setMaterialPrices([...materialPricesData]);
+            console.log('✅ Material prices loaded:', materialPricesData.length, 'prices');
           } else {
-            console.error('Material prices data is not an array:', materialPricesData);
             setMaterialPrices([]);
           }
         } catch (error) {
-          console.error('Error loading Settings tab data:', error);
-          setBagPrices([]);
+          console.error('Error loading material prices (non-critical):', error);
           setMaterialPrices([]);
         }
       }
