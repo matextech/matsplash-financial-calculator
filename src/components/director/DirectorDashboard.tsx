@@ -46,7 +46,7 @@ import {
 } from '@mui/icons-material';
 import { User } from '../../types/auth';
 import { ReceptionistSale, StorekeeperEntry, Settlement, AuditLog } from '../../types/sales-log';
-import { Employee } from '../../types';
+import { Employee, Settings, DEFAULT_SETTINGS } from '../../types';
 import { dbService } from '../../services/database';
 import { authService } from '../../services/authService';
 import { apiService } from '../../services/apiService';
@@ -67,6 +67,7 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
   const [entries, setEntries] = useState<StorekeeperEntry[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [viewMode, setViewMode] = useState<'year' | 'month' | 'day' | 'range'>('year');
   const [selectedMonth, setSelectedMonth] = useState(new Date());
@@ -154,6 +155,10 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
         // Audit logs
         const logsData = await apiService.getAuditLogs(undefined, undefined, startDate, endDate);
         setAuditLogs(logsData);
+      } else if (tabValue === 4) {
+        // Settings
+        const settingsData = await apiService.getSettings();
+        setSettings(settingsData || DEFAULT_SETTINGS);
       }
       
       // Load users for audit log display
@@ -635,6 +640,7 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
           <Tab label="User Management" />
           <Tab label="Employee Management" />
           <Tab label="Audit Logs" />
+          <Tab label="Settings" />
         </Tabs>
       </Paper>
 
@@ -948,6 +954,161 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
               </Table>
             </TableContainer>
           )}
+        </Box>
+      )}
+
+      {/* Settings Tab */}
+      {tabValue === 4 && (
+        <Box>
+          <Typography variant="h6" sx={{ mb: 3 }}>System Settings</Typography>
+          
+          <Grid container spacing={3}>
+            {/* Bag Prices */}
+            <Grid item xs={12}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Bag Sales Prices
+                  </Typography>
+                  <Alert severity="info" sx={{ mb: 3 }}>
+                    Configure the selling prices for bags. These prices are used for calculating expected settlement amounts.
+                  </Alert>
+                  
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        label="Price 1 (₦)"
+                        type="number"
+                        value={settings.salesPrice1}
+                        onChange={(e) => setSettings({ ...settings, salesPrice1: parseFloat(e.target.value) || 0 })}
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start">₦</InputAdornment>,
+                        }}
+                        helperText="Default: ₦250 per bag"
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        label="Price 2 (₦)"
+                        type="number"
+                        value={settings.salesPrice2}
+                        onChange={(e) => setSettings({ ...settings, salesPrice2: parseFloat(e.target.value) || 0 })}
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start">₦</InputAdornment>,
+                        }}
+                        helperText="Default: ₦270 per bag"
+                      />
+                    </Grid>
+                  </Grid>
+
+                  <Box sx={{ mt: 3 }}>
+                    <Button 
+                      variant="contained" 
+                      onClick={async () => {
+                        try {
+                          await apiService.updateSettings(settings);
+                          alert('Prices updated successfully!');
+                        } catch (error) {
+                          console.error('Error updating settings:', error);
+                          alert('Error updating settings. Please try again.');
+                        }
+                      }}
+                    >
+                      Save Prices
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Material Costs */}
+            <Grid item xs={12}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Material Costs
+                  </Typography>
+                  <Alert severity="info" sx={{ mb: 3 }}>
+                    Configure material costs for profit calculation (used in analytics).
+                  </Alert>
+                  
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        label="Sachet Roll Cost (₦)"
+                        type="number"
+                        value={settings.sachetRollCost}
+                        onChange={(e) => setSettings({ ...settings, sachetRollCost: parseFloat(e.target.value) || 0 })}
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start">₦</InputAdornment>,
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        label="Bags Per Roll"
+                        type="number"
+                        value={settings.sachetRollBagsPerRoll}
+                        onChange={(e) => setSettings({ ...settings, sachetRollBagsPerRoll: parseInt(e.target.value) || 0 })}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        label="Packing Nylon Cost (₦)"
+                        type="number"
+                        value={settings.packingNylonCost}
+                        onChange={(e) => setSettings({ ...settings, packingNylonCost: parseFloat(e.target.value) || 0 })}
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start">₦</InputAdornment>,
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField
+                        fullWidth
+                        label="Bags Per Package"
+                        type="number"
+                        value={settings.packingNylonBagsPerPackage}
+                        onChange={(e) => setSettings({ ...settings, packingNylonBagsPerPackage: parseInt(e.target.value) || 0 })}
+                      />
+                    </Grid>
+                  </Grid>
+
+                  <Box sx={{ mt: 3 }}>
+                    <Button 
+                      variant="contained" 
+                      onClick={async () => {
+                        try {
+                          await apiService.updateSettings(settings);
+                          alert('Material costs updated successfully!');
+                        } catch (error) {
+                          console.error('Error updating settings:', error);
+                          alert('Error updating settings. Please try again.');
+                        }
+                      }}
+                    >
+                      Save Material Costs
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Future: Multiple Prices */}
+            <Grid item xs={12}>
+              <Alert severity="warning">
+                <Typography variant="body2">
+                  <strong>Coming Soon:</strong> Support for unlimited custom bag prices (₦230, ₦300, etc.) 
+                  will be added in a future update. Currently, two price tiers are supported.
+                </Typography>
+              </Alert>
+            </Grid>
+          </Grid>
         </Box>
       )}
 
