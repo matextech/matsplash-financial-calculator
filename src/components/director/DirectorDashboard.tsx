@@ -198,6 +198,19 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
         // Settings
         console.log('Loading Settings tab data...');
         try {
+          // Make direct API call to see raw response
+          const token = localStorage.getItem('authToken');
+          const directResponse = await fetch('http://localhost:3001/api/bag-prices?includeInactive=true', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          const directData = await directResponse.json();
+          console.log('DIRECT API CALL RESULT:', directData);
+          console.log('Direct data.data:', directData.data);
+          console.log('Direct data.data is array?', Array.isArray(directData.data));
+          
           const [settingsData, bagPricesData, materialPricesData] = await Promise.all([
             apiService.getSettings(),
             apiService.getBagPrices(true), // Include inactive for management
@@ -208,28 +221,42 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
             bagPricesData, 
             bagPricesDataType: typeof bagPricesData,
             bagPricesIsArray: Array.isArray(bagPricesData),
+            bagPricesDataValue: bagPricesData,
             materialPricesData 
           });
           setSettings(settingsData || DEFAULT_SETTINGS);
-          // API service already extracts data.data || data, so these should be arrays
+          
+          // Try multiple ways to extract the data
+          let finalBagPrices: any[] = [];
+          
+          // Method 1: Check if it's already an array
           if (Array.isArray(bagPricesData)) {
-            console.log('Setting bag prices state with', bagPricesData.length, 'prices:', bagPricesData);
-            setBagPrices([...bagPricesData]); // Create new array to force re-render
-          } else {
-            console.error('Bag prices data is not an array:', bagPricesData, typeof bagPricesData);
-            // Try to extract from response if it's wrapped
-            if (bagPricesData && typeof bagPricesData === 'object' && 'data' in bagPricesData) {
-              const extracted = (bagPricesData as any).data;
-              if (Array.isArray(extracted)) {
-                console.log('Extracted bag prices from data property:', extracted);
-                setBagPrices([...extracted]);
-              } else {
-                setBagPrices([]);
-              }
-            } else {
-              setBagPrices([]);
+            finalBagPrices = bagPricesData;
+            console.log('Method 1: bagPricesData is array, length:', finalBagPrices.length);
+          } 
+          // Method 2: Check if it has a data property
+          else if (bagPricesData && typeof bagPricesData === 'object' && 'data' in bagPricesData) {
+            const extracted = (bagPricesData as any).data;
+            if (Array.isArray(extracted)) {
+              finalBagPrices = extracted;
+              console.log('Method 2: Extracted from data property, length:', finalBagPrices.length);
             }
           }
+          // Method 3: Use direct API response
+          else if (directData && directData.data && Array.isArray(directData.data)) {
+            finalBagPrices = directData.data;
+            console.log('Method 3: Using direct API response, length:', finalBagPrices.length);
+          }
+          
+          console.log('Final bag prices to set:', finalBagPrices);
+          if (finalBagPrices.length > 0) {
+            setBagPrices([...finalBagPrices]); // Create new array to force re-render
+            console.log('✅ State updated with', finalBagPrices.length, 'prices');
+          } else {
+            console.error('❌ No bag prices found after all extraction methods');
+            setBagPrices([]);
+          }
+          
           if (Array.isArray(materialPricesData)) {
             setMaterialPrices([...materialPricesData]); // Create new array to force re-render
             console.log('Loaded material prices:', materialPricesData.length, 'prices');
