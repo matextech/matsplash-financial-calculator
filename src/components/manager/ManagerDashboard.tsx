@@ -737,8 +737,21 @@ export default function ManagerDashboard() {
                     Expected Amount
                   </Typography>
                   <Typography variant="h5">
-                    {formatCurrency(filteredSales.reduce((sum, s) => 
-                      sum + (s.bagsAtPrice1 * settings.salesPrice1) + (s.bagsAtPrice2 * settings.salesPrice2), 0))}
+                    {formatCurrency(filteredSales.reduce((sum, s) => {
+                      // Use expectedAmount from sale, fallback to calculation for legacy data
+                      let expected = s.expectedAmount || 0;
+                      if (expected === 0) {
+                        if (s.priceBreakdown && s.priceBreakdown.length > 0) {
+                          expected = s.priceBreakdown.reduce((subSum, item) => 
+                            subSum + (item.bags * item.amount), 0
+                          );
+                        } else {
+                          expected = (s.bagsAtPrice1 * settings.salesPrice1) + 
+                                    (s.bagsAtPrice2 * settings.salesPrice2);
+                        }
+                      }
+                      return sum + expected;
+                    }, 0))}
                   </Typography>
                 </CardContent>
               </Card>
@@ -1094,8 +1107,19 @@ export default function ManagerDashboard() {
         <DialogTitle>Add Settlement Payment</DialogTitle>
         <DialogContent>
           {selectedSale && (() => {
-            const expectedAmount = (selectedSale.bagsAtPrice1 * settings.salesPrice1) + 
-                                  (selectedSale.bagsAtPrice2 * settings.salesPrice2);
+            // Use expectedAmount from sale (calculated and stored in backend)
+            // Fallback to calculation for legacy data
+            let expectedAmount = selectedSale.expectedAmount || 0;
+            if (expectedAmount === 0) {
+              if (selectedSale.priceBreakdown && selectedSale.priceBreakdown.length > 0) {
+                expectedAmount = selectedSale.priceBreakdown.reduce((sum, item) => 
+                  sum + (item.bags * item.amount), 0
+                );
+              } else {
+                expectedAmount = (selectedSale.bagsAtPrice1 * settings.salesPrice1) + 
+                               (selectedSale.bagsAtPrice2 * settings.salesPrice2);
+              }
+            }
             const existingSettlement = settlements.find(s => s.receptionistSaleId === selectedSale.id);
             const alreadyPaid = existingSettlement?.settledAmount || 0;
             const remainingBalance = expectedAmount - alreadyPaid;
