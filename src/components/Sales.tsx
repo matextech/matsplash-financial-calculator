@@ -991,12 +991,26 @@ export default function Sales() {
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 <strong>Total Summary:</strong>
               </Typography>
-              <Typography variant="body2">
-                ₦{settings.salesPrice1}: {Math.floor(parseFloat(formData.bagsAtPrice1 || '0'))} bags = {formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice1 || '0')) * settings.salesPrice1)}
-              </Typography>
-              <Typography variant="body2">
-                ₦{settings.salesPrice2}: {Math.floor(parseFloat(formData.bagsAtPrice2 || '0'))} bags = {formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice2 || '0')) * settings.salesPrice2)}
-              </Typography>
+              {bagPrices.length > 0 && bagPrices[0] && (
+                <Typography variant="body2">
+                  ₦{bagPrices[0].amount}: {Math.floor(parseFloat(formData.bagsAtPrice1 || '0'))} bags = {formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice1 || '0')) * bagPrices[0].amount)}
+                </Typography>
+              )}
+              {bagPrices.length > 1 && bagPrices[1] && (
+                <Typography variant="body2">
+                  ₦{bagPrices[1].amount}: {Math.floor(parseFloat(formData.bagsAtPrice2 || '0'))} bags = {formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice2 || '0')) * bagPrices[1].amount)}
+                </Typography>
+              )}
+              {bagPrices.length === 0 && (
+                <>
+                  <Typography variant="body2">
+                    ₦{settings.salesPrice1}: {Math.floor(parseFloat(formData.bagsAtPrice1 || '0'))} bags = {formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice1 || '0')) * settings.salesPrice1)}
+                  </Typography>
+                  <Typography variant="body2">
+                    ₦{settings.salesPrice2}: {Math.floor(parseFloat(formData.bagsAtPrice2 || '0'))} bags = {formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice2 || '0')) * settings.salesPrice2)}
+                  </Typography>
+                </>
+              )}
               {formData.combinedBags && (
                 <Typography variant="body2">
                   ₦{formData.combinedPrice}: {Math.floor(parseFloat(formData.combinedBags || '0'))} bags = {formatCurrency(Math.floor(parseFloat(formData.combinedBags || '0')) * parseFloat(formData.combinedPrice || '0'))}
