@@ -65,6 +65,16 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   console.log('📝 POST /api/audit-logs - Creating audit log:', req.body);
   try {
+    // First, check if table exists
+    const tableExists = await db.schema.hasTable('audit_logs');
+    if (!tableExists) {
+      console.error('❌ audit_logs table does not exist!');
+      return res.status(500).json({
+        success: false,
+        message: 'Database table not found. Please restart the server to create the table.'
+      });
+    }
+
     const { 
       entityType, 
       entityId, 
@@ -89,21 +99,38 @@ router.post('/', async (req, res) => {
       entity_id: entityId,
       action,
       field: field || null,
-      old_value: oldValue || null,
-      new_value: newValue || null,
+      old_value: oldValue !== undefined && oldValue !== null ? String(oldValue) : null,
+      new_value: newValue !== undefined && newValue !== null ? String(newValue) : null,
       changed_by: changedBy,
       reason: reason || null,
+      created_at: new Date().toISOString(),
     };
     
-    // Handle timestamps - let SQLite handle defaults if not provided
+    // Handle timestamps
     if (changedAt) {
       insertData.changed_at = new Date(changedAt).toISOString();
+    } else {
+      insertData.changed_at = new Date().toISOString();
     }
-    // created_at will use the default from the database
     
-    const [id] = await db('audit_logs').insert(insertData);
+    console.log('📝 Inserting audit log with data:', insertData);
+    
+    const result = await db('audit_logs').insert(insertData);
+    console.log('📝 Insert result:', result);
+    
+    // SQLite returns lastInsertRowid, handle both array and number
+    const id = Array.isArray(result) ? result[0] : result;
+    console.log('📝 Extracted ID:', id);
 
     const newLog = await db('audit_logs').where('id', id).first();
+    
+    if (!newLog) {
+      console.error('❌ Failed to retrieve inserted log with id:', id);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve created audit log'
+      });
+    }
 
     res.status(201).json({
       success: true,
