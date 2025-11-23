@@ -149,13 +149,15 @@ export default function ManagerDashboard() {
 
   const handleOpenSettlement = (sale: ReceptionistSale) => {
     const existingSettlement = settlements.find(s => s.receptionistSaleId === sale.id);
-    if (existingSettlement) {
-      setSettlementAmount(existingSettlement.settledAmount.toString());
-    } else {
-      const expectedAmount = (sale.bagsAtPrice1 * settings.salesPrice1) + 
-                            (sale.bagsAtPrice2 * settings.salesPrice2);
-      setSettlementAmount(expectedAmount.toString());
+    
+    // Check if settlement is fully settled (locked)
+    if (existingSettlement && existingSettlement.isSettled) {
+      alert('This sale has been fully settled and is locked from further edits.');
+      return;
     }
+    
+    // Clear the input for new incremental payment
+    setSettlementAmount('');
     setSelectedSale(sale);
     setSettlementDialogOpen(true);
   };
@@ -170,19 +172,42 @@ export default function ManagerDashboard() {
       return;
     }
 
-    const settledAmt = parseFloat(settlementAmount) || 0;
+    const paymentAmount = parseFloat(settlementAmount) || 0;
+    
+    if (paymentAmount <= 0) {
+      alert('Please enter a valid payment amount');
+      return;
+    }
+
     const expectedAmount = (selectedSale.bagsAtPrice1 * settings.salesPrice1) + 
                           (selectedSale.bagsAtPrice2 * settings.salesPrice2);
-    const remainingBalance = expectedAmount - settledAmt;
-    const isSettled = remainingBalance <= 0;
 
     try {
       const existingSettlement = settlements.find(s => s.receptionistSaleId === selectedSale.id);
       
+      let newSettledAmount: number;
+      
+      if (existingSettlement) {
+        // Add this payment to existing settled amount (INCREMENTAL)
+        newSettledAmount = existingSettlement.settledAmount + paymentAmount;
+      } else {
+        // First payment
+        newSettledAmount = paymentAmount;
+      }
+
+      const newRemainingBalance = expectedAmount - newSettledAmount;
+      const isSettled = newRemainingBalance <= 0;
+
+      // Prevent overpayment
+      if (newRemainingBalance < 0) {
+        alert(`Payment exceeds remaining balance. Remaining balance: ₦${(expectedAmount - (existingSettlement?.settledAmount || 0)).toLocaleString()}`);
+        return;
+      }
+
       if (existingSettlement) {
         await apiService.updateSettlement(existingSettlement.id!, {
-          settledAmount: settledAmt,
-          remainingBalance: remainingBalance,
+          settledAmount: newSettledAmount,
+          remainingBalance: newRemainingBalance,
           isSettled: isSettled,
           settledAt: isSettled ? new Date() : undefined,
         });
@@ -191,8 +216,8 @@ export default function ManagerDashboard() {
           date: selectedSale.date,
           receptionistSaleId: selectedSale.id!,
           expectedAmount: expectedAmount,
-          settledAmount: settledAmt,
-          remainingBalance: remainingBalance,
+          settledAmount: newSettledAmount,
+          remainingBalance: newRemainingBalance,
           isSettled: isSettled,
           settledBy: session.userId,
           settledAt: isSettled ? new Date() : undefined,
@@ -205,8 +230,15 @@ export default function ManagerDashboard() {
 
       setSettlementDialogOpen(false);
       setSelectedSale(null);
+      setSettlementAmount('');
       await loadData();
       await loadNotifications();
+      
+      if (isSettled) {
+        alert('Settlement completed! This sale is now fully settled and locked.');
+      } else {
+        alert(`Payment recorded! Remaining balance: ₦${newRemainingBalance.toLocaleString()}`);
+      }
     } catch (error) {
       console.error('Error saving settlement:', error);
       alert('Error saving settlement. Please try again.');
@@ -702,24 +734,38 @@ export default function ManagerDashboard() {
                       <TableCell>
                         {settlement ? (
                           settlement.isSettled ? (
-                            <Chip label="Settled" color="success" size="small" />
+                            <Tooltip title={`Fully Settled - Paid: ${formatCurrency(settlement.settledAmount)}`}>
+                              <Chip label="✓ Settled" color="success" size="small" />
+                            </Tooltip>
                           ) : (
-                            <Chip 
-                              label={`Balance: ${formatCurrency(settlement.remainingBalance)}`} 
-                              color="warning" 
-                              size="small" 
-                            />
+                            <Tooltip title={`Paid: ${formatCurrency(settlement.settledAmount)} of ${formatCurrency(expectedAmount)}`}>
+                              <Chip 
+                                label={`₦${settlement.remainingBalance.toLocaleString()} due`} 
+                                color="warning" 
+                                size="small" 
+                              />
+                            </Tooltip>
                           )
                         ) : (
-                          <Chip label="Pending" color="default" size="small" />
+                          <Chip label="Not Settled" color="error" size="small" />
                         )}
                       </TableCell>
                       <TableCell>
-                        <Tooltip title="Enter Settlement">
-                          <IconButton size="small" onClick={() => handleOpenSettlement(sale)}>
-                            <EditIcon />
-                          </IconButton>
-                        </Tooltip>
+                        {settlement?.isSettled ? (
+                          <Tooltip title="Settlement locked (fully settled)">
+                            <span>
+                              <IconButton size="small" disabled>
+                                <EditIcon />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        ) : (
+                          <Tooltip title={settlement ? "Add Payment" : "Start Settlement"}>
+                            <IconButton size="small" onClick={() => handleOpenSettlement(sale)} color="primary">
+                              <EditIcon />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                         <Tooltip title="Update Entry">
                           <IconButton size="small" onClick={() => handleOpenUpdate(sale, 'sale')}>
                             <VisibilityIcon />
@@ -924,33 +970,59 @@ export default function ManagerDashboard() {
 
       {/* Settlement Dialog */}
       <Dialog open={settlementDialogOpen} onClose={() => setSettlementDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Enter Settlement</DialogTitle>
+        <DialogTitle>Add Settlement Payment</DialogTitle>
         <DialogContent>
-          {selectedSale && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-              <Typography variant="body2">
-                Date: {format(new Date(selectedSale.date), 'MMM d, yyyy')}
-              </Typography>
-              <Typography variant="body2">
-                Total Bags: {selectedSale.totalBags.toLocaleString()}
-              </Typography>
-              <Typography variant="body2">
-                Expected Amount: {formatCurrency((selectedSale.bagsAtPrice1 * settings.salesPrice1) + 
-                                                 (selectedSale.bagsAtPrice2 * settings.salesPrice2))}
-              </Typography>
-              <TextField
-                label="Settled Amount (₦)"
-                fullWidth
-                type="number"
-                value={settlementAmount}
-                onChange={(e) => setSettlementAmount(e.target.value)}
-                required
-                InputProps={{
-                  startAdornment: <Typography sx={{ mr: 1 }}>₦</Typography>,
-                }}
-              />
-            </Box>
-          )}
+          {selectedSale && (() => {
+            const expectedAmount = (selectedSale.bagsAtPrice1 * settings.salesPrice1) + 
+                                  (selectedSale.bagsAtPrice2 * settings.salesPrice2);
+            const existingSettlement = settlements.find(s => s.receptionistSaleId === selectedSale.id);
+            const alreadyPaid = existingSettlement?.settledAmount || 0;
+            const remainingBalance = expectedAmount - alreadyPaid;
+            
+            return (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+                <Alert severity="info">
+                  Enter the amount being paid now. This will be added to any previous payments.
+                </Alert>
+                
+                <Typography variant="body2">
+                  <strong>Sale Date:</strong> {format(new Date(selectedSale.date), 'MMM d, yyyy')}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Total Bags:</strong> {selectedSale.totalBags.toLocaleString()}
+                </Typography>
+                
+                <Box sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                  <Typography variant="h6" color="primary">
+                    Total Expected: {formatCurrency(expectedAmount)}
+                  </Typography>
+                  {alreadyPaid > 0 && (
+                    <>
+                      <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
+                        Already Paid: {formatCurrency(alreadyPaid)}
+                      </Typography>
+                      <Typography variant="body2" color="warning.main" sx={{ mt: 0.5 }}>
+                        <strong>Remaining Balance: {formatCurrency(remainingBalance)}</strong>
+                      </Typography>
+                    </>
+                  )}
+                </Box>
+                
+                <TextField
+                  label="Payment Amount (₦)"
+                  fullWidth
+                  type="number"
+                  value={settlementAmount}
+                  onChange={(e) => setSettlementAmount(e.target.value)}
+                  required
+                  helperText={`Enter the amount being paid now (Max: ₦${remainingBalance.toLocaleString()})`}
+                  InputProps={{
+                    startAdornment: <Typography sx={{ mr: 1 }}>₦</Typography>,
+                  }}
+                />
+              </Box>
+            );
+          })()}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSettlementDialogOpen(false)}>Cancel</Button>
