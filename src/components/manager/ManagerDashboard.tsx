@@ -1084,29 +1084,81 @@ export default function ManagerDashboard() {
             <Grid container spacing={2}>
               {filteredSettlements.map((settlement) => {
               const sale = sales.find(s => s.id === settlement.receptionistSaleId);
+              
+              // Get transaction type label
+              const getTransactionTypeLabel = (type: string) => {
+                switch (type) {
+                  case 'driver': return 'Driver Sale';
+                  case 'general': return 'General Sales';
+                  case 'mini_store': return 'Mini Store Dispatch';
+                  default: return type;
+                }
+              };
+              
               return (
                 <Grid item xs={12} md={6} key={settlement.id}>
                   <Card>
                     <CardContent>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                        <Typography variant="h6">
-                          {sale ? format(new Date(sale.date), 'MMM d, yyyy') : 'Unknown Date'}
-                        </Typography>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, alignItems: 'start' }}>
+                        <Box>
+                          <Typography variant="h6">
+                            {sale ? format(new Date(sale.date), 'MMM d, yyyy') : 'Unknown Date'}
+                          </Typography>
+                          {sale && (
+                            <>
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                <strong>Type:</strong> {getTransactionTypeLabel(sale.saleType)}
+                              </Typography>
+                              {sale.saleType === 'driver' && sale.driverName && (
+                                <Typography variant="body2" color="text.secondary">
+                                  <strong>Driver:</strong> {sale.driverName}
+                                </Typography>
+                              )}
+                              {sale.saleType === 'mini_store' && (
+                                <Typography variant="body2" color="primary.main">
+                                  <strong>Mini Store</strong>
+                                </Typography>
+                              )}
+                            </>
+                          )}
+                        </Box>
                         {settlement.isSettled ? (
                           <Chip label="Settled" color="success" size="small" />
                         ) : (
                           <Chip label="Pending" color="warning" size="small" />
                         )}
                       </Box>
-                      <Typography variant="body2">
-                        Expected: {formatCurrency(settlement.expectedAmount)}
-                      </Typography>
-                      <Typography variant="body2">
-                        Settled: {formatCurrency(settlement.settledAmount)}
-                      </Typography>
-                      <Typography variant="body2" color={settlement.remainingBalance > 0 ? 'error.main' : 'success.main'}>
-                        Balance: {formatCurrency(settlement.remainingBalance)}
-                      </Typography>
+                      
+                      <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                        {sale && (
+                          <Typography variant="body2" sx={{ mb: 1 }}>
+                            <strong>Total Bags:</strong> {sale.totalBags.toLocaleString()}
+                          </Typography>
+                        )}
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          <strong>Expected:</strong> {formatCurrency(settlement.expectedAmount)}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          <strong>Settled:</strong> {formatCurrency(settlement.settledAmount)}
+                        </Typography>
+                        <Typography variant="body2" color={settlement.remainingBalance > 0 ? 'error.main' : 'success.main'} sx={{ fontWeight: 'bold' }}>
+                          <strong>Balance:</strong> {formatCurrency(settlement.remainingBalance)}
+                        </Typography>
+                      </Box>
+                      
+                      {sale && sale.priceBreakdown && sale.priceBreakdown.length > 0 && (
+                        <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            <strong>Price Breakdown:</strong>
+                          </Typography>
+                          {sale.priceBreakdown.map((item, idx) => (
+                            <Typography key={idx} variant="body2" sx={{ ml: 2 }}>
+                              {item.bags.toLocaleString()} bags @ ₦{item.amount.toLocaleString()}
+                              {item.label ? ` (${item.label})` : ''}
+                            </Typography>
+                          ))}
+                        </Box>
+                      )}
                     </CardContent>
                   </Card>
                 </Grid>
@@ -1298,15 +1350,43 @@ export default function ManagerDashboard() {
 
               <Typography variant="h6" sx={{ mt: 2 }}>Sale Information</Typography>
               <Box sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="body2">
+                <Typography variant="body2" sx={{ mb: 1 }}>
                   <strong>Date:</strong> {format(new Date(selectedSale.date), 'MMM d, yyyy')}
                 </Typography>
-                <Typography variant="body2">
-                  <strong>Driver:</strong> {selectedSale.driverName || 'General Sales'}
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  <strong>Transaction Type:</strong> {
+                    selectedSale.saleType === 'driver' ? 'Driver Sale' :
+                    selectedSale.saleType === 'general' ? 'General Sales' :
+                    selectedSale.saleType === 'mini_store' ? 'Mini Store Dispatch' :
+                    selectedSale.saleType
+                  }
                 </Typography>
-                <Typography variant="body2">
+                {selectedSale.saleType === 'driver' && selectedSale.driverName && (
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>Driver:</strong> {selectedSale.driverName}
+                  </Typography>
+                )}
+                {selectedSale.saleType === 'mini_store' && (
+                  <Typography variant="body2" color="primary.main" sx={{ mb: 1 }}>
+                    <strong>Mini Store Transaction</strong>
+                  </Typography>
+                )}
+                <Typography variant="body2" sx={{ mb: 1 }}>
                   <strong>Total Bags:</strong> {selectedSale.totalBags.toLocaleString()}
                 </Typography>
+                {selectedSale.priceBreakdown && selectedSale.priceBreakdown.length > 0 && (
+                  <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                      Price Breakdown:
+                    </Typography>
+                    {selectedSale.priceBreakdown.map((item, idx) => (
+                      <Typography key={idx} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
+                        • {item.bags.toLocaleString()} bags @ ₦{item.amount.toLocaleString()}
+                        {item.label ? ` (${item.label})` : ''}
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
               </Box>
 
               <Typography variant="h6" sx={{ mt: 2 }}>Settlement Summary</Typography>
