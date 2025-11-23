@@ -3,6 +3,25 @@ import { db } from '../database';
 
 const router = express.Router();
 
+// Helper function to transform database fields to frontend format
+function transformSettlement(settlement: any) {
+  if (!settlement) return null;
+  return {
+    id: settlement.id,
+    date: settlement.date,
+    receptionistSaleId: settlement.receptionist_sale_id,
+    expectedAmount: settlement.expected_amount,
+    settledAmount: settlement.settled_amount,
+    remainingBalance: settlement.remaining_balance,
+    isSettled: settlement.is_settled === 1 || settlement.is_settled === true,
+    settledBy: settlement.settled_by,
+    settledAt: settlement.settled_at,
+    notes: settlement.notes,
+    createdAt: settlement.created_at,
+    updatedAt: settlement.updated_at,
+  };
+}
+
 // Get all settlements (with optional date filtering)
 router.get('/', async (req, res) => {
   try {
@@ -18,7 +37,7 @@ router.get('/', async (req, res) => {
     
     res.json({
       success: true,
-      data: settlements
+      data: settlements.map(transformSettlement)
     });
   } catch (error) {
     console.error('Error fetching settlements:', error);
@@ -43,7 +62,7 @@ router.get('/:id', async (req, res) => {
     
     res.json({
       success: true,
-      data: settlement
+      data: transformSettlement(settlement)
     });
   } catch (error) {
     console.error('Error fetching settlement:', error);
@@ -94,7 +113,7 @@ router.post('/', async (req, res) => {
 
     res.json({
       success: true,
-      data: newSettlement,
+      data: transformSettlement(newSettlement),
       message: 'Settlement created successfully'
     });
   } catch (error) {
@@ -129,7 +148,7 @@ router.put('/:id', async (req, res) => {
 
     res.json({
       success: true,
-      data: updatedSettlement,
+      data: transformSettlement(updatedSettlement),
       message: 'Settlement updated successfully'
     });
   } catch (error) {

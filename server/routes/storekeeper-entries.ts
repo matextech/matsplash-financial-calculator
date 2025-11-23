@@ -5,9 +5,22 @@ const router = express.Router();
 
 // Helper function to transform database fields to frontend format
 function transformEntry(entry: any) {
+  if (!entry) return null;
   return {
-    ...entry,
+    id: entry.id,
+    date: entry.date,
+    entryType: entry.entry_type,
+    driverId: entry.driver_id,
+    driverName: entry.driver_name,
+    packerId: entry.packer_id,
+    packerName: entry.packer_name,
+    bagsCount: entry.bags_count,
+    submittedBy: entry.submitted_by,
+    submittedAt: entry.submitted_at,
     isSubmitted: entry.is_submitted === 1 || entry.is_submitted === true,
+    notes: entry.notes,
+    createdAt: entry.created_at,
+    updatedAt: entry.updated_at,
   };
 }
 
