@@ -188,11 +188,26 @@ export default function ManagerDashboard() {
       return;
     }
 
-    const expectedAmount = (selectedSale.bagsAtPrice1 * settings.salesPrice1) + 
-                          (selectedSale.bagsAtPrice2 * settings.salesPrice2);
+    // Use expectedAmount from sale (calculated and stored in backend)
+    // Fallback to calculation for legacy data
+    let expectedAmount = selectedSale.expectedAmount || 0;
+    if (expectedAmount === 0) {
+      if (selectedSale.priceBreakdown && selectedSale.priceBreakdown.length > 0) {
+        expectedAmount = selectedSale.priceBreakdown.reduce((sum, item) => 
+          sum + (item.bags * item.amount), 0
+        );
+      } else {
+        expectedAmount = (selectedSale.bagsAtPrice1 * settings.salesPrice1) + 
+                       (selectedSale.bagsAtPrice2 * settings.salesPrice2);
+      }
+    }
 
     try {
       const existingSettlement = settlements.find(s => s.receptionistSaleId === selectedSale.id);
+      
+      // Use existing settlement's expectedAmount if it exists (should never change)
+      // Otherwise use the calculated expectedAmount from the sale
+      const finalExpectedAmount = existingSettlement?.expectedAmount || expectedAmount;
       
       let newSettledAmount: number;
       
@@ -204,12 +219,12 @@ export default function ManagerDashboard() {
         newSettledAmount = paymentAmount;
       }
 
-      const newRemainingBalance = expectedAmount - newSettledAmount;
+      const newRemainingBalance = finalExpectedAmount - newSettledAmount;
       const isSettled = newRemainingBalance <= 0;
 
       // Prevent overpayment
       if (newRemainingBalance < 0) {
-        alert(`Payment exceeds remaining balance. Remaining balance: ₦${(expectedAmount - (existingSettlement?.settledAmount || 0)).toLocaleString()}`);
+        alert(`Payment exceeds remaining balance. Remaining balance: ₦${(finalExpectedAmount - (existingSettlement?.settledAmount || 0)).toLocaleString()}`);
         return;
       }
 
@@ -227,7 +242,7 @@ export default function ManagerDashboard() {
         const newSettlement = await apiService.createSettlement({
           date: selectedSale.date,
           receptionistSaleId: selectedSale.id!,
-          expectedAmount: expectedAmount,
+          expectedAmount: finalExpectedAmount,
           settledAmount: newSettledAmount,
           remainingBalance: newRemainingBalance,
           isSettled: isSettled,
