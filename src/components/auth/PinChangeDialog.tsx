@@ -6,7 +6,6 @@ import {
   DialogActions,
   TextField,
   Button,
-  Typography,
   Alert,
   InputAdornment,
 } from '@mui/material';
@@ -96,9 +95,7 @@ export default function PinChangeDialog({ open, onClose, onSuccess }: PinChangeD
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth disableEscapeKeyDown={true}>
       <form onSubmit={handleSubmit}>
-        <DialogTitle>
-          <Typography variant="h6">PIN Reset Required</Typography>
-        </DialogTitle>
+        <DialogTitle>PIN Reset Required</DialogTitle>
         <DialogContent>
           <Alert severity="info" sx={{ mb: 2 }}>
             You are using a temporary PIN. Please set a new PIN to continue.
