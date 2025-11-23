@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Login - Matsplash</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #667eea;
+            margin: 0 0 10px 0;
+        }
+        .subtitle {
+            color: #666;
+            margin: 0 0 30px 0;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 600;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #764ba2;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+        .success {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+            color: #721c24;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 2px solid #17a2b8;
+            color: #0c5460;
+            margin-bottom: 20px;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Login Test Tool</h1>
+        <p class="subtitle">Test login credentials against backend API</p>
+        
+        <div class="info">
+            <strong>✅ Known Working Credentials:</strong><br>
+            • <strong>Receptionist:</strong> receptionist@matsplash.com / 7777<br>
+            • <strong>Manager:</strong> manager@matsplash.com / 5555<br>
+            • <strong>Storekeeper:</strong> storekeeper@matsplash.com / 1234<br>
+            • <strong>Director:</strong> director@matsplash.com / admin123
+        </div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="user">Select User:</label>
+                <select id="user">
+                    <option value="receptionist@matsplash.com">Receptionist</option>
+                    <option value="manager@matsplash.com">Manager</option>
+                    <option value="storekeeper@matsplash.com">Storekeeper</option>
+                    <option value="director@matsplash.com">Director</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="pin">PIN or Password:</label>
+                <input type="text" id="pin" placeholder="Enter PIN" value="7777" required>
+            </div>
+
+            <button type="submit">🚀 Test Login</button>
+        </form>
+
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('user').value;
+            const pin = document.getElementById('pin').value;
+            const resultDiv = document.getElementById('result');
+            
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result';
+            resultDiv.innerHTML = '⏳ Testing login...';
+            
+            try {
+                const response = await fetch('http://localhost:3001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        identifier: email,
+                        passwordOrPin: pin
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <h3>✅ LOGIN SUCCESSFUL!</h3>
+                        <strong>User:</strong> ${data.user.name}<br>
+                        <strong>Role:</strong> ${data.user.role}<br>
+                        <strong>Email:</strong> ${data.user.email}<br>
+                        <strong>PIN Reset Required:</strong> ${data.pinResetRequired ? 'YES ⚠️' : 'NO ✅'}<br>
+                        <br>
+                        ${data.pinResetRequired ? 
+                            '<strong style="color: #ff6b6b;">⚠️ This user will see PIN Change Dialog</strong>' : 
+                            '<strong style="color: #51cf66;">✅ User can proceed to dashboard</strong>'
+                        }
+                        <br><br>
+                        <strong>Token (first 50 chars):</strong><br>
+                        <pre>${data.token.substring(0, 50)}...</pre>
+                        <br>
+                        <button onclick="window.location.href='http://localhost:5179'">
+                            Go to App →
+                        </button>
+                    `;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `
+                        <h3>❌ LOGIN FAILED</h3>
+                        <strong>Status:</strong> ${response.status} ${response.statusText}<br>
+                        <strong>Message:</strong> ${data.message || 'Invalid credentials'}<br>
+                        <br>
+                        <strong>Possible reasons:</strong>
+                        <ul>
+                            <li>Wrong PIN entered</li>
+                            <li>User doesn't exist</li>
+                            <li>Account is inactive</li>
+                            <li>PIN not set in database</li>
+                        </ul>
+                        <strong>Request sent:</strong>
+                        <pre>${JSON.stringify({identifier: email, passwordOrPin: pin}, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <h3>❌ CONNECTION ERROR</h3>
+                    <strong>Error:</strong> ${error.message}<br>
+                    <br>
+                    <strong>Possible reasons:</strong>
+                    <ul>
+                        <li>Backend server not running</li>
+                        <li>Wrong URL (should be http://localhost:3001)</li>
+                        <li>CORS issue</li>
+                    </ul>
+                `;
+            }
+        });
+        
+        // Auto-update PIN based on selected user
+        document.getElementById('user').addEventListener('change', (e) => {
+            const pinInput = document.getElementById('pin');
+            switch(e.target.value) {
+                case 'receptionist@matsplash.com':
+                    pinInput.value = '7777';
+                    break;
+                case 'manager@matsplash.com':
+                    pinInput.value = '5555';
+                    break;
+                case 'storekeeper@matsplash.com':
+                    pinInput.value = '1234';
+                    break;
+                case 'director@matsplash.com':
+                    pinInput.value = 'admin123';
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>
+
