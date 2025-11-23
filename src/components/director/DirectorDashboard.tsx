@@ -170,14 +170,14 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
     if (user) {
       setEditingUser(user);
       setUserFormData({
-        phone: user.phone,
+        phone: user.phone || '',
         email: user.email || '',
         password: '',
         pin: user.pin || '',
         role: user.role,
-        name: user.name,
-        twoFactorEnabled: user.twoFactorEnabled,
-        isActive: user.isActive,
+        name: user.name || '',
+        twoFactorEnabled: user.twoFactorEnabled ?? false,
+        isActive: user.isActive ?? true,
       });
     } else {
       setEditingUser(null);
