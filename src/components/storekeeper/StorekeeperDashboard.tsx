@@ -16,6 +16,8 @@ import {
   MenuItem,
   Chip,
   IconButton,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -41,6 +43,8 @@ export default function StorekeeperDashboard() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingEntry, setPendingEntry] = useState<Omit<StorekeeperEntry, 'id' | 'submittedAt' | 'submittedBy' | 'isSubmitted' | 'createdAt' | 'updatedAt'> | null>(null);
   const [filterType, setFilterType] = useState<'all' | 'driver_pickup' | 'general_sales' | 'packer_production' | 'ministore_pickup'>('all');
+  const [dateFilter, setDateFilter] = useState<'today' | 'yesterday' | '2days' | 'custom'>('2days');
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   
   const [formData, setFormData] = useState({
     date: new Date(),
@@ -188,11 +192,22 @@ export default function StorekeeperDashboard() {
     return new Date(year, month - 1, day);
   };
 
-  // Filter entries to last 2 days
-  const twoDaysAgo = subDays(new Date(), 2);
+  // Filter entries by date
   const visibleEntries = entries.filter(entry => {
     const entryDate = entry.date instanceof Date ? entry.date : new Date(entry.date);
-    return entryDate >= startOfDay(twoDaysAgo);
+    
+    switch (dateFilter) {
+      case 'today':
+        return isSameDay(entryDate, new Date());
+      case 'yesterday':
+        return isSameDay(entryDate, subDays(new Date(), 1));
+      case '2days':
+        return entryDate >= startOfDay(subDays(new Date(), 2));
+      case 'custom':
+        return isSameDay(entryDate, selectedDate);
+      default:
+        return true;
+    }
   });
 
   // Apply filter type
@@ -347,18 +362,46 @@ export default function StorekeeperDashboard() {
       </Grid>
 
       {/* Add Entry Button and Filters */}
-      <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Button
-          variant="contained"
-          size="large"
-          startIcon={<AddIcon />}
-          onClick={handleOpen}
-        >
-          Record Entry
-        </Button>
+      <Box sx={{ mb: 3 }}>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
+          <Button
+            variant="contained"
+            size="large"
+            startIcon={<AddIcon />}
+            onClick={handleOpen}
+          >
+            Record Entry
+          </Button>
+          
+          {/* Date Filter */}
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Date:</Typography>
+            <ToggleButtonGroup
+              value={dateFilter}
+              exclusive
+              onChange={(_, newValue) => newValue && setDateFilter(newValue)}
+              size="small"
+            >
+              <ToggleButton value="today">Today</ToggleButton>
+              <ToggleButton value="yesterday">Yesterday</ToggleButton>
+              <ToggleButton value="2days">Last 2 Days</ToggleButton>
+              <ToggleButton value="custom">Custom</ToggleButton>
+            </ToggleButtonGroup>
+            {dateFilter === 'custom' && (
+              <TextField
+                type="date"
+                size="small"
+                value={format(selectedDate, 'yyyy-MM-dd')}
+                onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                sx={{ width: 150 }}
+              />
+            )}
+          </Box>
+        </Box>
         
-        {/* Filter Buttons */}
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+        {/* Type Filter Chips */}
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Type:</Typography>
           <Chip 
             label="All" 
             onClick={() => setFilterType('all')}
