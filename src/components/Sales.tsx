@@ -336,8 +336,6 @@ export default function Sales() {
         return isNaN(parsed) || parsed <= 0 ? null : parsed;
       };
 
-      const bagsAtPrice1 = parseBags(formData.bagsAtPrice1);
-      const bagsAtPrice2 = parseBags(formData.bagsAtPrice2);
       const combinedBags = parseBags(formData.combinedBags);
       const combinedPrice = parseFloat(formData.combinedPrice);
 
@@ -345,46 +343,31 @@ export default function Sales() {
       let matchingEmployee: Employee | undefined;
       if (!isGeneralSale && formData.driverName.trim()) {
         matchingEmployee = employees.find(
-          emp => emp.name.toLowerCase().trim() === formData.driverName.toLowerCase().trim()
+          emp => emp.name.toLowerCase().trim() === formData.driverName.trim().toLowerCase()
         );
       }
 
       const salesToSave: Omit<Sale, 'id'>[] = [];
 
-      // Save bags at Price 1 if provided
-      if (bagsAtPrice1 !== null) {
-        salesToSave.push({
-          driverName: isGeneralSale ? 'General/Factory' : formData.driverName.trim(),
-          driverEmail: isGeneralSale ? undefined : formData.driverEmail?.trim() || undefined,
-          employeeId: isGeneralSale ? undefined : matchingEmployee?.id,
-          bagsSold: bagsAtPrice1,
-          pricePerBag: bagPrices[0]?.amount || settings.salesPrice1,
-          totalAmount: bagsAtPrice1 * (bagPrices[0]?.amount || settings.salesPrice1),
-          date: formData.date,
-          notes: formData.notes?.trim() || undefined,
-          sachetRollPriceId: formData.sachetRollPriceId ? parseInt(String(formData.sachetRollPriceId)) : undefined,
-          packingNylonPriceId: formData.packingNylonPriceId ? parseInt(String(formData.packingNylonPriceId)) : undefined,
-        });
-        const price1 = bagPrices[0]?.amount || settings.salesPrice1;
-        console.log(`Adding sale at ₦${price1}:`, bagsAtPrice1, 'bags', isGeneralSale ? '(General/Factory sale)' : matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
-      }
-
-      // Save bags at Price 2 if provided
-      if (bagsAtPrice2 !== null) {
-        salesToSave.push({
-          driverName: isGeneralSale ? 'General/Factory' : formData.driverName.trim(),
-          driverEmail: isGeneralSale ? undefined : formData.driverEmail?.trim() || undefined,
-          employeeId: isGeneralSale ? undefined : matchingEmployee?.id,
-          bagsSold: bagsAtPrice2,
-          pricePerBag: bagPrices[1]?.amount || settings.salesPrice2,
-          totalAmount: bagsAtPrice2 * (bagPrices[1]?.amount || settings.salesPrice2),
-          date: formData.date,
-          notes: formData.notes?.trim() || undefined,
-          sachetRollPriceId: formData.sachetRollPriceId ? parseInt(String(formData.sachetRollPriceId)) : undefined,
-          packingNylonPriceId: formData.packingNylonPriceId ? parseInt(String(formData.packingNylonPriceId)) : undefined,
-        });
-        const price2 = bagPrices[1]?.amount || settings.salesPrice2;
-        console.log(`Adding sale at ₦${price2}:`, bagsAtPrice2, 'bags', isGeneralSale ? '(General/Factory sale)' : matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
+      // Process all bag prices dynamically
+      for (const price of bagPrices) {
+        if (!price.id) continue;
+        const bagsCount = parseBags(formData.bagsByPriceId[price.id]);
+        if (bagsCount !== null && bagsCount > 0) {
+          salesToSave.push({
+            driverName: isGeneralSale ? 'General/Factory' : formData.driverName.trim(),
+            driverEmail: isGeneralSale ? undefined : formData.driverEmail?.trim() || undefined,
+            employeeId: isGeneralSale ? undefined : matchingEmployee?.id,
+            bagsSold: bagsCount,
+            pricePerBag: price.amount,
+            totalAmount: bagsCount * price.amount,
+            date: formData.date,
+            notes: formData.notes?.trim() || undefined,
+            sachetRollPriceId: formData.sachetRollPriceId ? parseInt(String(formData.sachetRollPriceId)) : undefined,
+            packingNylonPriceId: formData.packingNylonPriceId ? parseInt(String(formData.packingNylonPriceId)) : undefined,
+          });
+          console.log(`Adding sale at ₦${price.amount}${price.label ? ` (${price.label})` : ''}:`, bagsCount, 'bags', isGeneralSale ? '(General/Factory sale)' : matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
+        }
       }
 
       // Save combined bags if provided (for other prices or when only one entry is used)
