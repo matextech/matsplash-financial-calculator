@@ -194,22 +194,24 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
         setAuditLogs(logsData);
       } else if (tabValue === 4) {
         // Settings
+        console.log('Loading Settings tab data...');
         const [settingsData, bagPricesData, materialPricesData] = await Promise.all([
           apiService.getSettings(),
           apiService.getBagPrices(true), // Include inactive for management
           apiService.getMaterialPrices(undefined, true) // Include inactive for management
         ]);
+        console.log('Settings data received:', { settingsData, bagPricesData, materialPricesData });
         setSettings(settingsData || DEFAULT_SETTINGS);
         // API service already extracts data.data || data, so these should be arrays
         if (Array.isArray(bagPricesData)) {
-          setBagPrices(bagPricesData);
-          console.log('Loaded bag prices:', bagPricesData.length, 'prices');
+          console.log('Setting bag prices state with', bagPricesData.length, 'prices');
+          setBagPrices([...bagPricesData]); // Create new array to force re-render
         } else {
-          console.error('Bag prices data is not an array:', bagPricesData);
+          console.error('Bag prices data is not an array:', bagPricesData, typeof bagPricesData);
           setBagPrices([]);
         }
         if (Array.isArray(materialPricesData)) {
-          setMaterialPrices(materialPricesData);
+          setMaterialPrices([...materialPricesData]); // Create new array to force re-render
           console.log('Loaded material prices:', materialPricesData.length, 'prices');
         } else {
           console.error('Material prices data is not an array:', materialPricesData);
@@ -380,18 +382,24 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
       
       console.log('New price created:', newPrice);
       
+      // Force reload bag prices - wait a bit for DB to be ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Reload bag prices to get the updated list
       const updatedBagPrices = await apiService.getBagPrices(true); // Include inactive
       console.log('Fetched bag prices:', updatedBagPrices);
+      console.log('Type of bagPrices:', typeof updatedBagPrices, Array.isArray(updatedBagPrices));
       
       // API service already extracts data.data || data, so it should be an array
       if (Array.isArray(updatedBagPrices)) {
-        setBagPrices(updatedBagPrices);
-        console.log('Bag prices state updated with', updatedBagPrices.length, 'prices');
+        console.log('Setting bag prices state with', updatedBagPrices.length, 'prices:', updatedBagPrices);
+        setBagPrices([...updatedBagPrices]); // Create new array to force re-render
       } else {
-        console.error('Bag prices is not an array:', updatedBagPrices);
+        console.error('Bag prices is not an array:', updatedBagPrices, typeof updatedBagPrices);
         // Try to reload all data as fallback
-        await loadData();
+        if (tabValue === 4) {
+          await loadData();
+        }
       }
       
       alert('New price added! Please update the amount and label.');
@@ -1746,6 +1754,13 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
                   <Alert severity="info" sx={{ mb: 3 }}>
                     Add and manage unlimited bag prices. Receptionist will see all active prices when recording sales.
                   </Alert>
+                  
+                  {/* Debug info - remove after fixing */}
+                  {process.env.NODE_ENV === 'development' && (
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      Debug: bagPrices.length = {bagPrices.length}, tabValue = {tabValue}
+                    </Alert>
+                  )}
                   
                   {bagPrices.length === 0 ? (
                     <Alert severity="warning" sx={{ mb: 2 }}>
