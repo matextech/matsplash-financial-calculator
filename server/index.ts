@@ -42,6 +42,7 @@ app.use('/api/settlement-payments', settlementPaymentsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/bag-prices', bagPricesRoutes);
 app.use('/api/audit-logs', auditLogsRoutes);
+console.log('✅ All routes registered, including /api/audit-logs');
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

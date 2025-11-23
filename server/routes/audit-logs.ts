@@ -3,6 +3,8 @@ import { db } from '../database';
 
 const router = express.Router();
 
+console.log('📝 Audit logs route module loaded');
+
 // Helper to transform audit log data from DB to frontend format
 function transformAuditLog(log: any) {
   if (!log) return null;
@@ -61,6 +63,7 @@ router.get('/', async (req, res) => {
 
 // Create new audit log
 router.post('/', async (req, res) => {
+  console.log('📝 POST /api/audit-logs - Creating audit log:', req.body);
   try {
     const { 
       entityType, 
