@@ -378,9 +378,21 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
         isActive: true,
       });
       
+      console.log('New price created:', newPrice);
+      
       // Reload bag prices to get the updated list
       const updatedBagPrices = await apiService.getBagPrices(true); // Include inactive
-      setBagPrices(updatedBagPrices || []);
+      console.log('Fetched bag prices:', updatedBagPrices);
+      
+      // API service already extracts data.data || data, so it should be an array
+      if (Array.isArray(updatedBagPrices)) {
+        setBagPrices(updatedBagPrices);
+        console.log('Bag prices state updated with', updatedBagPrices.length, 'prices');
+      } else {
+        console.error('Bag prices is not an array:', updatedBagPrices);
+        // Try to reload all data as fallback
+        await loadData();
+      }
       
       alert('New price added! Please update the amount and label.');
     } catch (error) {
