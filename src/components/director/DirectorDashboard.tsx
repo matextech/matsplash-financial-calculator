@@ -149,6 +149,7 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
   });
 
   useEffect(() => {
+    console.log('useEffect triggered - tabValue:', tabValue, 'viewMode:', viewMode);
     loadData();
   }, [selectedYear, selectedMonth, selectedDate, dateRange, viewMode, tabValue, subTabValue]);
 
@@ -1780,11 +1781,19 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
                   </Alert>
                   
                   {/* Debug info - remove after fixing */}
-                  {process.env.NODE_ENV === 'development' && (
-                    <Alert severity="info" sx={{ mb: 2 }}>
-                      Debug: bagPrices.length = {bagPrices.length}, tabValue = {tabValue}
-                    </Alert>
-                  )}
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Debug: bagPrices.length = {bagPrices.length}, tabValue = {tabValue}
+                    <br />
+                    bagPrices state: {JSON.stringify(bagPrices.slice(0, 2))}
+                    <br />
+                    <Button size="small" onClick={async () => {
+                      console.log('Manual loadData call');
+                      await loadData();
+                      console.log('After loadData, bagPrices:', bagPrices);
+                    }}>
+                      Force Reload Data
+                    </Button>
+                  </Alert>
                   
                   {bagPrices.length === 0 ? (
                     <Alert severity="warning" sx={{ mb: 2 }}>
