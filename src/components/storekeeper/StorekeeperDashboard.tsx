@@ -26,6 +26,7 @@ import {
 import { StorekeeperEntry } from '../../types/sales-log';
 import { Employee } from '../../types';
 import { dbService } from '../../services/database';
+import { apiService } from '../../services/apiService';
 import { authService } from '../../services/authService';
 import { AuditService } from '../../services/auditService';
 import { useNavigate } from 'react-router-dom';
@@ -57,7 +58,7 @@ export default function StorekeeperDashboard() {
     try {
       const [entriesData, employeesData] = await Promise.all([
         dbService.getStorekeeperEntries(),
-        dbService.getEmployees(),
+        apiService.getEmployees(),
       ]);
 
       // Filter to last 2 days only

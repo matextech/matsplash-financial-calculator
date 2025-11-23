@@ -28,6 +28,7 @@ import { ReceptionistSale, Notification } from '../../types/sales-log';
 import { Employee } from '../../types';
 import { Settings, DEFAULT_SETTINGS } from '../../types';
 import { dbService } from '../../services/database';
+import { apiService } from '../../services/apiService';
 import { authService } from '../../services/authService';
 import { AuditService } from '../../services/auditService';
 import { useNavigate } from 'react-router-dom';
@@ -76,7 +77,7 @@ export default function ReceptionistDashboard() {
     try {
       const [salesData, employeesData, settingsData] = await Promise.all([
         dbService.getReceptionistSales(),
-        dbService.getEmployees(),
+        apiService.getEmployees(),
         dbService.getSettings(),
       ]);
 
