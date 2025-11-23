@@ -1095,9 +1095,6 @@ export default function ManagerDashboard() {
               onChange={(e) => setUpdateField(e.target.value)}
               required
               helperText="Select which field you want to update"
-              SelectProps={{
-                native: false,
-              }}
             >
               {updateType === 'sale' ? (
                 <>
