@@ -141,7 +141,11 @@ class DatabaseService {
           notificationStore.createIndex('createdAt', 'createdAt');
         }
 
-        console.log('Database upgrade completed. Object stores:', Array.from(db.objectStoreNames));
+          console.log('Database upgrade completed. Object stores:', Array.from(db.objectStoreNames));
+        } catch (error) {
+          console.error('Error during database upgrade:', error);
+          reject(error instanceof Error ? error : new Error(String(error)));
+        }
       };
     });
   }
