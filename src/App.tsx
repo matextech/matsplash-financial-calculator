@@ -59,6 +59,11 @@ function App() {
         console.log('App initialization complete');
       } catch (error) {
         console.error('Failed to initialize database:', error);
+        console.error('Error details:', {
+          name: error instanceof Error ? error.name : 'Unknown',
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        });
         // Still set initialized to true after a timeout to prevent infinite loading
         timeoutId = setTimeout(() => {
           console.warn('Database initialization timed out, proceeding anyway...');

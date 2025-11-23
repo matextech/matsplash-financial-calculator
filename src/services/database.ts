@@ -11,14 +11,36 @@ class DatabaseService {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.version);
 
-      request.onerror = () => reject(request.error);
+      request.onerror = () => {
+        console.error('Database open error:', request.error);
+        reject(request.error);
+      };
+
+      request.onblocked = () => {
+        console.warn('Database upgrade blocked - please close other tabs with this app open');
+        // Still proceed after a delay
+        setTimeout(() => {
+          if (request.result) {
+            this.db = request.result;
+            resolve();
+          }
+        }, 1000);
+      };
+
       request.onsuccess = () => {
         this.db = request.result;
+        console.log('Database opened successfully, version:', this.db.version);
         resolve();
       };
 
       request.onupgradeneeded = (event) => {
+        console.log('Database upgrade needed, old version:', event.oldVersion, 'new version:', event.newVersion);
         const db = (event.target as IDBOpenDBRequest).result;
+        
+        // Add error handler for upgrade
+        db.onerror = (error) => {
+          console.error('Database upgrade error:', error);
+        };
 
         // Employees store
         if (!db.objectStoreNames.contains('employees')) {
@@ -119,6 +141,8 @@ class DatabaseService {
           notificationStore.createIndex('isRead', 'isRead');
           notificationStore.createIndex('createdAt', 'createdAt');
         }
+
+        console.log('Database upgrade completed. Object stores:', Array.from(db.objectStoreNames));
       };
     });
   }
