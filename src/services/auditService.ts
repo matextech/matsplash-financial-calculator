@@ -32,8 +32,11 @@ export class AuditService {
         changedAt: new Date(),
         reason,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating audit log:', error);
+      if (error.message?.includes('Route not found') || error.message?.includes('404')) {
+        console.warn('Audit log route not found. Please ensure the server is running and has been restarted.');
+      }
     }
   }
 
@@ -58,8 +61,11 @@ export class AuditService {
         changedBy: session.userId,
         changedAt: new Date(),
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating audit log:', error);
+      if (error.message?.includes('Route not found') || error.message?.includes('404')) {
+        console.warn('Audit log route not found. Please ensure the server is running and has been restarted.');
+      }
     }
   }
 
@@ -86,8 +92,11 @@ export class AuditService {
         changedAt: new Date(),
         reason,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating audit log:', error);
+      if (error.message?.includes('Route not found') || error.message?.includes('404')) {
+        console.warn('Audit log route not found. Please ensure the server is running and has been restarted.');
+      }
     }
   }
 
@@ -112,8 +121,13 @@ export class AuditService {
         changedBy: session.userId,
         changedAt: new Date(),
       });
-    } catch (error) {
+    } catch (error: any) {
+      // Log detailed error for debugging
       console.error('Error creating audit log:', error);
+      if (error.message?.includes('Route not found') || error.message?.includes('404')) {
+        console.warn('Audit log route not found. Please ensure the server is running and has been restarted after adding the audit-logs route.');
+      }
+      // Don't throw - audit logging should not break the main flow
     }
   }
 }
