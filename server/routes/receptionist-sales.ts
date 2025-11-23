@@ -27,6 +27,7 @@ function transformSale(sale: any) {
     bagsAtPrice2: sale.bags_at_price_2,
     priceBreakdown: priceBreakdown, // NEW - dynamic pricing
     totalBags: sale.total_bags,
+    expectedAmount: sale.expected_amount ? parseFloat(sale.expected_amount) : 0,
     submittedBy: sale.submitted_by,
     submittedAt: sale.submitted_at,
     isSubmitted: sale.is_submitted === 1 || sale.is_submitted === true,
@@ -130,6 +131,14 @@ router.post('/', async (req, res) => {
     // Add price_breakdown if provided (dynamic pricing)
     if (priceBreakdown && Array.isArray(priceBreakdown)) {
       insertData.price_breakdown = JSON.stringify(priceBreakdown);
+      // Calculate expected amount from price breakdown
+      insertData.expected_amount = priceBreakdown.reduce((sum: number, item: any) => 
+        sum + (item.bags * item.amount), 0
+      );
+    } else {
+      // Fallback to legacy calculation (will be removed once all sales use dynamic pricing)
+      // For now, use settings or default prices
+      insertData.expected_amount = 0; // Will be calculated on frontend if no breakdown
     }
 
     const [id] = await db('receptionist_sales').insert(insertData);
@@ -168,6 +177,10 @@ router.put('/:id', async (req, res) => {
       // NEW - dynamic pricing
       if (req.body.priceBreakdown && Array.isArray(req.body.priceBreakdown)) {
         updateData.price_breakdown = JSON.stringify(req.body.priceBreakdown);
+        // Recalculate expected amount from price breakdown
+        updateData.expected_amount = req.body.priceBreakdown.reduce((sum: number, item: any) => 
+          sum + (item.bags * item.amount), 0
+        );
       } else {
         updateData.price_breakdown = null;
       }

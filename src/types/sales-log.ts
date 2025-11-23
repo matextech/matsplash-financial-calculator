@@ -17,6 +17,7 @@ export interface ReceptionistSale {
   bagsAtPrice2: number; // DEPRECATED - kept for backwards compatibility
   priceBreakdown?: PriceBreakdown[]; // NEW - dynamic pricing
   totalBags: number;
+  expectedAmount?: number; // Total expected payment amount (calculated from priceBreakdown)
   submittedBy: number; // Receptionist user ID
   submittedAt: Date;
   isSubmitted: boolean; // Once submitted, cannot be modified

@@ -283,7 +283,7 @@ export default async function setupDatabase(): Promise<void> {
       console.log('settlement_payments table created successfully');
     }
     
-    // Add price_breakdown column to receptionist_sales for dynamic pricing (if it doesn't exist)
+    // Add price_breakdown and expected_amount columns to receptionist_sales for dynamic pricing (if they don't exist)
     const hasReceptionistSales = await db.schema.hasTable('receptionist_sales');
     if (hasReceptionistSales) {
       const hasPriceBreakdown = await db.schema.hasColumn('receptionist_sales', 'price_breakdown');
@@ -293,6 +293,15 @@ export default async function setupDatabase(): Promise<void> {
           table.text('price_breakdown'); // JSON: [{ priceId: 1, amount: 250, bags: 100 }, ...]
         });
         console.log('price_breakdown column added successfully');
+      }
+      
+      const hasExpectedAmount = await db.schema.hasColumn('receptionist_sales', 'expected_amount');
+      if (!hasExpectedAmount) {
+        console.log('Adding expected_amount column to receptionist_sales...');
+        await db.schema.alterTable('receptionist_sales', (table) => {
+          table.decimal('expected_amount', 10, 2).defaultTo(0);
+        });
+        console.log('expected_amount column added successfully');
       }
     }
     

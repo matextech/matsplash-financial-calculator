@@ -767,17 +767,19 @@ export default function ManagerDashboard() {
                 </TableHead>
                 <TableBody>
                   {filteredSales.map((sale) => {
-                  // Calculate expected amount using dynamic pricing if available
-                  let expectedAmount = 0;
-                  if (sale.priceBreakdown && sale.priceBreakdown.length > 0) {
-                    // Use dynamic price breakdown
-                    expectedAmount = sale.priceBreakdown.reduce((sum, item) => 
-                      sum + (item.bags * item.amount), 0
-                    );
-                  } else {
-                    // Fallback to legacy 2-price system
-                    expectedAmount = (sale.bagsAtPrice1 * settings.salesPrice1) + 
-                                   (sale.bagsAtPrice2 * settings.salesPrice2);
+                  // Use expected amount from sale (calculated and stored in backend)
+                  // Fallback to frontend calculation only for legacy data
+                  let expectedAmount = sale.expectedAmount || 0;
+                  if (expectedAmount === 0) {
+                    // Fallback calculation for old sales without expectedAmount
+                    if (sale.priceBreakdown && sale.priceBreakdown.length > 0) {
+                      expectedAmount = sale.priceBreakdown.reduce((sum, item) => 
+                        sum + (item.bags * item.amount), 0
+                      );
+                    } else {
+                      expectedAmount = (sale.bagsAtPrice1 * settings.salesPrice1) + 
+                                     (sale.bagsAtPrice2 * settings.salesPrice2);
+                    }
                   }
                   const settlement = settlements.find(s => s.receptionistSaleId === sale.id);
                   return (
