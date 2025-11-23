@@ -214,17 +214,46 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
     try {
       console.log('🔐 Resetting PIN for user:', userId);
       
-      // Use API service to reset PIN
-      const response = await apiService.resetUserPin(userId);
+      // Prompt director to enter new PIN
+      const newPin = window.prompt(
+        '🔐 Enter new PIN for user (4-6 digits):\n\n' +
+        'The user will be required to change this PIN on their next login.',
+        '1234'
+      );
       
-      if (!response || !response.newPin) {
-        throw new Error('Failed to reset PIN. No PIN returned from server.');
+      if (!newPin) {
+        console.log('PIN reset cancelled');
+        return;
       }
       
-      const newPin = response.newPin;
+      // Validate PIN
+      if (!/^\d{4,6}$/.test(newPin)) {
+        alert('❌ Invalid PIN. Must be 4-6 digits.');
+        return;
+      }
+      
+      // Get user info
+      const user = users.find(u => u.id === userId);
+      if (!user) {
+        throw new Error('User not found');
+      }
+      
+      // Use API service to update the user with new PIN
+      await apiService.updateUser(userId, {
+        pin: newPin,
+        pinResetRequired: true
+      });
+      
       console.log('✅ PIN reset successful. New PIN:', newPin);
       
-      alert(`✅ New temporary PIN generated: ${newPin}\n\nThis PIN is saved in the shared database and will work across all browsers and devices.\n\nPlease provide this PIN to the user. They will be required to set a new PIN when they log in.`);
+      alert(
+        `✅ PIN reset successful!\n\n` +
+        `User: ${user.name}\n` +
+        `New temporary PIN: ${newPin}\n\n` +
+        `This PIN is saved in the shared database and will work across all browsers and devices.\n\n` +
+        `The user will be required to change this PIN on their next login.`
+      );
+      
       await loadData();
     } catch (error) {
       console.error('❌ Error resetting PIN:', error);
