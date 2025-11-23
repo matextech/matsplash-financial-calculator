@@ -214,12 +214,23 @@ export default function Salaries() {
           // Include all employees with fixed or commission salaries
           if (employee.salaryType !== 'commission' && employee.salaryType !== 'both' && employee.salaryType !== 'fixed') continue;
           
-          // Get sales for this period
-          const commissionInfo = await FinancialCalculator.calculateCommissionFromSales(
-            employee.id,
-            startOfDay(cycle.workStart),
-            endOfDay(cycle.workEnd)
-          );
+          // Get commission based on employee role
+          // Drivers: from sales, Packers: from packer entries
+          let commissionInfo;
+          if (employee.role === 'Packers') {
+            commissionInfo = await FinancialCalculator.calculateCommissionFromPackerEntries(
+              employee.id,
+              startOfDay(cycle.workStart),
+              endOfDay(cycle.workEnd)
+            );
+          } else {
+            // Default to sales for drivers and other roles
+            commissionInfo = await FinancialCalculator.calculateCommissionFromSales(
+              employee.id,
+              startOfDay(cycle.workStart),
+              endOfDay(cycle.workEnd)
+            );
+          }
           
           // Calculate fixed salary for the period (if applicable)
           let fixedAmount = 0;

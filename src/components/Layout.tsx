@@ -41,6 +41,7 @@ const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
   { text: 'Employees', icon: <PeopleIcon />, path: '/employees' },
   { text: 'Sales', icon: <SalesIcon />, path: '/sales' },
+  { text: 'Packers', icon: <PeopleIcon />, path: '/packers' },
   { text: 'Commissions', icon: <CommissionsIcon />, path: '/commissions' },
   { text: 'Expenses', icon: <MoneyIcon />, path: '/expenses' },
   { text: 'Materials', icon: <MaterialsIcon />, path: '/materials' },

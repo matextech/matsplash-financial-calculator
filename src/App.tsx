@@ -5,6 +5,7 @@ import Dashboard from './components/Dashboard';
 import Employees from './components/Employees';
 import Expenses from './components/Expenses';
 import Sales from './components/Sales';
+import Packers from './components/Packers';
 import Materials from './components/Materials';
 import Reports from './components/Reports';
 import Salaries from './components/Salaries';

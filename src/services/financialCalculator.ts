@@ -4,6 +4,7 @@ import {
   Expense, 
   MaterialPurchase, 
   Sale, 
+  PackerEntry,
   SalaryPayment,
   MATERIAL_COSTS,
   DEFAULT_SETTINGS
@@ -233,7 +234,7 @@ export class FinancialCalculator {
   }
 
   /**
-   * Calculate commission from sales for an employee
+   * Calculate commission from sales for an employee (drivers)
    * @param employeeId - The employee ID
    * @param startDate - Optional start date for filtering sales
    * @param endDate - Optional end date for filtering sales
@@ -267,6 +268,44 @@ export class FinancialCalculator {
       totalBags,
       commission,
       sales: employeeSales
+    };
+  }
+
+  /**
+   * Calculate commission from packer entries for an employee (packers)
+   * @param employeeId - The employee ID
+   * @param startDate - Optional start date for filtering entries
+   * @param endDate - Optional end date for filtering entries
+   * @returns Object with total bags packed and calculated commission
+   */
+  static async calculateCommissionFromPackerEntries(
+    employeeId: number,
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<{ totalBags: number; commission: number; entries: PackerEntry[] }> {
+    const allEntries = await dbService.getPackerEntries(startDate, endDate);
+    // Filter by employeeId - must match exactly and not be undefined/null
+    const employeeEntries = allEntries.filter(entry => 
+      entry.employeeId !== undefined && 
+      entry.employeeId !== null && 
+      entry.employeeId === employeeId
+    );
+    
+    const totalBags = employeeEntries.reduce((sum, entry) => sum + entry.bagsPacked, 0);
+    
+    // Get employee to get commission rate
+    const employees = await dbService.getEmployees();
+    const employee = employees.find(e => e.id === employeeId);
+    
+    let commission = 0;
+    if (employee && employee.commissionRate) {
+      commission = totalBags * employee.commissionRate;
+    }
+    
+    return {
+      totalBags,
+      commission,
+      entries: employeeEntries
     };
   }
 }

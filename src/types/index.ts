@@ -47,6 +47,17 @@ export interface Sale {
   createdAt?: Date;
 }
 
+export interface PackerEntry {
+  id?: number;
+  packerName: string;
+  packerEmail?: string;
+  employeeId?: number; // Link to employee record for commission calculation
+  bagsPacked: number;
+  date: Date;
+  notes?: string;
+  createdAt?: Date;
+}
+
 export interface SalaryPayment {
   id?: number;
   employeeId: number;

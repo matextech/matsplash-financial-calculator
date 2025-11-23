@@ -1,10 +1,10 @@
-import { Employee, Expense, MaterialPurchase, Sale, SalaryPayment, Settings, DEFAULT_SETTINGS } from '../types';
+import { Employee, Expense, MaterialPurchase, Sale, PackerEntry, SalaryPayment, Settings, DEFAULT_SETTINGS } from '../types';
 import { User } from '../types/auth';
 import { ReceptionistSale, StorekeeperEntry, Settlement, AuditLog, Notification } from '../types/sales-log';
 
 class DatabaseService {
   private dbName = 'matsplash_financial_db';
-  private version = 3; // Incremented for new stores
+  private version = 4; // Incremented for packerEntries store
   private db: IDBDatabase | null = null;
 
   async init(): Promise<void> {
@@ -430,6 +430,84 @@ class DatabaseService {
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(['sales'], 'readwrite');
       const store = transaction.objectStore('sales');
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // Packer entry operations
+  async addPackerEntry(entry: Omit<PackerEntry, 'id'>): Promise<number> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['packerEntries'], 'readwrite');
+      const store = transaction.objectStore('packerEntries');
+      const request = store.add({
+        ...entry,
+        createdAt: new Date()
+      });
+      request.onsuccess = () => resolve(request.result as number);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async getPackerEntries(startDate?: Date, endDate?: Date): Promise<PackerEntry[]> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['packerEntries'], 'readonly');
+      const store = transaction.objectStore('packerEntries');
+      const index = store.index('date');
+      const range = startDate && endDate 
+        ? IDBKeyRange.bound(startDate, endDate)
+        : undefined;
+      const request = range ? index.getAll(range) : store.getAll();
+      
+      request.onsuccess = () => {
+        const entries = request.result;
+        // Normalize dates - ensure they're Date objects
+        const normalizedEntries = entries.map((entry: PackerEntry) => ({
+          ...entry,
+          date: entry.date instanceof Date ? entry.date : new Date(entry.date)
+        }));
+        resolve(normalizedEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async updatePackerEntry(id: number, entry: Partial<PackerEntry>): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise(async (resolve, reject) => {
+      const transaction = db.transaction(['packerEntries'], 'readwrite');
+      const store = transaction.objectStore('packerEntries');
+      const getRequest = store.get(id);
+      
+      getRequest.onsuccess = () => {
+        const existing = getRequest.result;
+        if (!existing) {
+          reject(new Error('Packer entry not found'));
+          return;
+        }
+        
+        const updated = {
+          ...existing,
+          ...entry,
+          date: entry.date ? (entry.date instanceof Date ? entry.date : new Date(entry.date)) : existing.date
+        };
+        
+        const putRequest = store.put(updated);
+        putRequest.onsuccess = () => resolve();
+        putRequest.onerror = () => reject(putRequest.error);
+      };
+      getRequest.onerror = () => reject(getRequest.error);
+    });
+  }
+
+  async deletePackerEntry(id: number): Promise<void> {
+    const db = await this.ensureDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['packerEntries'], 'readwrite');
+      const store = transaction.objectStore('packerEntries');
       const request = store.delete(id);
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
