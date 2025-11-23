@@ -195,26 +195,49 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
       } else if (tabValue === 4) {
         // Settings
         console.log('Loading Settings tab data...');
-        const [settingsData, bagPricesData, materialPricesData] = await Promise.all([
-          apiService.getSettings(),
-          apiService.getBagPrices(true), // Include inactive for management
-          apiService.getMaterialPrices(undefined, true) // Include inactive for management
-        ]);
-        console.log('Settings data received:', { settingsData, bagPricesData, materialPricesData });
-        setSettings(settingsData || DEFAULT_SETTINGS);
-        // API service already extracts data.data || data, so these should be arrays
-        if (Array.isArray(bagPricesData)) {
-          console.log('Setting bag prices state with', bagPricesData.length, 'prices');
-          setBagPrices([...bagPricesData]); // Create new array to force re-render
-        } else {
-          console.error('Bag prices data is not an array:', bagPricesData, typeof bagPricesData);
+        try {
+          const [settingsData, bagPricesData, materialPricesData] = await Promise.all([
+            apiService.getSettings(),
+            apiService.getBagPrices(true), // Include inactive for management
+            apiService.getMaterialPrices(undefined, true) // Include inactive for management
+          ]);
+          console.log('Settings data received:', { 
+            settingsData, 
+            bagPricesData, 
+            bagPricesDataType: typeof bagPricesData,
+            bagPricesIsArray: Array.isArray(bagPricesData),
+            materialPricesData 
+          });
+          setSettings(settingsData || DEFAULT_SETTINGS);
+          // API service already extracts data.data || data, so these should be arrays
+          if (Array.isArray(bagPricesData)) {
+            console.log('Setting bag prices state with', bagPricesData.length, 'prices:', bagPricesData);
+            setBagPrices([...bagPricesData]); // Create new array to force re-render
+          } else {
+            console.error('Bag prices data is not an array:', bagPricesData, typeof bagPricesData);
+            // Try to extract from response if it's wrapped
+            if (bagPricesData && typeof bagPricesData === 'object' && 'data' in bagPricesData) {
+              const extracted = (bagPricesData as any).data;
+              if (Array.isArray(extracted)) {
+                console.log('Extracted bag prices from data property:', extracted);
+                setBagPrices([...extracted]);
+              } else {
+                setBagPrices([]);
+              }
+            } else {
+              setBagPrices([]);
+            }
+          }
+          if (Array.isArray(materialPricesData)) {
+            setMaterialPrices([...materialPricesData]); // Create new array to force re-render
+            console.log('Loaded material prices:', materialPricesData.length, 'prices');
+          } else {
+            console.error('Material prices data is not an array:', materialPricesData);
+            setMaterialPrices([]);
+          }
+        } catch (error) {
+          console.error('Error loading Settings tab data:', error);
           setBagPrices([]);
-        }
-        if (Array.isArray(materialPricesData)) {
-          setMaterialPrices([...materialPricesData]); // Create new array to force re-render
-          console.log('Loaded material prices:', materialPricesData.length, 'prices');
-        } else {
-          console.error('Material prices data is not an array:', materialPricesData);
           setMaterialPrices([]);
         }
       }
