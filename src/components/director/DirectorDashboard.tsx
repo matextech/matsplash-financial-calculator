@@ -1781,21 +1781,6 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
                     Add and manage unlimited bag prices. Receptionist will see all active prices when recording sales.
                   </Alert>
                   
-                  {/* Debug info - remove after fixing */}
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    Debug: bagPrices.length = {bagPrices.length}, tabValue = {tabValue}
-                    <br />
-                    bagPrices state: {JSON.stringify(bagPrices.slice(0, 2))}
-                    <br />
-                    <Button size="small" onClick={async () => {
-                      console.log('Manual loadData call');
-                      await loadData();
-                      console.log('After loadData, bagPrices:', bagPrices);
-                    }}>
-                      Force Reload Data
-                    </Button>
-                  </Alert>
-                  
                   {bagPrices.length === 0 ? (
                     <Alert severity="warning" sx={{ mb: 2 }}>
                       No bag prices found. Click "Add New Price" to create your first price tier.
