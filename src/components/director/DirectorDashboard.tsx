@@ -867,7 +867,7 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
                   }
                 }}
               >
-                <Table>
+                <Table sx={{ minWidth: 800 }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>Date</TableCell>
