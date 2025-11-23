@@ -561,6 +561,24 @@ export default function ReceptionistDashboard() {
               value={formData.saleType}
               onChange={(e) => setFormData({ ...formData, saleType: e.target.value as any, driverId: '' })}
               required
+              SelectProps={{
+                MenuProps: {
+                  PaperProps: {
+                    style: {
+                      maxHeight: 300,
+                    },
+                  },
+                  anchorOrigin: {
+                    vertical: "bottom",
+                    horizontal: "left"
+                  },
+                  transformOrigin: {
+                    vertical: "top",
+                    horizontal: "left"
+                  },
+                  getContentAnchorEl: null
+                }
+              }}
             >
               <MenuItem value="driver">Driver Sale</MenuItem>
               <MenuItem value="general">General Sales</MenuItem>
@@ -575,6 +593,24 @@ export default function ReceptionistDashboard() {
                 value={formData.driverId}
                 onChange={(e) => setFormData({ ...formData, driverId: e.target.value })}
                 required
+                SelectProps={{
+                  MenuProps: {
+                    PaperProps: {
+                      style: {
+                        maxHeight: 300,
+                      },
+                    },
+                    anchorOrigin: {
+                      vertical: "bottom",
+                      horizontal: "left"
+                    },
+                    transformOrigin: {
+                      vertical: "top",
+                      horizontal: "left"
+                    },
+                    getContentAnchorEl: null
+                  }
+                }}
               >
                 <MenuItem value="">Select Driver</MenuItem>
                 {drivers.map((driver) => (

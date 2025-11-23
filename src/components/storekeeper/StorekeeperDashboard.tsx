@@ -532,6 +532,24 @@ export default function StorekeeperDashboard() {
                 packerId: ''
               })}
               required
+              SelectProps={{
+                MenuProps: {
+                  PaperProps: {
+                    style: {
+                      maxHeight: 300,
+                    },
+                  },
+                  anchorOrigin: {
+                    vertical: "bottom",
+                    horizontal: "left"
+                  },
+                  transformOrigin: {
+                    vertical: "top",
+                    horizontal: "left"
+                  },
+                  getContentAnchorEl: null
+                }
+              }}
             >
               <MenuItem value="driver_pickup">Driver Pickup</MenuItem>
               <MenuItem value="general_sales">General Sales</MenuItem>
@@ -547,6 +565,24 @@ export default function StorekeeperDashboard() {
                 value={formData.driverId}
                 onChange={(e) => setFormData({ ...formData, driverId: e.target.value })}
                 required
+                SelectProps={{
+                  MenuProps: {
+                    PaperProps: {
+                      style: {
+                        maxHeight: 300,
+                      },
+                    },
+                    anchorOrigin: {
+                      vertical: "bottom",
+                      horizontal: "left"
+                    },
+                    transformOrigin: {
+                      vertical: "top",
+                      horizontal: "left"
+                    },
+                    getContentAnchorEl: null
+                  }
+                }}
               >
                 <MenuItem value="">Select Driver</MenuItem>
                 {drivers.map((driver) => (
@@ -565,6 +601,24 @@ export default function StorekeeperDashboard() {
                 value={formData.packerId}
                 onChange={(e) => setFormData({ ...formData, packerId: e.target.value })}
                 required
+                SelectProps={{
+                  MenuProps: {
+                    PaperProps: {
+                      style: {
+                        maxHeight: 300,
+                      },
+                    },
+                    anchorOrigin: {
+                      vertical: "bottom",
+                      horizontal: "left"
+                    },
+                    transformOrigin: {
+                      vertical: "top",
+                      horizontal: "left"
+                    },
+                    getContentAnchorEl: null
+                  }
+                }}
               >
                 <MenuItem value="">Select Packer</MenuItem>
                 {packers.map((packer) => (
