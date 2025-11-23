@@ -529,11 +529,20 @@ export default function ManagerDashboard() {
   });
 
   return (
-    <Box>
+    <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">Manager Dashboard</Typography>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'flex-start', sm: 'center' }, 
+        mb: { xs: 2, sm: 3 },
+        gap: { xs: 2, sm: 0 }
+      }}>
+        <Typography variant="h4" sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}>
+          Manager Dashboard
+        </Typography>
+        <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
           {notifications.length > 0 && (
             <Chip
               icon={<NotificationsIcon />}
@@ -546,16 +555,24 @@ export default function ManagerDashboard() {
             variant="outlined"
             startIcon={<LogoutIcon />}
             onClick={handleLogout}
+            fullWidth={false}
+            size={window.innerWidth < 600 ? 'small' : 'medium'}
           >
-            Logout
+            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Logout</Box>
+            <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Out</Box>
           </Button>
         </Box>
       </Box>
 
       {/* View Mode and Date Selector */}
-      <Paper sx={{ p: 2, mb: 3 }}>
+      <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: { xs: 2, sm: 3 } }}>
         <Stack spacing={2}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' },
+            alignItems: { xs: 'stretch', sm: 'center' }, 
+            gap: { xs: 2, sm: 2 }
+          }}>
             <ToggleButtonGroup
               value={viewMode}
               exclusive
@@ -840,8 +857,17 @@ export default function ManagerDashboard() {
               </Typography>
             </Paper>
           ) : (
-            <TableContainer component={Paper}>
-              <Table>
+            <TableContainer 
+              component={Paper}
+              sx={{
+                overflowX: 'auto',
+                '& .MuiTableCell-root': {
+                  whiteSpace: { xs: 'nowrap', md: 'normal' },
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                }
+              }}
+            >
+              <Table sx={{ minWidth: 650 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Date</TableCell>
@@ -1041,8 +1067,17 @@ export default function ManagerDashboard() {
               </Typography>
             </Paper>
           ) : (
-            <TableContainer component={Paper}>
-              <Table>
+            <TableContainer 
+              component={Paper}
+              sx={{
+                overflowX: 'auto',
+                '& .MuiTableCell-root': {
+                  whiteSpace: { xs: 'nowrap', md: 'normal' },
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                }
+              }}
+            >
+              <Table sx={{ minWidth: 650 }}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Date</TableCell>
@@ -1230,7 +1265,19 @@ export default function ManagerDashboard() {
       )}
 
       {/* Settlement Dialog */}
-      <Dialog open={settlementDialogOpen} onClose={() => setSettlementDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog 
+        open={settlementDialogOpen} 
+        onClose={() => setSettlementDialogOpen(false)} 
+        maxWidth="sm" 
+        fullWidth
+        fullScreen={window.innerWidth < 600}
+        PaperProps={{
+          sx: {
+            m: { xs: 0, sm: 2 },
+            height: { xs: '100%', sm: 'auto' }
+          }
+        }}
+      >
         <DialogTitle>Add Settlement Payment</DialogTitle>
         <DialogContent>
           {selectedSale && (() => {
@@ -1322,7 +1369,19 @@ export default function ManagerDashboard() {
       </Dialog>
 
       {/* Update Dialog */}
-      <Dialog open={updateDialogOpen} onClose={() => setUpdateDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog 
+        open={updateDialogOpen} 
+        onClose={() => setUpdateDialogOpen(false)} 
+        maxWidth="sm" 
+        fullWidth
+        fullScreen={window.innerWidth < 600}
+        PaperProps={{
+          sx: {
+            m: { xs: 0, sm: 2 },
+            height: { xs: '100%', sm: 'auto' }
+          }
+        }}
+      >
         <DialogTitle>{updateType === 'sale' ? 'Update Receptionist Sale' : 'Update Storekeeper Entry'}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
@@ -1451,7 +1510,19 @@ export default function ManagerDashboard() {
       </Dialog>
 
       {/* Settlement History Dialog */}
-      <Dialog open={settlementHistoryDialogOpen} onClose={() => setSettlementHistoryDialogOpen(false)} maxWidth="md" fullWidth>
+      <Dialog 
+        open={settlementHistoryDialogOpen} 
+        onClose={() => setSettlementHistoryDialogOpen(false)} 
+        maxWidth="md" 
+        fullWidth
+        fullScreen={window.innerWidth < 960}
+        PaperProps={{
+          sx: {
+            m: { xs: 0, sm: 2 },
+            height: { xs: '100%', sm: 'auto' }
+          }
+        }}
+      >
         <DialogTitle>Settlement Details</DialogTitle>
         <DialogContent>
           {selectedSettlementHistory && selectedSale && (

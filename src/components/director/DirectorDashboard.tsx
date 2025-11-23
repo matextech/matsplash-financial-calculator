@@ -476,14 +476,25 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
     <Box>
       {/* Header */}
       {!hideHeader && (
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4">Director Dashboard</Typography>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between', 
+          alignItems: { xs: 'flex-start', sm: 'center' }, 
+          mb: { xs: 2, sm: 3 },
+          gap: { xs: 2, sm: 0 }
+        }}>
+          <Typography variant="h4" sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}>
+            Director Dashboard
+          </Typography>
           <Button
             variant="outlined"
             startIcon={<LogoutIcon />}
             onClick={handleLogout}
+            size={window.innerWidth < 600 ? 'small' : 'medium'}
           >
-            Logout
+            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Logout</Box>
+            <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Out</Box>
           </Button>
         </Box>
       )}
@@ -845,7 +856,17 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
               <Typography variant="h6" sx={{ mb: 2, mt: 4 }}>
                 Sales & Settlement Status
               </Typography>
-              <TableContainer component={Paper} sx={{ mb: 4 }}>
+              <TableContainer 
+                component={Paper} 
+                sx={{ 
+                  mb: 4,
+                  overflowX: 'auto',
+                  '& .MuiTableCell-root': {
+                    whiteSpace: { xs: 'nowrap', md: 'normal' },
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                  }
+                }}
+              >
                 <Table>
                   <TableHead>
                     <TableRow>
@@ -949,8 +970,17 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
               <Typography variant="h6" sx={{ mb: 2 }}>
                 All Settlements
               </Typography>
-              <TableContainer component={Paper}>
-                <Table>
+              <TableContainer 
+                component={Paper}
+                sx={{
+                  overflowX: 'auto',
+                  '& .MuiTableCell-root': {
+                    whiteSpace: { xs: 'nowrap', md: 'normal' },
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                  }
+                }}
+              >
+                <Table sx={{ minWidth: 650 }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>Date</TableCell>
@@ -1032,8 +1062,17 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
               <Typography variant="h6" gutterBottom>
                 Receptionist Sales - {selectedYear}
               </Typography>
-              <TableContainer component={Paper}>
-                <Table>
+              <TableContainer 
+                component={Paper}
+                sx={{
+                  overflowX: 'auto',
+                  '& .MuiTableCell-root': {
+                    whiteSpace: { xs: 'nowrap', md: 'normal' },
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                  }
+                }}
+              >
+                <Table sx={{ minWidth: 650 }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>Date</TableCell>
@@ -1566,7 +1605,19 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
       )}
 
       {/* User Dialog */}
-      <Dialog open={userDialogOpen} onClose={() => setUserDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog 
+        open={userDialogOpen} 
+        onClose={() => setUserDialogOpen(false)} 
+        maxWidth="sm" 
+        fullWidth
+        fullScreen={window.innerWidth < 600}
+        PaperProps={{
+          sx: {
+            m: { xs: 0, sm: 2 },
+            height: { xs: '100%', sm: 'auto' }
+          }
+        }}
+      >
         <DialogTitle>{editingUser ? 'Edit User' : 'Add User'}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
@@ -1707,7 +1758,19 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
       </Dialog>
 
       {/* Settlement Details Dialog */}
-      <Dialog open={settlementDetailsOpen} onClose={() => setSettlementDetailsOpen(false)} maxWidth="md" fullWidth>
+      <Dialog 
+        open={settlementDetailsOpen} 
+        onClose={() => setSettlementDetailsOpen(false)} 
+        maxWidth="md" 
+        fullWidth
+        fullScreen={window.innerWidth < 960}
+        PaperProps={{
+          sx: {
+            m: { xs: 0, sm: 2 },
+            height: { xs: '100%', sm: 'auto' }
+          }
+        }}
+      >
         <DialogTitle>Settlement Details</DialogTitle>
         <DialogContent>
           {selectedSettlement && (() => {
