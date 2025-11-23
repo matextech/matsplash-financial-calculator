@@ -56,8 +56,12 @@ export default function PinChangeDialog({ open, onClose, onSuccess }: PinChangeD
         return;
       }
 
-      // Update user PIN via API
+      console.log('🔐 Updating PIN for user:', session.userId);
+      
+      // Update user PIN via backend API
       await apiService.changePin(session.userId, newPin);
+
+      console.log('✅ PIN updated successfully via backend API');
 
       // Update session to clear the flag
       const updatedSession = { ...session, pinResetRequired: false };
@@ -66,7 +70,7 @@ export default function PinChangeDialog({ open, onClose, onSuccess }: PinChangeD
       setLoading(false);
       onSuccess();
     } catch (err: any) {
-      console.error('Failed to update PIN:', err);
+      console.error('❌ Failed to update PIN:', err);
       setError(err.message || 'Failed to update PIN. Please try again.');
       setLoading(false);
     }
