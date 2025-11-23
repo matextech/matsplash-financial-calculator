@@ -77,6 +77,8 @@ export default function ManagerDashboard() {
   const [settlementDialogOpen, setSettlementDialogOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<ReceptionistSale | null>(null);
   const [settlementAmount, setSettlementAmount] = useState('');
+  const [settlementHistoryDialogOpen, setSettlementHistoryDialogOpen] = useState(false);
+  const [selectedSettlementHistory, setSelectedSettlementHistory] = useState<Settlement | null>(null);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [updateType, setUpdateType] = useState<'sale' | 'entry'>('sale');
   const [updateItem, setUpdateItem] = useState<ReceptionistSale | StorekeeperEntry | null>(null);
@@ -246,6 +248,21 @@ export default function ManagerDashboard() {
   };
 
   const handleOpenUpdate = (item: ReceptionistSale | StorekeeperEntry, type: 'sale' | 'entry') => {
+    // Check if receptionist sale has any settlement - if yes, block updates
+    if (type === 'sale') {
+      const settlement = settlements.find(s => s.receptionistSaleId === item.id);
+      if (settlement) {
+        alert('Cannot update entry after settlement has started. Settlement must be deleted first.');
+        return;
+      }
+    }
+    
+    // Check if storekeeper entry was already updated once
+    if (type === 'entry') {
+      // TODO: Add update tracking in backend to check if entry was already updated
+      // For now, we'll allow one update per session
+    }
+    
     setUpdateItem(item);
     setUpdateType(type);
     setUpdateField('');
@@ -751,26 +768,54 @@ export default function ManagerDashboard() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {settlement?.isSettled ? (
-                          <Tooltip title="Settlement locked (fully settled)">
-                            <span>
-                              <IconButton size="small" disabled>
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                          {settlement?.isSettled ? (
+                            <Tooltip title="Settlement locked (fully settled)">
+                              <span>
+                                <IconButton size="small" disabled>
+                                  <EditIcon />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          ) : (
+                            <Tooltip title={settlement ? "Add Payment" : "Start Settlement"}>
+                              <IconButton size="small" onClick={() => handleOpenSettlement(sale)} color="primary">
                                 <EditIcon />
                               </IconButton>
-                            </span>
-                          </Tooltip>
-                        ) : (
-                          <Tooltip title={settlement ? "Add Payment" : "Start Settlement"}>
-                            <IconButton size="small" onClick={() => handleOpenSettlement(sale)} color="primary">
-                              <EditIcon />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                        <Tooltip title="Update Entry">
-                          <IconButton size="small" onClick={() => handleOpenUpdate(sale, 'sale')}>
-                            <VisibilityIcon />
-                          </IconButton>
-                        </Tooltip>
+                            </Tooltip>
+                          )}
+                          
+                          {settlement ? (
+                            <>
+                              <Tooltip title="Cannot update after settlement started">
+                                <span>
+                                  <IconButton size="small" disabled>
+                                    <VisibilityIcon />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                              <Tooltip title="View Settlement Details">
+                                <IconButton 
+                                  size="small" 
+                                  onClick={() => {
+                                    setSelectedSale(sale);
+                                    setSelectedSettlementHistory(settlement);
+                                    setSettlementHistoryDialogOpen(true);
+                                  }}
+                                  color="info"
+                                >
+                                  <VisibilityIcon />
+                                </IconButton>
+                              </Tooltip>
+                            </>
+                          ) : (
+                            <Tooltip title="Update Entry (Bags)">
+                              <IconButton size="small" onClick={() => handleOpenUpdate(sale, 'sale')} color="secondary">
+                                <EditIcon />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </Box>
                       </TableCell>
                     </TableRow>
                   );
@@ -1083,6 +1128,61 @@ export default function ManagerDashboard() {
           <Button onClick={handleSaveUpdate} variant="contained">
             Save Update
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Settlement History Dialog */}
+      <Dialog open={settlementHistoryDialogOpen} onClose={() => setSettlementHistoryDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Settlement Details</DialogTitle>
+        <DialogContent>
+          {selectedSettlementHistory && selectedSale && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+              <Alert severity="info">
+                This settlement has been {selectedSettlementHistory.isSettled ? 'fully settled' : 'partially settled'}.
+              </Alert>
+
+              <Typography variant="h6" sx={{ mt: 2 }}>Sale Information</Typography>
+              <Box sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="body2">
+                  <strong>Date:</strong> {format(new Date(selectedSale.date), 'MMM d, yyyy')}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Driver:</strong> {selectedSale.driverName || 'General Sales'}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Total Bags:</strong> {selectedSale.totalBags.toLocaleString()}
+                </Typography>
+              </Box>
+
+              <Typography variant="h6" sx={{ mt: 2 }}>Settlement Summary</Typography>
+              <Box sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="body1" color="primary" sx={{ mb: 1 }}>
+                  <strong>Total Expected:</strong> {formatCurrency(selectedSettlementHistory.expectedAmount)}
+                </Typography>
+                <Typography variant="body1" color="success.main" sx={{ mb: 1 }}>
+                  <strong>Total Paid:</strong> {formatCurrency(selectedSettlementHistory.settledAmount)}
+                </Typography>
+                <Typography variant="body1" color={selectedSettlementHistory.isSettled ? "success.main" : "warning.main"}>
+                  <strong>Remaining Balance:</strong> {formatCurrency(selectedSettlementHistory.remainingBalance)}
+                </Typography>
+                {selectedSettlementHistory.isSettled && (
+                  <Typography variant="body2" color="success.main" sx={{ mt: 2 }}>
+                    ✓ Fully Settled on {format(new Date(selectedSettlementHistory.settledAt!), 'MMM d, yyyy h:mm a')}
+                  </Typography>
+                )}
+              </Box>
+
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                <Typography variant="body2">
+                  <strong>Note:</strong> Detailed payment history tracking will be implemented in the next update. 
+                  Currently showing the final settlement totals.
+                </Typography>
+              </Alert>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSettlementHistoryDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>
