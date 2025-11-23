@@ -198,6 +198,16 @@ function App() {
             }
           />
           <Route
+            path="/packers"
+            element={
+              <ProtectedRoute allowedRoles={['director']}>
+                <Layout>
+                  <Packers />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/materials"
             element={
               <ProtectedRoute allowedRoles={['director']}>
