@@ -26,12 +26,16 @@ class DatabaseService {
       };
 
       request.onsuccess = () => {
-        if (hasError) return; // Don't resolve if there was an error
+        if (hasError) {
+          console.error('Database initialization had errors, not resolving');
+          return; // Don't resolve if there was an error
+        }
         
         this.db = request.result;
-        console.log('Database opened successfully, version:', this.db.version);
+        console.log('Database opened successfully, version:', this.db.version, 'Object stores:', Array.from(this.db.objectStoreNames));
         
-        // Always resolve immediately - onsuccess only fires after upgrade completes
+        // onsuccess fires after upgrade completes (if upgrade was needed) or immediately (if no upgrade)
+        // Always resolve immediately - the database is ready
         resolve();
       };
 
@@ -66,105 +70,183 @@ class DatabaseService {
             reject(new Error('Database error during upgrade'));
           };
 
-        // Employees store
-        if (!db.objectStoreNames.contains('employees')) {
-          const employeeStore = db.createObjectStore('employees', { keyPath: 'id', autoIncrement: true });
-          employeeStore.createIndex('email', 'email', { unique: true });
-        }
+          // Employees store
+          if (!db.objectStoreNames.contains('employees')) {
+            try {
+              const employeeStore = db.createObjectStore('employees', { keyPath: 'id', autoIncrement: true });
+              employeeStore.createIndex('email', 'email', { unique: true });
+              console.log('Created employees store');
+            } catch (e) {
+              console.error('Error creating employees store:', e);
+              throw e;
+            }
+          }
 
-        // Expenses store
-        if (!db.objectStoreNames.contains('expenses')) {
-          const expenseStore = db.createObjectStore('expenses', { keyPath: 'id', autoIncrement: true });
-          expenseStore.createIndex('date', 'date');
-          expenseStore.createIndex('type', 'type');
-        }
+          // Expenses store
+          if (!db.objectStoreNames.contains('expenses')) {
+            try {
+              const expenseStore = db.createObjectStore('expenses', { keyPath: 'id', autoIncrement: true });
+              expenseStore.createIndex('date', 'date');
+              expenseStore.createIndex('type', 'type');
+              console.log('Created expenses store');
+            } catch (e) {
+              console.error('Error creating expenses store:', e);
+              throw e;
+            }
+          }
 
-        // Material purchases store
-        if (!db.objectStoreNames.contains('materialPurchases')) {
-          const materialStore = db.createObjectStore('materialPurchases', { keyPath: 'id', autoIncrement: true });
-          materialStore.createIndex('date', 'date');
-          materialStore.createIndex('type', 'type');
-        }
+          // Material purchases store
+          if (!db.objectStoreNames.contains('materialPurchases')) {
+            try {
+              const materialStore = db.createObjectStore('materialPurchases', { keyPath: 'id', autoIncrement: true });
+              materialStore.createIndex('date', 'date');
+              materialStore.createIndex('type', 'type');
+              console.log('Created materialPurchases store');
+            } catch (e) {
+              console.error('Error creating materialPurchases store:', e);
+              throw e;
+            }
+          }
 
-        // Sales store
-        if (!db.objectStoreNames.contains('sales')) {
-          const salesStore = db.createObjectStore('sales', { keyPath: 'id', autoIncrement: true });
-          salesStore.createIndex('date', 'date');
-          salesStore.createIndex('driverEmail', 'driverEmail');
-        }
+          // Sales store
+          if (!db.objectStoreNames.contains('sales')) {
+            try {
+              const salesStore = db.createObjectStore('sales', { keyPath: 'id', autoIncrement: true });
+              salesStore.createIndex('date', 'date');
+              salesStore.createIndex('driverEmail', 'driverEmail');
+              console.log('Created sales store');
+            } catch (e) {
+              console.error('Error creating sales store:', e);
+              throw e;
+            }
+          }
 
-        // Packer entries store (version 4)
-        if (!db.objectStoreNames.contains('packerEntries')) {
-          const packerStore = db.createObjectStore('packerEntries', { keyPath: 'id', autoIncrement: true });
-          packerStore.createIndex('date', 'date');
-          packerStore.createIndex('employeeId', 'employeeId');
-          packerStore.createIndex('packerEmail', 'packerEmail');
-        }
+          // Packer entries store (version 4)
+          if (!db.objectStoreNames.contains('packerEntries')) {
+            try {
+              const packerStore = db.createObjectStore('packerEntries', { keyPath: 'id', autoIncrement: true });
+              packerStore.createIndex('date', 'date');
+              packerStore.createIndex('employeeId', 'employeeId');
+              packerStore.createIndex('packerEmail', 'packerEmail');
+              console.log('Created packerEntries store');
+            } catch (e) {
+              console.error('Error creating packerEntries store:', e);
+              throw e;
+            }
+          }
 
-        // Salary payments store
-        if (!db.objectStoreNames.contains('salaryPayments')) {
-          const salaryStore = db.createObjectStore('salaryPayments', { keyPath: 'id', autoIncrement: true });
-          salaryStore.createIndex('employeeId', 'employeeId');
-          salaryStore.createIndex('periodStart', 'periodStart');
-          salaryStore.createIndex('paidDate', 'paidDate');
-        }
+          // Salary payments store
+          if (!db.objectStoreNames.contains('salaryPayments')) {
+            try {
+              const salaryStore = db.createObjectStore('salaryPayments', { keyPath: 'id', autoIncrement: true });
+              salaryStore.createIndex('employeeId', 'employeeId');
+              salaryStore.createIndex('periodStart', 'periodStart');
+              salaryStore.createIndex('paidDate', 'paidDate');
+              console.log('Created salaryPayments store');
+            } catch (e) {
+              console.error('Error creating salaryPayments store:', e);
+              throw e;
+            }
+          }
 
-        // Settings store (version 2)
-        if (!db.objectStoreNames.contains('settings')) {
-          db.createObjectStore('settings', { keyPath: 'id', autoIncrement: true });
-        }
+          // Settings store (version 2)
+          if (!db.objectStoreNames.contains('settings')) {
+            try {
+              db.createObjectStore('settings', { keyPath: 'id', autoIncrement: true });
+              console.log('Created settings store');
+            } catch (e) {
+              console.error('Error creating settings store:', e);
+              throw e;
+            }
+          }
 
-        // Users store (version 3)
-        if (!db.objectStoreNames.contains('users')) {
-          const userStore = db.createObjectStore('users', { keyPath: 'id', autoIncrement: true });
-          userStore.createIndex('phone', 'phone', { unique: true });
-          userStore.createIndex('email', 'email', { unique: false });
-          userStore.createIndex('role', 'role');
-        }
+          // Users store (version 3)
+          if (!db.objectStoreNames.contains('users')) {
+            try {
+              const userStore = db.createObjectStore('users', { keyPath: 'id', autoIncrement: true });
+              userStore.createIndex('phone', 'phone', { unique: true });
+              userStore.createIndex('email', 'email', { unique: false });
+              userStore.createIndex('role', 'role');
+              console.log('Created users store');
+            } catch (e) {
+              console.error('Error creating users store:', e);
+              throw e;
+            }
+          }
 
-        // Receptionist sales store (version 3)
-        if (!db.objectStoreNames.contains('receptionistSales')) {
-          const salesStore = db.createObjectStore('receptionistSales', { keyPath: 'id', autoIncrement: true });
-          salesStore.createIndex('date', 'date');
-          salesStore.createIndex('driverId', 'driverId');
-          salesStore.createIndex('submittedBy', 'submittedBy');
-          salesStore.createIndex('isSubmitted', 'isSubmitted');
-        }
+          // Receptionist sales store (version 3)
+          if (!db.objectStoreNames.contains('receptionistSales')) {
+            try {
+              const salesStore = db.createObjectStore('receptionistSales', { keyPath: 'id', autoIncrement: true });
+              salesStore.createIndex('date', 'date');
+              salesStore.createIndex('driverId', 'driverId');
+              salesStore.createIndex('submittedBy', 'submittedBy');
+              salesStore.createIndex('isSubmitted', 'isSubmitted');
+              console.log('Created receptionistSales store');
+            } catch (e) {
+              console.error('Error creating receptionistSales store:', e);
+              throw e;
+            }
+          }
 
-        // Storekeeper entries store (version 3)
-        if (!db.objectStoreNames.contains('storekeeperEntries')) {
-          const entryStore = db.createObjectStore('storekeeperEntries', { keyPath: 'id', autoIncrement: true });
-          entryStore.createIndex('date', 'date');
-          entryStore.createIndex('driverId', 'driverId');
-          entryStore.createIndex('packerId', 'packerId');
-          entryStore.createIndex('submittedBy', 'submittedBy');
-          entryStore.createIndex('isSubmitted', 'isSubmitted');
-        }
+          // Storekeeper entries store (version 3)
+          if (!db.objectStoreNames.contains('storekeeperEntries')) {
+            try {
+              const entryStore = db.createObjectStore('storekeeperEntries', { keyPath: 'id', autoIncrement: true });
+              entryStore.createIndex('date', 'date');
+              entryStore.createIndex('driverId', 'driverId');
+              entryStore.createIndex('packerId', 'packerId');
+              entryStore.createIndex('submittedBy', 'submittedBy');
+              entryStore.createIndex('isSubmitted', 'isSubmitted');
+              console.log('Created storekeeperEntries store');
+            } catch (e) {
+              console.error('Error creating storekeeperEntries store:', e);
+              throw e;
+            }
+          }
 
-        // Settlements store (version 3)
-        if (!db.objectStoreNames.contains('settlements')) {
-          const settlementStore = db.createObjectStore('settlements', { keyPath: 'id', autoIncrement: true });
-          settlementStore.createIndex('date', 'date');
-          settlementStore.createIndex('receptionistSaleId', 'receptionistSaleId');
-          settlementStore.createIndex('isSettled', 'isSettled');
-        }
+          // Settlements store (version 3)
+          if (!db.objectStoreNames.contains('settlements')) {
+            try {
+              const settlementStore = db.createObjectStore('settlements', { keyPath: 'id', autoIncrement: true });
+              settlementStore.createIndex('date', 'date');
+              settlementStore.createIndex('receptionistSaleId', 'receptionistSaleId');
+              settlementStore.createIndex('isSettled', 'isSettled');
+              console.log('Created settlements store');
+            } catch (e) {
+              console.error('Error creating settlements store:', e);
+              throw e;
+            }
+          }
 
-        // Audit logs store (version 3)
-        if (!db.objectStoreNames.contains('auditLogs')) {
-          const auditStore = db.createObjectStore('auditLogs', { keyPath: 'id', autoIncrement: true });
-          auditStore.createIndex('entityType', 'entityType');
-          auditStore.createIndex('entityId', 'entityId');
-          auditStore.createIndex('changedBy', 'changedBy');
-          auditStore.createIndex('changedAt', 'changedAt');
-        }
+          // Audit logs store (version 3)
+          if (!db.objectStoreNames.contains('auditLogs')) {
+            try {
+              const auditStore = db.createObjectStore('auditLogs', { keyPath: 'id', autoIncrement: true });
+              auditStore.createIndex('entityType', 'entityType');
+              auditStore.createIndex('entityId', 'entityId');
+              auditStore.createIndex('changedBy', 'changedBy');
+              auditStore.createIndex('changedAt', 'changedAt');
+              console.log('Created auditLogs store');
+            } catch (e) {
+              console.error('Error creating auditLogs store:', e);
+              throw e;
+            }
+          }
 
-        // Notifications store (version 3)
-        if (!db.objectStoreNames.contains('notifications')) {
-          const notificationStore = db.createObjectStore('notifications', { keyPath: 'id', autoIncrement: true });
-          notificationStore.createIndex('userId', 'userId');
-          notificationStore.createIndex('isRead', 'isRead');
-          notificationStore.createIndex('createdAt', 'createdAt');
-        }
+          // Notifications store (version 3)
+          if (!db.objectStoreNames.contains('notifications')) {
+            try {
+              const notificationStore = db.createObjectStore('notifications', { keyPath: 'id', autoIncrement: true });
+              notificationStore.createIndex('userId', 'userId');
+              notificationStore.createIndex('isRead', 'isRead');
+              notificationStore.createIndex('createdAt', 'createdAt');
+              console.log('Created notifications store');
+            } catch (e) {
+              console.error('Error creating notifications store:', e);
+              throw e;
+            }
+          }
 
           console.log('Database upgrade completed. Object stores:', Array.from(db.objectStoreNames));
           
