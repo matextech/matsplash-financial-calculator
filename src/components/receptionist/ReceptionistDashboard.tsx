@@ -141,7 +141,11 @@ export default function ReceptionistDashboard() {
       };
     }).filter(item => item.bags > 0);
 
+    // Calculate total bags (sum of all bags)
     const totalBags = breakdown.reduce((sum, item) => sum + item.bags, 0);
+
+    // Calculate expected amount (bags × price for each tier, then sum)
+    const expectedAmount = breakdown.reduce((sum, item) => sum + (item.bags * item.amount), 0);
 
     if (totalBags === 0) {
       alert('Please enter at least one bag count');
@@ -174,6 +178,7 @@ export default function ReceptionistDashboard() {
       bagsAtPrice1: bags1,
       bagsAtPrice2: bags2,
       totalBags: totalBags,
+      expectedAmount: expectedAmount, // Calculate and send expected amount
       priceBreakdown: breakdown,
       notes: formData.notes || undefined,
     };
@@ -597,7 +602,29 @@ export default function ReceptionistDashboard() {
               fullWidth
               select
               value={formData.saleType}
-              onChange={(e) => setFormData({ ...formData, saleType: e.target.value as any, driverId: '' })}
+              onChange={(e) => {
+                const newSaleType = e.target.value as 'driver' | 'general' | 'mini_store';
+                setFormData({ ...formData, saleType: newSaleType, driverId: '' });
+                
+                // For mini_store, auto-select ₦250 price (or closest to 250)
+                if (newSaleType === 'mini_store') {
+                  const miniStorePrice = bagPrices.find(p => p.amount === 250) || bagPrices[0];
+                  if (miniStorePrice) {
+                    const newBreakdown: { [priceId: number]: string } = {};
+                    bagPrices.forEach(price => {
+                      newBreakdown[price.id!] = price.id === miniStorePrice.id ? '0' : '';
+                    });
+                    setPriceBreakdown(newBreakdown);
+                  }
+                } else {
+                  // Clear price breakdown for other sale types
+                  const newBreakdown: { [priceId: number]: string } = {};
+                  bagPrices.forEach(price => {
+                    newBreakdown[price.id!] = '';
+                  });
+                  setPriceBreakdown(newBreakdown);
+                }
+              }}
               required
             >
               <MenuItem value="driver">Driver Sale</MenuItem>
@@ -624,17 +651,37 @@ export default function ReceptionistDashboard() {
             )}
 
             {/* Dynamic Bag Price Inputs */}
-            {bagPrices.map((price) => (
-              <TextField
-                key={price.id}
-                label={`Bags at ₦${price.amount.toLocaleString()} ${price.label ? `(${price.label})` : ''}`}
-                fullWidth
-                type="number"
-                value={priceBreakdown[price.id!] || ''}
-                onChange={(e) => setPriceBreakdown({ ...priceBreakdown, [price.id!]: e.target.value })}
-                inputProps={{ min: 0, step: 1 }}
-              />
-            ))}
+            {formData.saleType === 'mini_store' ? (
+              // For mini store, show only ₦250 price (or closest to 250)
+              (() => {
+                const miniStorePrice = bagPrices.find(p => p.amount === 250) || bagPrices[0];
+                return miniStorePrice ? (
+                  <TextField
+                    key={miniStorePrice.id}
+                    label={`Bags at ₦${miniStorePrice.amount.toLocaleString()} ${miniStorePrice.label ? `(${miniStorePrice.label})` : ''} - Mini Store Price`}
+                    fullWidth
+                    type="number"
+                    value={priceBreakdown[miniStorePrice.id!] || ''}
+                    onChange={(e) => setPriceBreakdown({ ...priceBreakdown, [miniStorePrice.id!]: e.target.value })}
+                    inputProps={{ min: 0, step: 1 }}
+                    required
+                  />
+                ) : null;
+              })()
+            ) : (
+              // For driver and general sales, show all prices
+              bagPrices.map((price) => (
+                <TextField
+                  key={price.id}
+                  label={`Bags at ₦${price.amount.toLocaleString()} ${price.label ? `(${price.label})` : ''}`}
+                  fullWidth
+                  type="number"
+                  value={priceBreakdown[price.id!] || ''}
+                  onChange={(e) => setPriceBreakdown({ ...priceBreakdown, [price.id!]: e.target.value })}
+                  inputProps={{ min: 0, step: 1 }}
+                />
+              ))
+            )}
 
             <TextField
               label="Notes (Optional)"
