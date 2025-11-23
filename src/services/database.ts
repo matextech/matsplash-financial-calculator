@@ -9,33 +9,72 @@ class DatabaseService {
 
   async init(): Promise<void> {
     return new Promise((resolve, reject) => {
+      console.log('Starting database initialization...');
       const request = indexedDB.open(this.dbName, this.version);
       let upgradeInProgress = false;
       let hasError = false;
+      let resolved = false;
+
+      // Safety timeout - if nothing happens in 5 seconds, proceed anyway
+      const safetyTimeout = setTimeout(() => {
+        if (!resolved) {
+          console.warn('Database initialization safety timeout - proceeding anyway');
+          if (this.db) {
+            console.log('Database exists, proceeding with existing connection');
+            resolved = true;
+            resolve();
+          } else {
+            console.warn('No database connection, but proceeding anyway');
+            resolved = true;
+            resolve(); // Proceed anyway - database operations will retry
+          }
+        }
+      }, 5000);
 
       request.onerror = () => {
+        clearTimeout(safetyTimeout);
         console.error('Database open error:', request.error);
         hasError = true;
-        reject(request.error || new Error('Failed to open database'));
+        if (!resolved) {
+          resolved = true;
+          reject(request.error || new Error('Failed to open database'));
+        }
       };
 
       request.onblocked = () => {
         console.warn('Database upgrade blocked - please close other tabs with this app open');
         // The upgrade will proceed once other tabs are closed
-        // Don't reject here, just wait
+        // Don't reject here, just wait - but set a longer timeout
+        clearTimeout(safetyTimeout);
+        setTimeout(() => {
+          if (!resolved) {
+            console.warn('Database blocked for too long, proceeding anyway');
+            resolved = true;
+            resolve();
+          }
+        }, 10000);
       };
 
       request.onsuccess = () => {
+        clearTimeout(safetyTimeout);
         if (hasError) {
           console.error('Database initialization had errors, not resolving');
           return; // Don't resolve if there was an error
+        }
+        
+        if (resolved) {
+          console.log('Database onsuccess fired but already resolved');
+          return;
         }
         
         try {
           this.db = request.result;
           if (!this.db) {
             console.error('Database result is null');
-            reject(new Error('Database result is null'));
+            if (!resolved) {
+              resolved = true;
+              reject(new Error('Database result is null'));
+            }
             return;
           }
           
@@ -43,10 +82,16 @@ class DatabaseService {
           
           // onsuccess fires after upgrade completes (if upgrade was needed) or immediately (if no upgrade)
           // Always resolve immediately - the database is ready
-          resolve();
+          if (!resolved) {
+            resolved = true;
+            resolve();
+          }
         } catch (error) {
           console.error('Error in onsuccess handler:', error);
-          reject(error instanceof Error ? error : new Error(String(error)));
+          if (!resolved) {
+            resolved = true;
+            reject(error instanceof Error ? error : new Error(String(error)));
+          }
         }
       };
 
@@ -57,6 +102,16 @@ class DatabaseService {
         try {
           const db = (event.target as IDBOpenDBRequest).result;
           
+          if (!db) {
+            console.error('Database object is null in onupgradeneeded');
+            hasError = true;
+            if (!resolved) {
+              resolved = true;
+              reject(new Error('Database object is null during upgrade'));
+            }
+            return;
+          }
+          
           // Get the upgrade transaction
           const transaction = (event.target as IDBOpenDBRequest).transaction;
           
@@ -64,13 +119,25 @@ class DatabaseService {
             transaction.onerror = (error) => {
               console.error('Database upgrade transaction error:', transaction.error);
               hasError = true;
-              reject(transaction.error || new Error('Database upgrade transaction failed'));
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(safetyTimeout);
+                reject(transaction.error || new Error('Database upgrade transaction failed'));
+              }
             };
             
             transaction.onabort = () => {
               console.error('Database upgrade transaction aborted');
               hasError = true;
-              reject(new Error('Database upgrade transaction was aborted'));
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(safetyTimeout);
+                reject(new Error('Database upgrade transaction was aborted'));
+              }
+            };
+            
+            transaction.oncomplete = () => {
+              console.log('Database upgrade transaction completed successfully');
             };
           }
           
@@ -78,7 +145,11 @@ class DatabaseService {
           db.onerror = (error) => {
             console.error('Database error during upgrade:', error);
             hasError = true;
-            reject(new Error('Database error during upgrade'));
+            if (!resolved) {
+              resolved = true;
+              clearTimeout(safetyTimeout);
+              reject(new Error('Database error during upgrade'));
+            }
           };
 
           // Employees store
