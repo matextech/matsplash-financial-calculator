@@ -133,7 +133,9 @@ export class FinancialCalculator {
     const totalSalaries = salaryPayments.reduce((sum, payment) => sum + payment.totalAmount, 0);
 
     // Calculate total expenses
-    const totalExpenses = fuelCosts + driverPayments + otherExpenses + totalMaterialCostAllocated + totalSalaries;
+    // Include actual material purchase costs (materialCosts) in total expenses
+    // This represents the actual cash outflow for materials purchased in this period
+    const totalExpenses = fuelCosts + driverPayments + otherExpenses + materialCosts + totalSalaries;
 
     // Calculate profit
     const profit = totalRevenue - totalExpenses;
