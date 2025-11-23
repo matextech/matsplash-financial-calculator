@@ -28,13 +28,18 @@ class DatabaseService {
       };
 
       request.onupgradeneeded = (event) => {
-        console.log('Database upgrade needed, old version:', event.oldVersion, 'new version:', event.newVersion);
-        const db = (event.target as IDBOpenDBRequest).result;
-        
-        // Add error handler for upgrade
-        db.onerror = (error) => {
-          console.error('Database upgrade error:', error);
-        };
+        try {
+          console.log('Database upgrade needed, old version:', event.oldVersion, 'new version:', event.newVersion);
+          const db = (event.target as IDBOpenDBRequest).result;
+          
+          // Add error handler for upgrade
+          db.onerror = (error) => {
+            console.error('Database upgrade error:', error);
+          };
+          
+          db.onabort = () => {
+            console.error('Database upgrade aborted');
+          };
 
         // Employees store
         if (!db.objectStoreNames.contains('employees')) {
