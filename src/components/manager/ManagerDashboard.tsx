@@ -42,7 +42,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from '@mui/icons-material';
-import { ReceptionistSale, StorekeeperEntry, Settlement, Notification } from '../../types/sales-log';
+import { ReceptionistSale, StorekeeperEntry, Settlement, SettlementPayment, Notification } from '../../types/sales-log';
 import { Settings, DEFAULT_SETTINGS, Employee } from '../../types';
 import { apiService } from '../../services/apiService';
 import { authService } from '../../services/authService';
@@ -79,6 +79,7 @@ export default function ManagerDashboard() {
   const [settlementAmount, setSettlementAmount] = useState('');
   const [settlementHistoryDialogOpen, setSettlementHistoryDialogOpen] = useState(false);
   const [selectedSettlementHistory, setSelectedSettlementHistory] = useState<Settlement | null>(null);
+  const [settlementPayments, setSettlementPayments] = useState<SettlementPayment[]>([]);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [updateType, setUpdateType] = useState<'sale' | 'entry'>('sale');
   const [updateItem, setUpdateItem] = useState<ReceptionistSale | StorekeeperEntry | null>(null);
@@ -206,6 +207,8 @@ export default function ManagerDashboard() {
         return;
       }
 
+      let settlementId: number;
+      
       if (existingSettlement) {
         await apiService.updateSettlement(existingSettlement.id!, {
           settledAmount: newSettledAmount,
@@ -213,8 +216,9 @@ export default function ManagerDashboard() {
           isSettled: isSettled,
           settledAt: isSettled ? new Date() : undefined,
         });
+        settlementId = existingSettlement.id!;
       } else {
-        await apiService.createSettlement({
+        const newSettlement = await apiService.createSettlement({
           date: selectedSale.date,
           receptionistSaleId: selectedSale.id!,
           expectedAmount: expectedAmount,
@@ -224,7 +228,17 @@ export default function ManagerDashboard() {
           settledBy: session.userId,
           settledAt: isSettled ? new Date() : undefined,
         });
+        settlementId = newSettlement.id;
       }
+
+      // Record this individual payment
+      await apiService.createSettlementPayment({
+        settlementId: settlementId,
+        amount: paymentAmount,
+        paidBy: session.userId,
+        paidAt: new Date().toISOString(),
+        notes: `Payment of ₦${paymentAmount.toLocaleString()}`,
+      });
 
       // Create notification for receptionist
       // Note: Notifications API not yet implemented, skipping for now
@@ -261,19 +275,33 @@ export default function ManagerDashboard() {
     if (type === 'entry') {
       // TODO: Add update tracking in backend to check if entry was already updated
       // For now, we'll allow one update per session
+      
+      // For storekeeper entries, automatically set the field to 'bagsCount' and show current value
+      setUpdateField('bagsCount');
+      setUpdateValue(''); // Start with empty, user will enter new value
+    } else {
+      // For receptionist sales, user will select the field
+      setUpdateField('');
+      setUpdateValue('');
     }
     
     setUpdateItem(item);
     setUpdateType(type);
-    setUpdateField('');
-    setUpdateValue('');
     setUpdateReason('');
     setUpdateDialogOpen(true);
   };
 
   const handleSaveUpdate = async () => {
-    if (!updateItem || !updateField || !updateValue || !updateReason) {
+    if (!updateItem || !updateValue || !updateReason) {
       alert('Please fill all fields');
+      return;
+    }
+
+    // For storekeeper entries, updateField is automatically 'bagsCount'
+    const fieldToUpdate = updateType === 'entry' ? 'bagsCount' : updateField;
+    
+    if (!fieldToUpdate) {
+      alert('Please select a field to update');
       return;
     }
 
@@ -285,8 +313,8 @@ export default function ManagerDashboard() {
     }
 
     try {
-      const oldValue = (updateItem as any)[updateField];
-      const newValue = updateField.includes('bags') || updateField === 'bagsCount' 
+      const oldValue = (updateItem as any)[fieldToUpdate];
+      const newValue = fieldToUpdate.includes('bags') || fieldToUpdate === 'bagsCount' 
         ? parseInt(updateValue) 
         : updateValue;
 
@@ -294,7 +322,7 @@ export default function ManagerDashboard() {
       await AuditService.logUpdate(
         updateType === 'sale' ? 'receptionist_sale' : 'storekeeper_entry',
         updateItem.id!,
-        updateField,
+        fieldToUpdate,
         oldValue,
         newValue,
         updateReason
@@ -303,13 +331,13 @@ export default function ManagerDashboard() {
       // Update the item
       if (updateType === 'sale') {
         const sale = updateItem as ReceptionistSale;
-        const updatedSale: any = { ...sale, [updateField]: newValue };
-        if (updateField === 'bagsAtPrice1' || updateField === 'bagsAtPrice2') {
+        const updatedSale: any = { ...sale, [fieldToUpdate]: newValue };
+        if (fieldToUpdate === 'bagsAtPrice1' || fieldToUpdate === 'bagsAtPrice2') {
           updatedSale.totalBags = (updatedSale.bagsAtPrice1 || 0) + (updatedSale.bagsAtPrice2 || 0);
         }
         await apiService.updateReceptionistSale(sale.id!, updatedSale);
       } else {
-        await apiService.updateStorekeeperEntry(updateItem.id!, { [updateField]: newValue });
+        await apiService.updateStorekeeperEntry(updateItem.id!, { [fieldToUpdate]: newValue });
       }
 
       setUpdateDialogOpen(false);
@@ -797,9 +825,17 @@ export default function ManagerDashboard() {
                               <Tooltip title="View Settlement Details">
                                 <IconButton 
                                   size="small" 
-                                  onClick={() => {
+                                  onClick={async () => {
                                     setSelectedSale(sale);
                                     setSelectedSettlementHistory(settlement);
+                                    // Load payment history for this settlement
+                                    try {
+                                      const payments = await apiService.getSettlementPayments(settlement.id!);
+                                      setSettlementPayments(payments);
+                                    } catch (error) {
+                                      console.error('Error loading payment history:', error);
+                                      setSettlementPayments([]);
+                                    }
                                     setSettlementHistoryDialogOpen(true);
                                   }}
                                   color="info"
@@ -1079,65 +1115,74 @@ export default function ManagerDashboard() {
 
       {/* Update Dialog */}
       <Dialog open={updateDialogOpen} onClose={() => setUpdateDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Update Entry</DialogTitle>
+        <DialogTitle>{updateType === 'sale' ? 'Update Receptionist Sale' : 'Update Storekeeper Entry'}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
             <Alert severity="info">
               {updateType === 'sale' 
                 ? 'Update the number of bags sold. This can only be done BEFORE any settlement payment.'
-                : 'Update the storekeeper entry. This action will be recorded in the audit log.'}
+                : 'Update the bags count for this storekeeper entry. This action will be recorded in the audit log.'}
             </Alert>
-            <TextField
-              label="Field to Update"
-              fullWidth
-              select
-              value={updateField}
-              onChange={(e) => setUpdateField(e.target.value)}
-              required
-              helperText="Select which field you want to update"
-              SelectProps={{
-                MenuProps: {
-                  PaperProps: {
-                    style: {
-                      maxHeight: 300,
-                    },
-                  },
-                  anchorOrigin: {
-                    vertical: "bottom",
-                    horizontal: "left"
-                  },
-                  transformOrigin: {
-                    vertical: "top",
-                    horizontal: "left"
-                  },
-                  getContentAnchorEl: null
-                }
-              }}
-            >
-              {updateType === 'sale' ? (
-                <>
+            
+            {updateType === 'sale' ? (
+              // For receptionist sales, show dropdown to select which field
+              <>
+                <TextField
+                  label="Field to Update"
+                  fullWidth
+                  select
+                  value={updateField}
+                  onChange={(e) => {
+                    setUpdateField(e.target.value);
+                    // Set initial value for the field
+                    if (updateItem) {
+                      const currentVal = (updateItem as any)[e.target.value];
+                      setUpdateValue(currentVal !== undefined ? String(currentVal) : '');
+                    }
+                  }}
+                  required
+                  helperText="Select which field you want to update"
+                >
                   <MenuItem value="bagsAtPrice1">Bags at Price 1 (₦250)</MenuItem>
                   <MenuItem value="bagsAtPrice2">Bags at Price 2 (₦270)</MenuItem>
-                  <MenuItem value="notes">Notes</MenuItem>
-                </>
-              ) : (
-                <>
-                  <MenuItem value="bagsCount">Bags Count</MenuItem>
-                  <MenuItem value="notes">Notes</MenuItem>
-                </>
-              )}
-            </TextField>
-            <TextField
-              label="New Value"
-              fullWidth
-              type={updateField.includes('bags') || updateField === 'bagsCount' ? 'number' : 'text'}
-              value={updateValue}
-              onChange={(e) => setUpdateValue(e.target.value)}
-              required
-              placeholder={updateField.includes('bags') || updateField === 'bagsCount' ? 'Enter number of bags' : 'Enter new value'}
-              helperText={updateField ? `Current value: ${(updateItem as any)?.[updateField] || 'N/A'}` : 'Select a field first'}
-              disabled={!updateField}
-            />
+                </TextField>
+                <TextField
+                  label="New Value"
+                  fullWidth
+                  type="number"
+                  value={updateValue}
+                  onChange={(e) => setUpdateValue(e.target.value)}
+                  required
+                  placeholder="Enter number of bags"
+                  helperText={updateField ? `Current value: ${(updateItem as any)?.[updateField] || 'N/A'}` : 'Select a field first'}
+                  disabled={!updateField}
+                />
+              </>
+            ) : (
+              // For storekeeper entries, directly show bags count field (no dropdown)
+              <>
+                <TextField
+                  label="Current Bags Count"
+                  fullWidth
+                  type="number"
+                  value={(updateItem as StorekeeperEntry)?.bagsCount || 0}
+                  disabled
+                  helperText="Current value"
+                />
+                <TextField
+                  label="New Bags Count"
+                  fullWidth
+                  type="number"
+                  value={updateValue}
+                  onChange={(e) => setUpdateValue(e.target.value)}
+                  required
+                  placeholder="Enter new number of bags"
+                  inputProps={{ min: 0, step: 1 }}
+                  autoFocus
+                />
+              </>
+            )}
+            
             <TextField
               label="Reason for Update"
               fullWidth
@@ -1199,12 +1244,47 @@ export default function ManagerDashboard() {
                 )}
               </Box>
 
-              <Alert severity="warning" sx={{ mt: 2 }}>
-                <Typography variant="body2">
-                  <strong>Note:</strong> Detailed payment history tracking will be implemented in the next update. 
-                  Currently showing the final settlement totals.
-                </Typography>
-              </Alert>
+              <Typography variant="h6" sx={{ mt: 3 }}>Payment History</Typography>
+              {settlementPayments.length === 0 ? (
+                <Alert severity="info">
+                  No payment records found.
+                </Alert>
+              ) : (
+                <TableContainer component={Paper} sx={{ mt: 1 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>#</TableCell>
+                        <TableCell>Date & Time</TableCell>
+                        <TableCell align="right">Amount</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {settlementPayments.map((payment, index) => (
+                        <TableRow key={payment.id}>
+                          <TableCell>{index + 1}</TableCell>
+                          <TableCell>{format(new Date(payment.paidAt), 'MMM d, yyyy h:mm a')}</TableCell>
+                          <TableCell align="right">
+                            <Typography color="success.main" fontWeight="bold">
+                              {formatCurrency(payment.amount)}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow>
+                        <TableCell colSpan={2}>
+                          <Typography variant="body2" fontWeight="bold">Total</Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="body1" fontWeight="bold" color="primary">
+                            {formatCurrency(settlementPayments.reduce((sum, p) => sum + p.amount, 0))}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
             </Box>
           )}
         </DialogContent>

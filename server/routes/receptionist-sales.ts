@@ -6,6 +6,17 @@ const router = express.Router();
 // Helper function to transform database fields to frontend format
 function transformSale(sale: any) {
   if (!sale) return null;
+  
+  // Parse price_breakdown if it exists
+  let priceBreakdown = null;
+  if (sale.price_breakdown) {
+    try {
+      priceBreakdown = JSON.parse(sale.price_breakdown);
+    } catch (e) {
+      console.error('Error parsing price_breakdown:', e);
+    }
+  }
+  
   return {
     id: sale.id,
     date: sale.date,
@@ -14,6 +25,7 @@ function transformSale(sale: any) {
     saleType: sale.sale_type,
     bagsAtPrice1: sale.bags_at_price_1,
     bagsAtPrice2: sale.bags_at_price_2,
+    priceBreakdown: priceBreakdown, // NEW - dynamic pricing
     totalBags: sale.total_bags,
     submittedBy: sale.submitted_by,
     submittedAt: sale.submitted_at,
@@ -84,7 +96,8 @@ router.post('/', async (req, res) => {
       driverName, 
       saleType, 
       bagsAtPrice1, 
-      bagsAtPrice2, 
+      bagsAtPrice2,
+      priceBreakdown, // NEW - dynamic pricing
       totalBags, 
       submittedBy,
       isSubmitted,
@@ -98,7 +111,7 @@ router.post('/', async (req, res) => {
       });
     }
 
-    const [id] = await db('receptionist_sales').insert({
+    const insertData: any = {
       date: new Date(date).toISOString().split('T')[0],
       driver_id: driverId || null,
       driver_name: driverName || null,
@@ -112,7 +125,14 @@ router.post('/', async (req, res) => {
       notes: notes || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
-    });
+    };
+
+    // Add price_breakdown if provided (dynamic pricing)
+    if (priceBreakdown && Array.isArray(priceBreakdown)) {
+      insertData.price_breakdown = JSON.stringify(priceBreakdown);
+    }
+
+    const [id] = await db('receptionist_sales').insert(insertData);
 
     const newSale = await db('receptionist_sales').where('id', id).first();
 
@@ -144,6 +164,14 @@ router.put('/:id', async (req, res) => {
     if (req.body.saleType !== undefined) updateData.sale_type = req.body.saleType;
     if (req.body.bagsAtPrice1 !== undefined) updateData.bags_at_price_1 = req.body.bagsAtPrice1;
     if (req.body.bagsAtPrice2 !== undefined) updateData.bags_at_price_2 = req.body.bagsAtPrice2;
+    if (req.body.priceBreakdown !== undefined) {
+      // NEW - dynamic pricing
+      if (req.body.priceBreakdown && Array.isArray(req.body.priceBreakdown)) {
+        updateData.price_breakdown = JSON.stringify(req.body.priceBreakdown);
+      } else {
+        updateData.price_breakdown = null;
+      }
+    }
     if (req.body.totalBags !== undefined) updateData.total_bags = req.body.totalBags;
     if (req.body.notes !== undefined) updateData.notes = req.body.notes;
     if (req.body.isSubmitted !== undefined) {

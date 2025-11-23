@@ -318,6 +318,57 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
     }
   };
 
+  const handleAddPrice = async () => {
+    try {
+      await apiService.createBagPrice({
+        amount: 250, // Default to 250, user can edit
+        label: 'New Price',
+        sortOrder: bagPrices.length + 1,
+        isActive: true,
+      });
+      await loadData(); // Reload to get new price
+      alert('New price added! Please update the amount and label.');
+    } catch (error) {
+      console.error('Error adding price:', error);
+      alert('Error adding price. Please try again.');
+    }
+  };
+
+  const handleUpdatePrice = async (priceId: number, updates: Partial<BagPrice>) => {
+    try {
+      await apiService.updateBagPrice(priceId, updates);
+      // Update local state for immediate feedback
+      setBagPrices(bagPrices.map(p => p.id === priceId ? { ...p, ...updates } : p));
+    } catch (error) {
+      console.error('Error updating price:', error);
+      alert('Error updating price. Please try again.');
+    }
+  };
+
+  const handleDeletePrice = async (priceId: number) => {
+    if (!confirm('Are you sure you want to delete this price? This cannot be undone.')) {
+      return;
+    }
+    try {
+      await apiService.deleteBagPrice(priceId);
+      setBagPrices(bagPrices.filter(p => p.id !== priceId));
+      alert('Price deleted successfully');
+    } catch (error) {
+      console.error('Error deleting price:', error);
+      alert('Error deleting price. Please try again.');
+    }
+  };
+
+  const handleSavePrices = async () => {
+    try {
+      // All prices are auto-saved on change, so just show confirmation
+      alert('All bag prices saved successfully!');
+    } catch (error) {
+      console.error('Error saving prices:', error);
+      alert('Error saving prices. Please try again.');
+    }
+  };
+
   const handleLogout = () => {
     authService.logout();
     navigate('/login');
@@ -1104,14 +1155,109 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
               </Card>
             </Grid>
 
-            {/* Future: Multiple Prices */}
+            {/* Bag Prices Management */}
             <Grid item xs={12}>
-              <Alert severity="warning">
-                <Typography variant="body2">
-                  <strong>Coming Soon:</strong> Support for unlimited custom bag prices (₦230, ₦300, etc.) 
-                  will be added in a future update. Currently, two price tiers are supported.
-                </Typography>
-              </Alert>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Bag Sales Prices
+                  </Typography>
+                  <Alert severity="info" sx={{ mb: 3 }}>
+                    Add and manage unlimited bag prices. Receptionist will see all active prices when recording sales.
+                  </Alert>
+                  
+                  {bagPrices.length === 0 ? (
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                      No bag prices found. Click "Add New Price" to create your first price tier.
+                    </Alert>
+                  ) : (
+                    <Box sx={{ mb: 3 }}>
+                      {bagPrices
+                        .sort((a, b) => a.sortOrder - b.sortOrder)
+                        .map((price) => (
+                        <Box 
+                          key={price.id} 
+                          sx={{ 
+                            display: 'flex', 
+                            gap: 2, 
+                            mb: 2, 
+                            alignItems: 'center',
+                            p: 2,
+                            bgcolor: price.isActive ? 'background.paper' : 'action.disabledBackground',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            borderRadius: 1,
+                          }}
+                        >
+                          <TextField
+                            label="Price Amount (₦)"
+                            type="number"
+                            value={price.amount}
+                            onChange={(e) => handleUpdatePrice(price.id!, { amount: parseFloat(e.target.value) || 0 })}
+                            size="small"
+                            sx={{ width: '150px' }}
+                            InputProps={{
+                              startAdornment: <InputAdornment position="start">₦</InputAdornment>,
+                            }}
+                          />
+                          <TextField
+                            label="Label"
+                            value={price.label}
+                            onChange={(e) => handleUpdatePrice(price.id!, { label: e.target.value })}
+                            size="small"
+                            sx={{ flexGrow: 1 }}
+                            placeholder="e.g., Standard, Premium, Deluxe"
+                          />
+                          <TextField
+                            label="Order"
+                            type="number"
+                            value={price.sortOrder}
+                            onChange={(e) => handleUpdatePrice(price.id!, { sortOrder: parseInt(e.target.value) || 0 })}
+                            size="small"
+                            sx={{ width: '80px' }}
+                            helperText="Display order"
+                          />
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={price.isActive}
+                                onChange={(e) => handleUpdatePrice(price.id!, { isActive: e.target.checked })}
+                                size="small"
+                              />
+                            }
+                            label="Active"
+                            labelPlacement="top"
+                          />
+                          <IconButton 
+                            color="error" 
+                            onClick={() => handleDeletePrice(price.id!)} 
+                            size="small"
+                            sx={{ ml: 1 }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
+
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Button 
+                      startIcon={<AddIcon />} 
+                      onClick={handleAddPrice} 
+                      variant="outlined"
+                    >
+                      Add New Price
+                    </Button>
+                    <Button 
+                      variant="contained" 
+                      onClick={handleSavePrices}
+                    >
+                      All Changes Saved ✓
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
             </Grid>
           </Grid>
         </Box>

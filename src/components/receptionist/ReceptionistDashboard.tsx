@@ -28,7 +28,7 @@ import {
 } from '@mui/icons-material';
 import { ReceptionistSale, Notification } from '../../types/sales-log';
 import { Employee } from '../../types';
-import { Settings, DEFAULT_SETTINGS } from '../../types';
+import { Settings, DEFAULT_SETTINGS, BagPrice } from '../../types';
 import { apiService } from '../../services/apiService';
 import { authService } from '../../services/authService';
 import { AuditService } from '../../services/auditService';
@@ -40,6 +40,7 @@ export default function ReceptionistDashboard() {
   const [sales, setSales] = useState<ReceptionistSale[]>([]);
   const [drivers, setDrivers] = useState<Employee[]>([]);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [bagPrices, setBagPrices] = useState<BagPrice[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -56,6 +57,9 @@ export default function ReceptionistDashboard() {
     bagsAtPrice2: '',
     notes: '',
   });
+
+  // Dynamic price breakdown state (for new dynamic pricing system)
+  const [priceBreakdown, setPriceBreakdown] = useState<{ [priceId: number]: string }>({});
 
   useEffect(() => {
     loadData();
@@ -83,15 +87,20 @@ export default function ReceptionistDashboard() {
       const twoDaysAgo = startOfDay(subDays(new Date(), 2));
       const today = endOfDay(new Date());
 
-      const [salesData, employeesData, settingsData] = await Promise.all([
+      const [salesData, employeesData, settingsData, bagPricesData] = await Promise.all([
         apiService.getReceptionistSales(twoDaysAgo, today),
         apiService.getEmployees(),
         apiService.getSettings(),
+        apiService.getBagPrices(),
       ]);
 
       setSales(salesData);
       setDrivers(employeesData.filter(e => e.role === 'Driver'));
       setSettings(settingsData || DEFAULT_SETTINGS);
+      
+      // Filter and sort active bag prices
+      const activePrices = bagPricesData.filter(p => p.isActive).sort((a, b) => a.sortOrder - b.sortOrder);
+      setBagPrices(activePrices);
     } catch (error) {
       console.error('Error loading data:', error);
     }
@@ -106,6 +115,12 @@ export default function ReceptionistDashboard() {
       bagsAtPrice2: '',
       notes: '',
     });
+    // Initialize dynamic price breakdown
+    const initialBreakdown: { [priceId: number]: string } = {};
+    bagPrices.forEach(price => {
+      initialBreakdown[price.id!] = '';
+    });
+    setPriceBreakdown(initialBreakdown);
     setOpen(true);
   };
 
@@ -115,9 +130,18 @@ export default function ReceptionistDashboard() {
   };
 
   const handleSubmit = () => {
-    const bags1 = parseInt(formData.bagsAtPrice1) || 0;
-    const bags2 = parseInt(formData.bagsAtPrice2) || 0;
-    const totalBags = bags1 + bags2;
+    // Calculate total bags from dynamic price breakdown
+    const breakdown = bagPrices.map(price => {
+      const bags = parseInt(priceBreakdown[price.id!]) || 0;
+      return {
+        priceId: price.id!,
+        amount: price.amount,
+        bags,
+        label: price.label,
+      };
+    }).filter(item => item.bags > 0);
+
+    const totalBags = breakdown.reduce((sum, item) => sum + item.bags, 0);
 
     if (totalBags === 0) {
       alert('Please enter at least one bag count');
@@ -138,6 +162,10 @@ export default function ReceptionistDashboard() {
 
     const selectedDriver = formData.driverId ? drivers.find(d => d.id?.toString() === formData.driverId) : null;
 
+    // For backward compatibility, still populate bagsAtPrice1 and bagsAtPrice2
+    const bags1 = breakdown.length > 0 ? breakdown[0].bags : 0;
+    const bags2 = breakdown.length > 1 ? breakdown[1].bags : 0;
+
     const sale: Omit<ReceptionistSale, 'id' | 'submittedAt' | 'submittedBy' | 'isSubmitted' | 'createdAt' | 'updatedAt'> = {
       date: formData.date,
       saleType: formData.saleType,
@@ -146,6 +174,7 @@ export default function ReceptionistDashboard() {
       bagsAtPrice1: bags1,
       bagsAtPrice2: bags2,
       totalBags: totalBags,
+      priceBreakdown: breakdown,
       notes: formData.notes || undefined,
     };
 
@@ -260,7 +289,16 @@ export default function ReceptionistDashboard() {
           </Box>
         </Box>
         
-        {(sale.bagsAtPrice1 > 0 || sale.bagsAtPrice2 > 0) && (
+        {/* Display Dynamic Price Breakdown or Fallback to Legacy */}
+        {sale.priceBreakdown && sale.priceBreakdown.length > 0 ? (
+          <Box sx={{ mb: 1 }}>
+            {sale.priceBreakdown.map((item, idx) => (
+              <Typography key={idx} variant="body2">
+                @ ₦{item.amount.toLocaleString()}/bag {item.label ? `(${item.label})` : ''}: {item.bags.toLocaleString()} bags
+              </Typography>
+            ))}
+          </Box>
+        ) : (sale.bagsAtPrice1 > 0 || sale.bagsAtPrice2 > 0) && (
           <Box sx={{ mb: 1 }}>
             {sale.bagsAtPrice1 > 0 && (
               <Typography variant="body2">
@@ -561,23 +599,6 @@ export default function ReceptionistDashboard() {
               value={formData.saleType}
               onChange={(e) => setFormData({ ...formData, saleType: e.target.value as any, driverId: '' })}
               required
-              SelectProps={{
-                MenuProps: {
-                  PaperProps: {
-                    style: {
-                      maxHeight: 300,
-                    },
-                  },
-                  anchorOrigin: {
-                    vertical: "bottom",
-                    horizontal: "left"
-                  },
-                  transformOrigin: {
-                    vertical: "top",
-                    horizontal: "left"
-                  }
-                }
-              }}
             >
               <MenuItem value="driver">Driver Sale</MenuItem>
               <MenuItem value="general">General Sales</MenuItem>
@@ -592,24 +613,6 @@ export default function ReceptionistDashboard() {
                 value={formData.driverId}
                 onChange={(e) => setFormData({ ...formData, driverId: e.target.value })}
                 required
-                SelectProps={{
-                  MenuProps: {
-                    PaperProps: {
-                      style: {
-                        maxHeight: 300,
-                      },
-                    },
-                    anchorOrigin: {
-                      vertical: "bottom",
-                      horizontal: "left"
-                    },
-                    transformOrigin: {
-                      vertical: "top",
-                      horizontal: "left"
-                    },
-                    getContentAnchorEl: null
-                  }
-                }}
               >
                 <MenuItem value="">Select Driver</MenuItem>
                 {drivers.map((driver) => (
@@ -620,23 +623,18 @@ export default function ReceptionistDashboard() {
               </TextField>
             )}
 
-            <TextField
-              label={`Bags at ₦${settings.salesPrice1}`}
-              fullWidth
-              type="number"
-              value={formData.bagsAtPrice1}
-              onChange={(e) => setFormData({ ...formData, bagsAtPrice1: e.target.value })}
-              inputProps={{ min: 0, step: 1 }}
-            />
-
-            <TextField
-              label={`Bags at ₦${settings.salesPrice2}`}
-              fullWidth
-              type="number"
-              value={formData.bagsAtPrice2}
-              onChange={(e) => setFormData({ ...formData, bagsAtPrice2: e.target.value })}
-              inputProps={{ min: 0, step: 1 }}
-            />
+            {/* Dynamic Bag Price Inputs */}
+            {bagPrices.map((price) => (
+              <TextField
+                key={price.id}
+                label={`Bags at ₦${price.amount.toLocaleString()} ${price.label ? `(${price.label})` : ''}`}
+                fullWidth
+                type="number"
+                value={priceBreakdown[price.id!] || ''}
+                onChange={(e) => setPriceBreakdown({ ...priceBreakdown, [price.id!]: e.target.value })}
+                inputProps={{ min: 0, step: 1 }}
+              />
+            ))}
 
             <TextField
               label="Notes (Optional)"
@@ -672,12 +670,23 @@ export default function ReceptionistDashboard() {
                 <strong>Type:</strong> {pendingSale.saleType === 'driver' ? pendingSale.driverName : 
                                         pendingSale.saleType === 'general' ? 'General Sales' : 'Mini Store Dispatch'}
               </Typography>
-              <Typography variant="body2" gutterBottom>
-                <strong>Bags at ₦{settings.salesPrice1}:</strong> {pendingSale.bagsAtPrice1.toLocaleString()}
-              </Typography>
-              <Typography variant="body2" gutterBottom>
-                <strong>Bags at ₦{settings.salesPrice2}:</strong> {pendingSale.bagsAtPrice2.toLocaleString()}
-              </Typography>
+              {/* Dynamic Price Breakdown Display */}
+              {pendingSale.priceBreakdown && pendingSale.priceBreakdown.length > 0 ? (
+                pendingSale.priceBreakdown.map((item, idx) => (
+                  <Typography key={idx} variant="body2" gutterBottom>
+                    <strong>Bags at ₦{item.amount.toLocaleString()} {item.label ? `(${item.label})` : ''}:</strong> {item.bags.toLocaleString()}
+                  </Typography>
+                ))
+              ) : (
+                <>
+                  <Typography variant="body2" gutterBottom>
+                    <strong>Bags at ₦{settings.salesPrice1}:</strong> {pendingSale.bagsAtPrice1.toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" gutterBottom>
+                    <strong>Bags at ₦{settings.salesPrice2}:</strong> {pendingSale.bagsAtPrice2.toLocaleString()}
+                  </Typography>
+                </>
+              )}
               <Typography variant="h6" sx={{ mt: 2 }}>
                 <strong>Total Bags:</strong> {pendingSale.totalBags.toLocaleString()}
               </Typography>

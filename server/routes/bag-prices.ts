@@ -8,7 +8,7 @@ function transformBagPrice(price: any) {
   if (!price) return null;
   return {
     id: price.id,
-    price: parseFloat(price.price),
+    amount: parseFloat(price.price), // Frontend uses 'amount', DB uses 'price'
     label: price.label,
     sortOrder: price.sort_order,
     isActive: price.is_active === 1 || price.is_active === true,
@@ -71,9 +71,11 @@ router.get('/:id', async (req, res) => {
 // Create new bag price
 router.post('/', async (req, res) => {
   try {
-    const { price, label, sortOrder } = req.body;
+    // Frontend sends 'amount', DB uses 'price'
+    const priceValue = req.body.amount || req.body.price;
+    const { label, sortOrder, isActive } = req.body;
 
-    if (!price || price <= 0) {
+    if (!priceValue || priceValue < 0) {
       return res.status(400).json({
         success: false,
         message: 'Valid price is required'
@@ -81,10 +83,10 @@ router.post('/', async (req, res) => {
     }
 
     const [id] = await db('bag_prices').insert({
-      price,
+      price: priceValue,
       label: label || null,
       sort_order: sortOrder || 0,
-      is_active: 1,
+      is_active: isActive !== undefined ? (isActive ? 1 : 0) : 1,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     });
@@ -113,6 +115,8 @@ router.put('/:id', async (req, res) => {
       updated_at: new Date().toISOString()
     };
 
+    // Frontend sends 'amount', DB uses 'price'
+    if (req.body.amount !== undefined) updateData.price = req.body.amount;
     if (req.body.price !== undefined) updateData.price = req.body.price;
     if (req.body.label !== undefined) updateData.label = req.body.label;
     if (req.body.sortOrder !== undefined) updateData.sort_order = req.body.sortOrder;

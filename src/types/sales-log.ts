@@ -1,3 +1,11 @@
+// Price Breakdown Entry for dynamic pricing
+export interface PriceBreakdown {
+  priceId: number; // Reference to bag_prices.id
+  amount: number; // The price per bag (e.g., 250, 270, 300)
+  bags: number; // Number of bags at this price
+  label?: string; // Optional label (e.g., "Standard", "Premium")
+}
+
 // Receptionist Sales Entry
 export interface ReceptionistSale {
   id?: number;
@@ -5,8 +13,9 @@ export interface ReceptionistSale {
   driverId?: number; // null for general sales or mini store dispatch
   driverName?: string;
   saleType: 'driver' | 'general' | 'mini_store';
-  bagsAtPrice1: number; // Bags at first price (e.g., ₦250)
-  bagsAtPrice2: number; // Bags at second price (e.g., ₦270)
+  bagsAtPrice1: number; // DEPRECATED - kept for backwards compatibility
+  bagsAtPrice2: number; // DEPRECATED - kept for backwards compatibility
+  priceBreakdown?: PriceBreakdown[]; // NEW - dynamic pricing
   totalBags: number;
   submittedBy: number; // Receptionist user ID
   submittedAt: Date;
@@ -48,6 +57,17 @@ export interface Settlement {
   notes?: string;
   createdAt?: Date;
   updatedAt?: Date;
+}
+
+// Settlement Payment (individual payment transaction)
+export interface SettlementPayment {
+  id?: number;
+  settlementId: number; // Link to settlement
+  amount: number; // Payment amount
+  paidBy: number; // Manager user ID who recorded payment
+  paidAt: Date; // When payment was made
+  notes?: string;
+  createdAt?: Date;
 }
 
 // Audit Log

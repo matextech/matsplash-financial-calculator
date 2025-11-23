@@ -248,6 +248,24 @@ class ApiService {
     });
   }
 
+  // Settlement Payment endpoints
+  async getSettlementPayments(settlementId: number) {
+    return this.request<any[]>(`/settlement-payments/settlement/${settlementId}`);
+  }
+
+  async createSettlementPayment(paymentData: any) {
+    return this.request('/settlement-payments', {
+      method: 'POST',
+      body: JSON.stringify(paymentData),
+    });
+  }
+
+  async deleteSettlementPayment(id: number) {
+    return this.request(`/settlement-payments/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Settings endpoints
   async getSettings() {
     return this.request<any>('/settings');

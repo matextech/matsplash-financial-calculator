@@ -9,6 +9,7 @@ import employeeRoutes from './routes/employees';
 import receptionistSalesRoutes from './routes/receptionist-sales';
 import storekeeperEntriesRoutes from './routes/storekeeper-entries';
 import settlementsRoutes from './routes/settlements';
+import settlementPaymentsRoutes from './routes/settlement-payments';
 import settingsRoutes from './routes/settings';
 import bagPricesRoutes from './routes/bag-prices';
 
@@ -36,6 +37,7 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/receptionist-sales', receptionistSalesRoutes);
 app.use('/api/storekeeper-entries', storekeeperEntriesRoutes);
 app.use('/api/settlements', settlementsRoutes);
+app.use('/api/settlement-payments', settlementPaymentsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/bag-prices', bagPricesRoutes);
 

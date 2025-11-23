@@ -212,6 +212,20 @@ export default async function setupDatabase(): Promise<void> {
         table.index('receptionist_sale_id');
       });
       
+      // Settlement payments table (tracks individual payment transactions)
+      await db.schema.createTable('settlement_payments', (table) => {
+        table.increments('id').primary();
+        table.integer('settlement_id').notNullable();
+        table.decimal('amount', 10, 2).notNullable();
+        table.integer('paid_by').notNullable(); // user_id who recorded the payment
+        table.timestamp('paid_at').notNullable();
+        table.text('notes');
+        table.timestamp('created_at').defaultTo(db.fn.now());
+        table.foreign('settlement_id').references('id').inTable('settlements').onDelete('CASCADE');
+        table.index('settlement_id');
+        table.index('paid_at');
+      });
+      
       // Audit logs table
       await db.schema.createTable('audit_logs', (table) => {
         table.increments('id').primary();
@@ -248,6 +262,38 @@ export default async function setupDatabase(): Promise<void> {
       });
       
       console.log('Database tables created successfully');
+    }
+    
+    // Check and create settlement_payments table if it doesn't exist (for existing databases)
+    const hasSettlementPaymentsTable = await db.schema.hasTable('settlement_payments');
+    if (!hasSettlementPaymentsTable) {
+      console.log('Creating settlement_payments table...');
+      await db.schema.createTable('settlement_payments', (table) => {
+        table.increments('id').primary();
+        table.integer('settlement_id').notNullable();
+        table.decimal('amount', 10, 2).notNullable();
+        table.integer('paid_by').notNullable(); // user_id who recorded the payment
+        table.timestamp('paid_at').notNullable();
+        table.text('notes');
+        table.timestamp('created_at').defaultTo(db.fn.now());
+        table.foreign('settlement_id').references('id').inTable('settlements').onDelete('CASCADE');
+        table.index('settlement_id');
+        table.index('paid_at');
+      });
+      console.log('settlement_payments table created successfully');
+    }
+    
+    // Add price_breakdown column to receptionist_sales for dynamic pricing (if it doesn't exist)
+    const hasReceptionistSales = await db.schema.hasTable('receptionist_sales');
+    if (hasReceptionistSales) {
+      const hasPriceBreakdown = await db.schema.hasColumn('receptionist_sales', 'price_breakdown');
+      if (!hasPriceBreakdown) {
+        console.log('Adding price_breakdown column to receptionist_sales...');
+        await db.schema.alterTable('receptionist_sales', (table) => {
+          table.text('price_breakdown'); // JSON: [{ priceId: 1, amount: 250, bags: 100 }, ...]
+        });
+        console.log('price_breakdown column added successfully');
+      }
     }
     
     // Initialize default users if they don't exist

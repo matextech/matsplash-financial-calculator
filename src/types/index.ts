@@ -76,8 +76,12 @@ export interface FinancialReport {
 
 export interface BagPrice {
   id?: number;
-  price: number;
+  amount: number; // Price per bag (e.g., 250, 270, 300)
   label?: string; // Optional label like "Standard", "Premium", etc.
+  sortOrder: number; // Display order
+  isActive: boolean; // Show/hide from users
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface Settings {
