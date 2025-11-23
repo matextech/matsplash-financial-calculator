@@ -575,8 +575,7 @@ export default function ReceptionistDashboard() {
                   transformOrigin: {
                     vertical: "top",
                     horizontal: "left"
-                  },
-                  getContentAnchorEl: null
+                  }
                 }
               }}
             >
