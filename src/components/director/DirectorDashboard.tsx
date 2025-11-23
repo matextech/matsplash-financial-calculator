@@ -43,6 +43,8 @@ import {
   FilterList as FilterIcon,
   ChevronLeft,
   ChevronRight,
+  Visibility as VisibilityIcon,
+  Info as InfoIcon,
 } from '@mui/icons-material';
 import { User } from '../../types/auth';
 import { ReceptionistSale, StorekeeperEntry, Settlement, AuditLog } from '../../types/sales-log';
@@ -66,7 +68,30 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
   const [sales, setSales] = useState<ReceptionistSale[]>([]);
   const [entries, setEntries] = useState<StorekeeperEntry[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [settlementPayments, setSettlementPayments] = useState<{ [settlementId: number]: any[] }>({});
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [selectedSettlement, setSelectedSettlement] = useState<Settlement | null>(null);
+  const [settlementDetailsOpen, setSettlementDetailsOpen] = useState(false);
+  
+  // Load settlement payments when dialog opens
+  useEffect(() => {
+    if (settlementDetailsOpen && selectedSettlement?.id && !settlementPayments[selectedSettlement.id]) {
+      apiService.getSettlementPayments(selectedSettlement.id)
+        .then(data => {
+          setSettlementPayments(prev => ({
+            ...prev,
+            [selectedSettlement.id!]: data || []
+          }));
+        })
+        .catch(error => {
+          console.error('Error loading payments:', error);
+          setSettlementPayments(prev => ({
+            ...prev,
+            [selectedSettlement.id!]: []
+          }));
+        });
+    }
+  }, [settlementDetailsOpen, selectedSettlement?.id]);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [bagPrices, setBagPrices] = useState<BagPrice[]>([]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -719,34 +744,286 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
                                 viewMode === 'day' ? format(selectedDate, 'MMM d, yyyy') : 
                                 `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}`}
               </Typography>
+              
+              {/* Summary Cards */}
               <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} sm={6} md={3}>
                   <Card>
                     <CardContent>
-                      <Typography variant="h6">Total Sales</Typography>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Total Sales
+                      </Typography>
                       <Typography variant="h4">{filteredSales.length}</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} sm={6} md={3}>
                   <Card>
                     <CardContent>
-                      <Typography variant="h6">Total Settlements</Typography>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Total Settlements
+                      </Typography>
                       <Typography variant="h4">{settlements.length}</Typography>
                     </CardContent>
                   </Card>
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} sm={6} md={3}>
                   <Card>
                     <CardContent>
-                      <Typography variant="h6">Settled Amount</Typography>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Total Settled
+                      </Typography>
                       <Typography variant="h4">
                         {formatCurrency(settlements.reduce((sum, s) => sum + s.settledAmount, 0))}
                       </Typography>
                     </CardContent>
                   </Card>
                 </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Pending Balance
+                      </Typography>
+                      <Typography variant="h4" color="warning.main">
+                        {formatCurrency(settlements.reduce((sum, s) => sum + s.remainingBalance, 0))}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Fully Settled
+                      </Typography>
+                      <Typography variant="h4" color="success.main">
+                        {settlements.filter(s => s.isSettled).length}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Partially Settled
+                      </Typography>
+                      <Typography variant="h4" color="warning.main">
+                        {settlements.filter(s => !s.isSettled && s.settledAmount > 0).length}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Unsettled
+                      </Typography>
+                      <Typography variant="h4" color="error.main">
+                        {settlements.filter(s => s.settledAmount === 0).length}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Card>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Total Expected
+                      </Typography>
+                      <Typography variant="h4">
+                        {formatCurrency(settlements.reduce((sum, s) => sum + s.expectedAmount, 0))}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
               </Grid>
+
+              {/* Sales with Settlement Status Table */}
+              <Typography variant="h6" sx={{ mb: 2, mt: 4 }}>
+                Sales & Settlement Status
+              </Typography>
+              <TableContainer component={Paper} sx={{ mb: 4 }}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Date</TableCell>
+                      <TableCell>Type</TableCell>
+                      <TableCell>Driver</TableCell>
+                      <TableCell>Price Breakdown</TableCell>
+                      <TableCell>Total Bags</TableCell>
+                      <TableCell>Expected Amount</TableCell>
+                      <TableCell>Settlement Status</TableCell>
+                      <TableCell>Settled Amount</TableCell>
+                      <TableCell>Balance</TableCell>
+                      <TableCell>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredSales.map((sale) => {
+                      const settlement = settlements.find(s => s.receptionistSaleId === sale.id);
+                      const expectedAmount = sale.expectedAmount || 0;
+                      return (
+                        <TableRow key={sale.id}>
+                          <TableCell>{format(new Date(sale.date), 'MMM d, yyyy')}</TableCell>
+                          <TableCell>
+                            {sale.saleType === 'driver' ? 'Driver Sale' :
+                             sale.saleType === 'general' ? 'General Sales' :
+                             sale.saleType === 'mini_store' ? 'Mini Store' : sale.saleType}
+                          </TableCell>
+                          <TableCell>{sale.driverName || 'N/A'}</TableCell>
+                          <TableCell>
+                            {sale.priceBreakdown && sale.priceBreakdown.length > 0 ? (
+                              <Box>
+                                {sale.priceBreakdown.map((item, idx) => (
+                                  <Typography key={idx} variant="body2">
+                                    {item.bags.toLocaleString()} @ ₦{item.amount.toLocaleString()}
+                                    {item.label ? ` (${item.label})` : ''}
+                                  </Typography>
+                                ))}
+                              </Box>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                {sale.bagsAtPrice1 > 0 && `${sale.bagsAtPrice1} @ ₦250`}
+                                {sale.bagsAtPrice1 > 0 && sale.bagsAtPrice2 > 0 && ', '}
+                                {sale.bagsAtPrice2 > 0 && `${sale.bagsAtPrice2} @ ₦270`}
+                                {!sale.bagsAtPrice1 && !sale.bagsAtPrice2 && 'N/A'}
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell>{sale.totalBags.toLocaleString()}</TableCell>
+                          <TableCell>{formatCurrency(expectedAmount)}</TableCell>
+                          <TableCell>
+                            {settlement ? (
+                              <Chip 
+                                label={settlement.isSettled ? 'Fully Settled' : 'Partially Settled'} 
+                                color={settlement.isSettled ? 'success' : 'warning'}
+                                size="small"
+                              />
+                            ) : (
+                              <Chip label="Not Settled" color="error" size="small" />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {settlement ? formatCurrency(settlement.settledAmount) : '₦0'}
+                          </TableCell>
+                          <TableCell>
+                            {settlement ? (
+                              <Typography 
+                                variant="body2" 
+                                color={settlement.remainingBalance > 0 ? 'warning.main' : 'success.main'}
+                                fontWeight="bold"
+                              >
+                                {formatCurrency(settlement.remainingBalance)}
+                              </Typography>
+                            ) : (
+                              <Typography variant="body2" color="error.main" fontWeight="bold">
+                                {formatCurrency(expectedAmount)}
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {settlement && (
+                              <IconButton 
+                                size="small" 
+                                onClick={() => {
+                                  setSelectedSettlement(settlement);
+                                  setSettlementDetailsOpen(true);
+                                }}
+                                color="primary"
+                              >
+                                <VisibilityIcon />
+                              </IconButton>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              {/* Settlements Table */}
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                All Settlements
+              </Typography>
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Date</TableCell>
+                      <TableCell>Sale Date</TableCell>
+                      <TableCell>Sale Type</TableCell>
+                      <TableCell>Driver</TableCell>
+                      <TableCell>Expected Amount</TableCell>
+                      <TableCell>Settled Amount</TableCell>
+                      <TableCell>Remaining Balance</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Payments</TableCell>
+                      <TableCell>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {settlements.map((settlement) => {
+                      const sale = sales.find(s => s.id === settlement.receptionistSaleId);
+                      const payments = settlementPayments[settlement.id!] || [];
+                      return (
+                        <TableRow key={settlement.id}>
+                          <TableCell>{format(new Date(settlement.date), 'MMM d, yyyy')}</TableCell>
+                          <TableCell>
+                            {sale ? format(new Date(sale.date), 'MMM d, yyyy') : 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            {sale ? (
+                              sale.saleType === 'driver' ? 'Driver Sale' :
+                              sale.saleType === 'general' ? 'General Sales' :
+                              sale.saleType === 'mini_store' ? 'Mini Store' : sale.saleType
+                            ) : 'N/A'}
+                          </TableCell>
+                          <TableCell>{sale?.driverName || 'N/A'}</TableCell>
+                          <TableCell>{formatCurrency(settlement.expectedAmount)}</TableCell>
+                          <TableCell>{formatCurrency(settlement.settledAmount)}</TableCell>
+                          <TableCell>
+                            <Typography 
+                              variant="body2" 
+                              color={settlement.remainingBalance > 0 ? 'warning.main' : 'success.main'}
+                              fontWeight="bold"
+                            >
+                              {formatCurrency(settlement.remainingBalance)}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip 
+                              label={settlement.isSettled ? 'Fully Settled' : 'Pending'} 
+                              color={settlement.isSettled ? 'success' : 'warning'}
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2">
+                              {settlementPayments[settlement.id!]?.length || 0} payment{(settlementPayments[settlement.id!]?.length || 0) !== 1 ? 's' : ''}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <IconButton 
+                              size="small" 
+                              onClick={() => {
+                                setSelectedSettlement(settlement);
+                                setSettlementDetailsOpen(true);
+                              }}
+                              color="primary"
+                            >
+                              <VisibilityIcon />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
             </Box>
           )}
 
@@ -1426,6 +1703,136 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
           <Button onClick={handleSaveEmployee} variant="contained">
             Save
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Settlement Details Dialog */}
+      <Dialog open={settlementDetailsOpen} onClose={() => setSettlementDetailsOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Settlement Details</DialogTitle>
+        <DialogContent>
+          {selectedSettlement && (() => {
+            const sale = sales.find(s => s.id === selectedSettlement.receptionistSaleId);
+            const paymentsList = settlementPayments[selectedSettlement.id!] || [];
+            return (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+                <Alert severity={selectedSettlement.isSettled ? 'success' : 'info'}>
+                  This settlement is {selectedSettlement.isSettled ? 'fully settled' : 'partially settled'}.
+                </Alert>
+
+                <Typography variant="h6">Sale Information</Typography>
+                <Box sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Sale Date:</strong> {sale ? format(new Date(sale.date), 'MMM d, yyyy') : 'N/A'}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Transaction Type:</strong> {
+                          sale ? (
+                            sale.saleType === 'driver' ? 'Driver Sale' :
+                            sale.saleType === 'general' ? 'General Sales' :
+                            sale.saleType === 'mini_store' ? 'Mini Store Dispatch' : sale.saleType
+                          ) : 'N/A'
+                        }
+                      </Typography>
+                    </Grid>
+                    {sale?.driverName && (
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          <strong>Driver:</strong> {sale.driverName}
+                        </Typography>
+                      </Grid>
+                    )}
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        <strong>Total Bags:</strong> {sale?.totalBags.toLocaleString() || 'N/A'}
+                      </Typography>
+                    </Grid>
+                    {sale?.priceBreakdown && sale.priceBreakdown.length > 0 && (
+                      <Grid item xs={12}>
+                        <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                          Price Breakdown:
+                        </Typography>
+                        {sale.priceBreakdown.map((item, idx) => (
+                          <Typography key={idx} variant="body2" sx={{ ml: 2, mb: 0.5 }}>
+                            • {item.bags.toLocaleString()} bags @ ₦{item.amount.toLocaleString()}
+                            {item.label ? ` (${item.label})` : ''}
+                            <span style={{ marginLeft: '8px', color: '#666' }}>
+                              = ₦{(item.bags * item.amount).toLocaleString()}
+                            </span>
+                          </Typography>
+                        ))}
+                      </Grid>
+                    )}
+                  </Grid>
+                </Box>
+
+                <Typography variant="h6">Settlement Summary</Typography>
+                <Box sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={4}>
+                      <Typography variant="body1" color="primary" sx={{ mb: 1 }}>
+                        <strong>Expected Amount:</strong> {formatCurrency(selectedSettlement.expectedAmount)}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <Typography variant="body1" color="success.main" sx={{ mb: 1 }}>
+                        <strong>Settled Amount:</strong> {formatCurrency(selectedSettlement.settledAmount)}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12} sm={4}>
+                      <Typography variant="body1" color={selectedSettlement.remainingBalance > 0 ? 'warning.main' : 'success.main'}>
+                        <strong>Remaining Balance:</strong> {formatCurrency(selectedSettlement.remainingBalance)}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                  {selectedSettlement.isSettled && selectedSettlement.settledAt && (
+                    <Typography variant="body2" color="success.main" sx={{ mt: 2 }}>
+                      ✓ Fully Settled on {format(new Date(selectedSettlement.settledAt), 'MMM d, yyyy h:mm a')}
+                    </Typography>
+                  )}
+                </Box>
+
+                {paymentsList.length > 0 && (
+                  <>
+                    <Typography variant="h6">Payment History</Typography>
+                    <TableContainer component={Paper}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Date</TableCell>
+                            <TableCell>Amount</TableCell>
+                            <TableCell>Paid By</TableCell>
+                            <TableCell>Notes</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {paymentsList.map((payment) => {
+                            const paidByUser = allUsers.find(u => u.id === payment.paidBy);
+                            return (
+                              <TableRow key={payment.id}>
+                                <TableCell>
+                                  {format(new Date(payment.paidAt), 'MMM d, yyyy h:mm a')}
+                                </TableCell>
+                                <TableCell>{formatCurrency(payment.amount)}</TableCell>
+                                <TableCell>{paidByUser?.name || `User #${payment.paidBy}`}</TableCell>
+                                <TableCell>{payment.notes || '-'}</TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </>
+                )}
+              </Box>
+            );
+          })()}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSettlementDetailsOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>
