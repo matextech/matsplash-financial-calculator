@@ -532,6 +532,9 @@ export default function StorekeeperDashboard() {
                 packerId: ''
               })}
               required
+              SelectProps={{
+                native: false,
+              }}
             >
               <MenuItem value="driver_pickup">Driver Pickup</MenuItem>
               <MenuItem value="general_sales">General Sales</MenuItem>
@@ -547,6 +550,9 @@ export default function StorekeeperDashboard() {
                 value={formData.driverId}
                 onChange={(e) => setFormData({ ...formData, driverId: e.target.value })}
                 required
+                SelectProps={{
+                  native: false,
+                }}
               >
                 <MenuItem value="">Select Driver</MenuItem>
                 {drivers.map((driver) => (
@@ -565,6 +571,9 @@ export default function StorekeeperDashboard() {
                 value={formData.packerId}
                 onChange={(e) => setFormData({ ...formData, packerId: e.target.value })}
                 required
+                SelectProps={{
+                  native: false,
+                }}
               >
                 <MenuItem value="">Select Packer</MenuItem>
                 {packers.map((packer) => (

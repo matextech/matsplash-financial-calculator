@@ -561,6 +561,9 @@ export default function ReceptionistDashboard() {
               value={formData.saleType}
               onChange={(e) => setFormData({ ...formData, saleType: e.target.value as any, driverId: '' })}
               required
+              SelectProps={{
+                native: false,
+              }}
             >
               <MenuItem value="driver">Driver Sale</MenuItem>
               <MenuItem value="general">General Sales</MenuItem>
@@ -575,6 +578,9 @@ export default function ReceptionistDashboard() {
                 value={formData.driverId}
                 onChange={(e) => setFormData({ ...formData, driverId: e.target.value })}
                 required
+                SelectProps={{
+                  native: false,
+                }}
               >
                 <MenuItem value="">Select Driver</MenuItem>
                 {drivers.map((driver) => (
