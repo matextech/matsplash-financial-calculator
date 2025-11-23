@@ -27,7 +27,7 @@ export class FinancialCalculator {
     // Calculate revenue
     const totalRevenue = sales.reduce((sum, sale) => sum + sale.totalAmount, 0);
 
-    // Calculate expenses
+    // Calculate expenses - ensure ALL expenses are captured
     // Filter for fuel expenses (generator fuel)
     const fuelCosts = expenses
       .filter(e => {
@@ -44,24 +44,56 @@ export class FinancialCalculator {
       })
       .reduce((sum, e) => sum + (e.amount || 0), 0);
 
+    // Filter for other expenses - use same robust pattern
+    const otherExpenses = expenses
+      .filter(e => {
+        const type = e.type || (e as any).type;
+        return type === 'other';
+      })
+      .reduce((sum, e) => sum + (e.amount || 0), 0);
+
+    // Catch-all for any expenses that don't match known types (safety net)
+    const uncategorizedExpenses = expenses
+      .filter(e => {
+        const type = e.type || (e as any).type;
+        return type !== 'fuel' && 
+               type !== 'generator_fuel' && 
+               type !== 'driver_fuel' && 
+               type !== 'driver_payment' && 
+               type !== 'other';
+      })
+      .reduce((sum, e) => sum + (e.amount || 0), 0);
+
+    // Log comprehensive expense breakdown for debugging
     console.log('FinancialCalculator - Expense breakdown:', {
-      totalExpenses: expenses.length,
-      fuelExpenses: expenses.filter(e => {
+      totalExpensesCount: expenses.length,
+      fuelExpensesCount: expenses.filter(e => {
         const type = e.type || (e as any).type;
         return type === 'fuel' || type === 'generator_fuel';
       }).length,
-      driverFuelExpenses: expenses.filter(e => {
+      driverFuelExpensesCount: expenses.filter(e => {
         const type = e.type || (e as any).type;
         return type === 'driver_fuel' || type === 'driver_payment';
       }).length,
+      otherExpensesCount: expenses.filter(e => {
+        const type = e.type || (e as any).type;
+        return type === 'other';
+      }).length,
+      uncategorizedExpensesCount: expenses.filter(e => {
+        const type = e.type || (e as any).type;
+        return type !== 'fuel' && 
+               type !== 'generator_fuel' && 
+               type !== 'driver_fuel' && 
+               type !== 'driver_payment' && 
+               type !== 'other';
+      }).length,
       fuelCosts,
       driverPayments,
+      otherExpenses,
+      uncategorizedExpenses,
+      totalExpensesAmount: fuelCosts + driverPayments + otherExpenses + uncategorizedExpenses,
       dateRange: { start: startDate, end: endDate }
     });
-
-    const otherExpenses = expenses
-      .filter(e => e.type === 'other')
-      .reduce((sum, e) => sum + e.amount, 0);
 
     // Calculate actual material purchase costs for this period
     let materialCosts = 0;
@@ -133,9 +165,14 @@ export class FinancialCalculator {
     const totalSalaries = salaryPayments.reduce((sum, payment) => sum + payment.totalAmount, 0);
 
     // Calculate total expenses
-    // Include actual material purchase costs (materialCosts) in total expenses
-    // This represents the actual cash outflow for materials purchased in this period
-    const totalExpenses = fuelCosts + driverPayments + otherExpenses + materialCosts + totalSalaries;
+    // Include ALL expense categories:
+    // 1. Fuel costs (generator fuel)
+    // 2. Driver payments (driver fuel/payments)
+    // 3. Other expenses
+    // 4. Uncategorized expenses (safety net for any unknown types)
+    // 5. Material purchase costs (actual cash outflow for materials)
+    // 6. Salary payments
+    const totalExpenses = fuelCosts + driverPayments + otherExpenses + uncategorizedExpenses + materialCosts + totalSalaries;
 
     // Calculate profit
     const profit = totalRevenue - totalExpenses;
