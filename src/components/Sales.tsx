@@ -34,7 +34,7 @@ import {
   TrendingUp,
   LocalShipping,
 } from '@mui/icons-material';
-import { Sale, Employee, Settings, DEFAULT_SETTINGS, MaterialPrice } from '../types';
+import { Sale, Employee, Settings, DEFAULT_SETTINGS, MaterialPrice, BagPrice } from '../types';
 import { dbService } from '../services/database';
 import { apiService } from '../services/apiService';
 import { format, startOfDay, endOfDay, isSameDay, isToday, addDays, subDays } from 'date-fns';
@@ -56,6 +56,7 @@ export default function Sales() {
   const [materialPrices, setMaterialPrices] = useState<MaterialPrice[]>([]);
   const [sachetRollPrices, setSachetRollPrices] = useState<MaterialPrice[]>([]);
   const [packingNylonPrices, setPackingNylonPrices] = useState<MaterialPrice[]>([]);
+  const [bagPrices, setBagPrices] = useState<BagPrice[]>([]);
   
   const [formData, setFormData] = useState({
     driverName: '',
@@ -75,6 +76,7 @@ export default function Sales() {
     loadEmployees();
     loadSettings();
     loadMaterialPrices();
+    loadBagPrices();
   }, []);
 
   const loadMaterialPrices = async () => {
@@ -91,6 +93,18 @@ export default function Sales() {
       setMaterialPrices([]);
       setSachetRollPrices([]);
       setPackingNylonPrices([]);
+    }
+  };
+
+  const loadBagPrices = async () => {
+    try {
+      const prices = await apiService.getBagPrices();
+      const pricesArray = Array.isArray(prices) ? prices : (prices?.data || []);
+      setBagPrices(pricesArray.filter((p: BagPrice) => p.isActive));
+    } catch (error) {
+      console.error('Error loading bag prices:', error);
+      // Fallback to settings if bag prices fail
+      setBagPrices([]);
     }
   };
 
@@ -246,14 +260,18 @@ export default function Sales() {
       // Check if this is a general/factory sale
       const isGeneralSale = sale.driverName === 'General/Factory' || !sale.employeeId;
       
+      // Find which bag price this sale matches, or use combined
+      const matchingPrice = bagPrices.find(p => p.amount === pricePerBag);
+      const isCombined = !matchingPrice;
+      
       setFormData({
         driverName: isGeneralSale ? 'General' : sale.driverName,
         driverEmail: sale.driverEmail || '',
         date: saleDate,
-        bagsAtPrice1: pricePerBag === settings.salesPrice1 ? sale.bagsSold.toString() : '',
-        bagsAtPrice2: pricePerBag === settings.salesPrice2 ? sale.bagsSold.toString() : '',
-        combinedBags: (pricePerBag !== settings.salesPrice1 && pricePerBag !== settings.salesPrice2) ? sale.bagsSold.toString() : '',
-        combinedPrice: (pricePerBag !== settings.salesPrice1 && pricePerBag !== settings.salesPrice2) ? pricePerBag.toString() : settings.salesPrice1.toString(),
+        bagsAtPrice1: matchingPrice && matchingPrice.id === bagPrices[0]?.id ? sale.bagsSold.toString() : '',
+        bagsAtPrice2: matchingPrice && matchingPrice.id === bagPrices[1]?.id ? sale.bagsSold.toString() : '',
+        combinedBags: isCombined ? sale.bagsSold.toString() : '',
+        combinedPrice: isCombined ? pricePerBag.toString() : (bagPrices[0]?.amount || settings.salesPrice1).toString(),
         notes: sale.notes || '',
         sachetRollPriceId: sale.sachetRollPriceId || '',
         packingNylonPriceId: sale.packingNylonPriceId || '',
@@ -422,8 +440,8 @@ export default function Sales() {
             driverEmail: isGeneralSaleEdit ? undefined : formData.driverEmail?.trim() || undefined,
             employeeId: isGeneralSaleEdit ? undefined : matchingEmployee?.id,
             bagsSold: bagsAtPrice2,
-            pricePerBag: settings.salesPrice2,
-            totalAmount: bagsAtPrice2 * settings.salesPrice2,
+            pricePerBag: bagPrices[1]?.amount || settings.salesPrice2,
+            totalAmount: bagsAtPrice2 * (bagPrices[1]?.amount || settings.salesPrice2),
             date: formData.date,
             notes: formData.notes?.trim() || undefined,
             sachetRollPriceId: formData.sachetRollPriceId ? parseInt(String(formData.sachetRollPriceId)) : undefined,
@@ -463,7 +481,10 @@ export default function Sales() {
           }
           return;
         } else {
-          alert(`Please enter at least one sale entry (bags at ₦${settings.salesPrice1}, ₦${settings.salesPrice2}, or combined).`);
+          const priceList = bagPrices.length > 0 
+            ? bagPrices.map(p => `₦${p.amount}`).join(', ')
+            : `₦${settings.salesPrice1}, ₦${settings.salesPrice2}`;
+          alert(`Please enter at least one sale entry (bags at ${priceList}, or combined).`);
           return;
         }
       } else {
@@ -847,43 +868,87 @@ export default function Sales() {
               placeholder="driver@example.com"
             />
 
-            <Divider>Bags at ₦{settings.salesPrice1}</Divider>
-            
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor: 'success.50', borderRadius: 1 }}>
-              <TextField
-                label={`Bags Sold at ₦${settings.salesPrice1}`}
-                fullWidth
-                type="number"
-                value={formData.bagsAtPrice1}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  // Preserve the exact value as string, only validate on submit
-                  setFormData({ ...formData, bagsAtPrice1: value });
-                }}
-                inputProps={{ min: 0, step: 1 }}
-                placeholder="Enter number of bags"
-                helperText={formData.bagsAtPrice1 ? `${formData.bagsAtPrice1} bags × ₦${settings.salesPrice1} = ${formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice1 || '0')) * settings.salesPrice1)}` : `Optional: Enter bags sold at ₦${settings.salesPrice1}`}
-              />
-            </Box>
+            {/* Dynamic Bag Prices - Show first two active prices */}
+            {bagPrices.length > 0 && bagPrices[0] && (
+              <>
+                <Divider>Bags at ₦{bagPrices[0].amount} {bagPrices[0].label ? `(${bagPrices[0].label})` : ''}</Divider>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor: 'success.50', borderRadius: 1 }}>
+                  <TextField
+                    label={`Bags Sold at ₦${bagPrices[0].amount}`}
+                    fullWidth
+                    type="number"
+                    value={formData.bagsAtPrice1}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData({ ...formData, bagsAtPrice1: value });
+                    }}
+                    inputProps={{ min: 0, step: 1 }}
+                    placeholder="Enter number of bags"
+                    helperText={formData.bagsAtPrice1 ? `${formData.bagsAtPrice1} bags × ₦${bagPrices[0].amount} = ${formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice1 || '0')) * bagPrices[0].amount)}` : `Optional: Enter bags sold at ₦${bagPrices[0].amount}`}
+                  />
+                </Box>
+              </>
+            )}
 
-            <Divider>Bags at ₦{settings.salesPrice2}</Divider>
+            {bagPrices.length > 1 && bagPrices[1] && (
+              <>
+                <Divider>Bags at ₦{bagPrices[1].amount} {bagPrices[1].label ? `(${bagPrices[1].label})` : ''}</Divider>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor: 'info.50', borderRadius: 1 }}>
+                  <TextField
+                    label={`Bags Sold at ₦${bagPrices[1].amount}`}
+                    fullWidth
+                    type="number"
+                    value={formData.bagsAtPrice2}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData({ ...formData, bagsAtPrice2: value });
+                    }}
+                    inputProps={{ min: 0, step: 1 }}
+                    placeholder="Enter number of bags"
+                    helperText={formData.bagsAtPrice2 ? `${formData.bagsAtPrice2} bags × ₦${bagPrices[1].amount} = ${formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice2 || '0')) * bagPrices[1].amount)}` : `Optional: Enter bags sold at ₦${bagPrices[1].amount}`}
+                  />
+                </Box>
+              </>
+            )}
 
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor: 'info.50', borderRadius: 1 }}>
-              <TextField
-                label={`Bags Sold at ₦${settings.salesPrice2}`}
-                fullWidth
-                type="number"
-                value={formData.bagsAtPrice2}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  // Preserve the exact value as string, only validate on submit
-                  setFormData({ ...formData, bagsAtPrice2: value });
-                }}
-                inputProps={{ min: 0, step: 1 }}
-                placeholder="Enter number of bags"
-                helperText={formData.bagsAtPrice2 ? `${formData.bagsAtPrice2} bags × ₦${settings.salesPrice2} = ${formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice2 || '0')) * settings.salesPrice2)}` : `Optional: Enter bags sold at ₦${settings.salesPrice2}`}
-              />
-            </Box>
+            {/* Fallback to settings if no bag prices loaded */}
+            {bagPrices.length === 0 && (
+              <>
+                <Divider>Bags at ₦{settings.salesPrice1}</Divider>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor: 'success.50', borderRadius: 1 }}>
+                  <TextField
+                    label={`Bags Sold at ₦${settings.salesPrice1}`}
+                    fullWidth
+                    type="number"
+                    value={formData.bagsAtPrice1}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData({ ...formData, bagsAtPrice1: value });
+                    }}
+                    inputProps={{ min: 0, step: 1 }}
+                    placeholder="Enter number of bags"
+                    helperText={formData.bagsAtPrice1 ? `${formData.bagsAtPrice1} bags × ₦${settings.salesPrice1} = ${formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice1 || '0')) * settings.salesPrice1)}` : `Optional: Enter bags sold at ₦${settings.salesPrice1}`}
+                  />
+                </Box>
+
+                <Divider>Bags at ₦{settings.salesPrice2}</Divider>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, backgroundColor: 'info.50', borderRadius: 1 }}>
+                  <TextField
+                    label={`Bags Sold at ₦${settings.salesPrice2}`}
+                    fullWidth
+                    type="number"
+                    value={formData.bagsAtPrice2}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData({ ...formData, bagsAtPrice2: value });
+                    }}
+                    inputProps={{ min: 0, step: 1 }}
+                    placeholder="Enter number of bags"
+                    helperText={formData.bagsAtPrice2 ? `${formData.bagsAtPrice2} bags × ₦${settings.salesPrice2} = ${formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice2 || '0')) * settings.salesPrice2)}` : `Optional: Enter bags sold at ₦${settings.salesPrice2}`}
+                  />
+                </Box>
+              </>
+            )}
 
             <Divider>Combined Entry (Other Prices)</Divider>
 
@@ -937,8 +1002,8 @@ export default function Sales() {
               )}
               <Typography variant="body2" fontWeight="bold" sx={{ mt: 1 }}>
                 Grand Total: {formatCurrency(
-                  Math.floor(parseFloat(formData.bagsAtPrice1 || '0')) * settings.salesPrice1 +
-                  Math.floor(parseFloat(formData.bagsAtPrice2 || '0')) * settings.salesPrice2 +
+                  Math.floor(parseFloat(formData.bagsAtPrice1 || '0')) * (bagPrices[0]?.amount || settings.salesPrice1) +
+                  Math.floor(parseFloat(formData.bagsAtPrice2 || '0')) * (bagPrices[1]?.amount || settings.salesPrice2) +
                   Math.floor(parseFloat(formData.combinedBags || '0')) * parseFloat(formData.combinedPrice || '0')
                 )}
               </Typography>
