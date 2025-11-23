@@ -46,7 +46,7 @@ function App() {
         await Promise.race([
           dbService.init(),
           new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Database initialization timeout')), 10000)
+            setTimeout(() => reject(new Error('Database initialization timeout')), 30000)
           )
         ]);
         console.log('Database initialized successfully');
