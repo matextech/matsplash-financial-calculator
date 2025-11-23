@@ -62,8 +62,7 @@ export default function Sales() {
     driverName: '',
     driverEmail: '',
     date: new Date(),
-    bagsAtPrice1: '',
-    bagsAtPrice2: '',
+    bagsByPriceId: {} as { [priceId: number]: string }, // Dynamic: priceId -> bags count
     combinedBags: '',
     combinedPrice: '',
     notes: '',
@@ -264,12 +263,17 @@ export default function Sales() {
       const matchingPrice = bagPrices.find(p => p.amount === pricePerBag);
       const isCombined = !matchingPrice;
       
+      // Build bagsByPriceId object - set the matching price's bags
+      const bagsByPriceId: { [priceId: number]: string } = {};
+      if (matchingPrice && matchingPrice.id) {
+        bagsByPriceId[matchingPrice.id] = sale.bagsSold.toString();
+      }
+      
       setFormData({
         driverName: isGeneralSale ? 'General' : sale.driverName,
         driverEmail: sale.driverEmail || '',
         date: saleDate,
-        bagsAtPrice1: matchingPrice && matchingPrice.id === bagPrices[0]?.id ? sale.bagsSold.toString() : '',
-        bagsAtPrice2: matchingPrice && matchingPrice.id === bagPrices[1]?.id ? sale.bagsSold.toString() : '',
+        bagsByPriceId: bagsByPriceId,
         combinedBags: isCombined ? sale.bagsSold.toString() : '',
         combinedPrice: isCombined ? pricePerBag.toString() : (bagPrices[0]?.amount || settings.salesPrice1).toString(),
         notes: sale.notes || '',
@@ -286,6 +290,7 @@ export default function Sales() {
         bagsAtPrice1: '',
         bagsAtPrice2: '',
         combinedBags: '',
+        bagsByPriceId: {},
         combinedPrice: (bagPrices[0]?.amount || settings.salesPrice1).toString(),
         notes: '',
         sachetRollPriceId: '',
@@ -484,7 +489,7 @@ export default function Sales() {
           return;
         } else {
           const priceList = bagPrices.length > 0 
-            ? bagPrices.map(p => `₦${p.amount}`).join(', ')
+            ? bagPrices.map(p => `₦${p.amount}${p.label ? ` (${p.label})` : ''}`).join(', ')
             : `₦${settings.salesPrice1}, ₦${settings.salesPrice2}`;
           alert(`Please enter at least one sale entry (bags at ${priceList}, or combined).`);
           return;
@@ -991,23 +996,26 @@ export default function Sales() {
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 <strong>Total Summary:</strong>
               </Typography>
-              {bagPrices.length > 0 && bagPrices[0] && (
-                <Typography variant="body2">
-                  ₦{bagPrices[0].amount}: {Math.floor(parseFloat(formData.bagsAtPrice1 || '0'))} bags = {formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice1 || '0')) * bagPrices[0].amount)}
-                </Typography>
-              )}
-              {bagPrices.length > 1 && bagPrices[1] && (
-                <Typography variant="body2">
-                  ₦{bagPrices[1].amount}: {Math.floor(parseFloat(formData.bagsAtPrice2 || '0'))} bags = {formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice2 || '0')) * bagPrices[1].amount)}
-                </Typography>
-              )}
-              {bagPrices.length === 0 && (
+              {/* Show all bag prices with bags entered */}
+              {bagPrices.length > 0 ? (
+                bagPrices.map((price) => {
+                  if (!price.id) return null;
+                  const bagsValue = formData.bagsByPriceId[price.id] || '';
+                  const bagsCount = Math.floor(parseFloat(bagsValue) || 0);
+                  if (bagsCount === 0) return null;
+                  return (
+                    <Typography key={price.id} variant="body2">
+                      ₦{price.amount}{price.label ? ` (${price.label})` : ''}: {bagsCount} bags = {formatCurrency(bagsCount * price.amount)}
+                    </Typography>
+                  );
+                })
+              ) : (
                 <>
                   <Typography variant="body2">
-                    ₦{settings.salesPrice1}: {Math.floor(parseFloat(formData.bagsAtPrice1 || '0'))} bags = {formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice1 || '0')) * settings.salesPrice1)}
+                    ₦{settings.salesPrice1}: {Math.floor(parseFloat(formData.bagsByPriceId[0] || '0'))} bags = {formatCurrency(Math.floor(parseFloat(formData.bagsByPriceId[0] || '0')) * settings.salesPrice1)}
                   </Typography>
                   <Typography variant="body2">
-                    ₦{settings.salesPrice2}: {Math.floor(parseFloat(formData.bagsAtPrice2 || '0'))} bags = {formatCurrency(Math.floor(parseFloat(formData.bagsAtPrice2 || '0')) * settings.salesPrice2)}
+                    ₦{settings.salesPrice2}: {Math.floor(parseFloat(formData.bagsByPriceId[1] || '0'))} bags = {formatCurrency(Math.floor(parseFloat(formData.bagsByPriceId[1] || '0')) * settings.salesPrice2)}
                   </Typography>
                 </>
               )}
@@ -1018,9 +1026,25 @@ export default function Sales() {
               )}
               <Typography variant="body2" fontWeight="bold" sx={{ mt: 1 }}>
                 Grand Total: {formatCurrency(
-                  Math.floor(parseFloat(formData.bagsAtPrice1 || '0')) * (bagPrices[0]?.amount || settings.salesPrice1) +
-                  Math.floor(parseFloat(formData.bagsAtPrice2 || '0')) * (bagPrices[1]?.amount || settings.salesPrice2) +
-                  Math.floor(parseFloat(formData.combinedBags || '0')) * parseFloat(formData.combinedPrice || '0')
+                  (() => {
+                    let total = 0;
+                    // Sum all bag prices
+                    if (bagPrices.length > 0) {
+                      bagPrices.forEach((price) => {
+                        if (price.id) {
+                          const bagsCount = Math.floor(parseFloat(formData.bagsByPriceId[price.id] || '0') || 0);
+                          total += bagsCount * price.amount;
+                        }
+                      });
+                    } else {
+                      // Fallback to settings
+                      total += Math.floor(parseFloat(formData.bagsByPriceId[0] || '0') || 0) * settings.salesPrice1;
+                      total += Math.floor(parseFloat(formData.bagsByPriceId[1] || '0') || 0) * settings.salesPrice2;
+                    }
+                    // Add combined bags
+                    total += Math.floor(parseFloat(formData.combinedBags || '0') || 0) * parseFloat(formData.combinedPrice || '0');
+                    return total;
+                  })()
                 )}
               </Typography>
             </Box>
