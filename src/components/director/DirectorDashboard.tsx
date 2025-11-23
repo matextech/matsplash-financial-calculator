@@ -149,7 +149,6 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
   });
 
   useEffect(() => {
-    console.log('useEffect triggered - tabValue:', tabValue, 'viewMode:', viewMode);
     loadData();
   }, [selectedYear, selectedMonth, selectedDate, dateRange, viewMode, tabValue, subTabValue]);
 
@@ -196,8 +195,6 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
         setAuditLogs(logsData);
       } else if (tabValue === 4) {
         // Settings
-        console.log('Loading Settings tab data...');
-        
         // Load bag prices independently so it doesn't fail if material prices fails
         try {
           const token = localStorage.getItem('authToken');
@@ -208,13 +205,10 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
             },
           });
           const bagPricesResult = await bagPricesResponse.json();
-          console.log('Bag prices API result:', bagPricesResult);
           
           if (bagPricesResult && bagPricesResult.data && Array.isArray(bagPricesResult.data)) {
             setBagPrices([...bagPricesResult.data]);
-            console.log('✅ Bag prices loaded:', bagPricesResult.data.length, 'prices');
           } else {
-            console.error('❌ Bag prices data format unexpected:', bagPricesResult);
             setBagPrices([]);
           }
         } catch (error) {
@@ -235,12 +229,11 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
           const materialPricesData = await apiService.getMaterialPrices(undefined, true);
           if (Array.isArray(materialPricesData)) {
             setMaterialPrices([...materialPricesData]);
-            console.log('✅ Material prices loaded:', materialPricesData.length, 'prices');
           } else {
             setMaterialPrices([]);
           }
         } catch (error) {
-          console.error('Error loading material prices (non-critical):', error);
+          // Material prices route might not be available yet, that's OK
           setMaterialPrices([]);
         }
       }
