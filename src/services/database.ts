@@ -52,18 +52,6 @@ class DatabaseService {
             console.error('Database upgrade aborted');
             reject(new Error('Database upgrade was aborted'));
           };
-          
-          // Wait for upgrade transaction to complete
-          const transaction = db.transaction ? db.transaction([], 'readwrite') : null;
-          if (transaction) {
-            transaction.oncomplete = () => {
-              console.log('Database upgrade transaction completed');
-            };
-            transaction.onerror = () => {
-              console.error('Database upgrade transaction error:', transaction.error);
-              reject(transaction.error);
-            };
-          }
 
         // Employees store
         if (!db.objectStoreNames.contains('employees')) {
