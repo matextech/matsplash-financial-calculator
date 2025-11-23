@@ -47,6 +47,14 @@ class DatabaseService {
           salesStore.createIndex('driverEmail', 'driverEmail');
         }
 
+        // Packer entries store (version 4)
+        if (!db.objectStoreNames.contains('packerEntries')) {
+          const packerStore = db.createObjectStore('packerEntries', { keyPath: 'id', autoIncrement: true });
+          packerStore.createIndex('date', 'date');
+          packerStore.createIndex('employeeId', 'employeeId');
+          packerStore.createIndex('packerEmail', 'packerEmail');
+        }
+
         // Salary payments store
         if (!db.objectStoreNames.contains('salaryPayments')) {
           const salaryStore = db.createObjectStore('salaryPayments', { keyPath: 'id', autoIncrement: true });
