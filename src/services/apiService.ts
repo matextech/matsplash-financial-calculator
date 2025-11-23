@@ -117,23 +117,33 @@ class ApiService {
     });
   }
 
-  // Employee endpoints (placeholder - will use users for now)
+  // Employee endpoints
   async getEmployees() {
-    // For now, return empty array as employees are separate from users
-    // This can be implemented when employees endpoint is added to backend
-    return [];
+    return this.request<any[]>('/employees');
+  }
+
+  async getEmployee(id: number) {
+    return this.request<any>(`/employees/${id}`);
   }
 
   async createEmployee(employeeData: any) {
-    // Placeholder - implement when backend supports employees
-    console.warn('Employee creation not yet implemented in backend');
-    return { success: true, message: 'Employee feature coming soon' };
+    return this.request('/employees', {
+      method: 'POST',
+      body: JSON.stringify(employeeData),
+    });
   }
 
   async updateEmployee(id: number, employeeData: any) {
-    // Placeholder - implement when backend supports employees
-    console.warn('Employee update not yet implemented in backend');
-    return { success: true, message: 'Employee feature coming soon' };
+    return this.request(`/employees/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(employeeData),
+    });
+  }
+
+  async deleteEmployee(id: number) {
+    return this.request(`/employees/${id}`, {
+      method: 'DELETE',
+    });
   }
 
   // Sales endpoints (placeholder)

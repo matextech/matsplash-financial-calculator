@@ -5,6 +5,7 @@ import setupDatabase from './database';
 import { config } from './config';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
+import employeeRoutes from './routes/employees';
 
 // Load environment variables
 dotenv.config();
@@ -26,6 +27,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/employees', employeeRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
