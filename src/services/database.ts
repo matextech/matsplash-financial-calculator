@@ -31,12 +31,23 @@ class DatabaseService {
           return; // Don't resolve if there was an error
         }
         
-        this.db = request.result;
-        console.log('Database opened successfully, version:', this.db.version, 'Object stores:', Array.from(this.db.objectStoreNames));
-        
-        // onsuccess fires after upgrade completes (if upgrade was needed) or immediately (if no upgrade)
-        // Always resolve immediately - the database is ready
-        resolve();
+        try {
+          this.db = request.result;
+          if (!this.db) {
+            console.error('Database result is null');
+            reject(new Error('Database result is null'));
+            return;
+          }
+          
+          console.log('Database opened successfully, version:', this.db.version, 'Object stores:', Array.from(this.db.objectStoreNames));
+          
+          // onsuccess fires after upgrade completes (if upgrade was needed) or immediately (if no upgrade)
+          // Always resolve immediately - the database is ready
+          resolve();
+        } catch (error) {
+          console.error('Error in onsuccess handler:', error);
+          reject(error instanceof Error ? error : new Error(String(error)));
+        }
       };
 
       request.onupgradeneeded = (event) => {
