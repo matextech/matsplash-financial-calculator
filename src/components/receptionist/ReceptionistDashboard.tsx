@@ -272,7 +272,15 @@ export default function ReceptionistDashboard() {
   };
 
   const renderSaleCard = (sale: ReceptionistSale) => (
-    <Card>
+    <Card elevation={2} sx={{ 
+      borderRadius: 2,
+      transition: 'all 0.3s ease',
+      '&:hover': {
+        transform: 'translateY(-2px)',
+        boxShadow: 4
+      },
+      height: '100%'
+    }}>
       <CardContent>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 2 }}>
           <Box>
@@ -349,20 +357,34 @@ export default function ReceptionistDashboard() {
   );
 
   return (
-    <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
+    <Box sx={{ 
+      p: { xs: 1, sm: 2, md: 3 },
+      background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+      minHeight: '100vh'
+    }}>
       {/* Header */}
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: { xs: 'column', sm: 'row' },
-        justifyContent: 'space-between', 
-        alignItems: { xs: 'flex-start', sm: 'center' }, 
-        mb: { xs: 2, sm: 3 },
-        gap: { xs: 2, sm: 0 }
+      <Paper elevation={3} sx={{ 
+        p: { xs: 2, sm: 3 },
+        mb: 3,
+        background: 'linear-gradient(135deg, #3f7a6a 0%, #2d5a4f 100%)',
+        color: 'white',
+        borderRadius: 3
       }}>
-        <Typography variant="h4" sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-          Receptionist Dashboard
-        </Typography>
-        <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between', 
+          alignItems: { xs: 'flex-start', sm: 'center' }, 
+          gap: { xs: 2, sm: 0 }
+        }}>
+          <Typography variant="h4" sx={{ 
+            fontSize: { xs: '1.5rem', sm: '2rem' },
+            fontWeight: 700,
+            textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+          }}>
+            Receptionist Dashboard
+          </Typography>
+          <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
           {notifications.length > 0 && (
             <Chip
               icon={<NotificationsIcon />}
@@ -379,14 +401,25 @@ export default function ReceptionistDashboard() {
             />
           )}
           <Button
-            variant="outlined"
+            variant="contained"
             startIcon={<LogoutIcon />}
             onClick={handleLogout}
+            sx={{
+              bgcolor: 'rgba(255,255,255,0.2)',
+              color: 'white',
+              '&:hover': {
+                bgcolor: 'rgba(255,255,255,0.3)',
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+              },
+              transition: 'all 0.3s ease'
+            }}
           >
             Logout
           </Button>
+          </Box>
         </Box>
-      </Box>
+      </Paper>
 
       {/* Notifications */}
       {notifications.length > 0 && (
@@ -409,45 +442,72 @@ export default function ReceptionistDashboard() {
       {/* Summary Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={4}>
-          <Card>
+          <Card elevation={3} sx={{ 
+            borderRadius: 2,
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'translateY(-4px)',
+              boxShadow: 6
+            },
+            background: 'linear-gradient(135deg, #3f7a6a 0%, #2d5a4f 100%)',
+            color: 'white'
+          }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
+              <Typography variant="h6" sx={{ opacity: 0.9, mb: 1 }} gutterBottom>
                 Today's Sales
               </Typography>
-              <Typography variant="h4">
+              <Typography variant="h4" sx={{ fontWeight: 700 }}>
                 {todaySales.length}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{ opacity: 0.8, mt: 1 }}>
                 entries
               </Typography>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={4}>
-          <Card>
+          <Card elevation={3} sx={{ 
+            borderRadius: 2,
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'translateY(-4px)',
+              boxShadow: 6
+            },
+            background: 'linear-gradient(135deg, #5a9a8a 0%, #3f7a6a 100%)',
+            color: 'white'
+          }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
+              <Typography variant="h6" sx={{ opacity: 0.9, mb: 1 }} gutterBottom>
                 Total Bags Today
               </Typography>
-              <Typography variant="h4">
+              <Typography variant="h4" sx={{ fontWeight: 700 }}>
                 {todaySales.reduce((sum, s) => sum + s.totalBags, 0).toLocaleString()}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{ opacity: 0.8, mt: 1 }}>
                 bags
               </Typography>
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} sm={4}>
-          <Card>
+          <Card elevation={3} sx={{ 
+            borderRadius: 2,
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              transform: 'translateY(-4px)',
+              boxShadow: 6
+            },
+            background: 'linear-gradient(135deg, #3f7a6a 0%, #5a9a8a 100%)',
+            color: 'white'
+          }}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
+              <Typography variant="h6" sx={{ opacity: 0.9, mb: 1 }} gutterBottom>
                 Last 2 Days
               </Typography>
-              <Typography variant="h4">
+              <Typography variant="h4" sx={{ fontWeight: 700 }}>
                 {visibleSales.length}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{ opacity: 0.8, mt: 1 }}>
                 total entries
               </Typography>
             </CardContent>
@@ -463,6 +523,19 @@ export default function ReceptionistDashboard() {
             size="large"
             startIcon={<AddIcon />}
             onClick={handleOpen}
+            sx={{
+              borderRadius: 2,
+              px: 3,
+              py: 1.5,
+              fontWeight: 600,
+              textTransform: 'none',
+              boxShadow: 3,
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: 6
+              },
+              transition: 'all 0.3s ease'
+            }}
           >
             Record Sale
           </Button>

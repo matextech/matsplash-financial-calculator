@@ -529,20 +529,34 @@ export default function ManagerDashboard() {
   });
 
   return (
-    <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
+    <Box sx={{ 
+      p: { xs: 1, sm: 2, md: 3 },
+      background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+      minHeight: '100vh'
+    }}>
       {/* Header */}
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: { xs: 'column', sm: 'row' },
-        justifyContent: 'space-between', 
-        alignItems: { xs: 'flex-start', sm: 'center' }, 
-        mb: { xs: 2, sm: 3 },
-        gap: { xs: 2, sm: 0 }
+      <Paper elevation={3} sx={{ 
+        p: { xs: 2, sm: 3 },
+        mb: 3,
+        background: 'linear-gradient(135deg, #3f7a6a 0%, #2d5a4f 100%)',
+        color: 'white',
+        borderRadius: 3
       }}>
-        <Typography variant="h4" sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-          Manager Dashboard
-        </Typography>
-        <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between', 
+          alignItems: { xs: 'flex-start', sm: 'center' }, 
+          gap: { xs: 2, sm: 0 }
+        }}>
+          <Typography variant="h4" sx={{ 
+            fontSize: { xs: '1.5rem', sm: '2rem' },
+            fontWeight: 700,
+            textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+          }}>
+            Manager Dashboard
+          </Typography>
+          <Box sx={{ display: 'flex', gap: { xs: 1, sm: 2 }, alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
           {notifications.length > 0 && (
             <Chip
               icon={<NotificationsIcon />}
@@ -552,20 +566,36 @@ export default function ManagerDashboard() {
             />
           )}
           <Button
-            variant="outlined"
+            variant="contained"
             startIcon={<LogoutIcon />}
             onClick={handleLogout}
             fullWidth={false}
             size={window.innerWidth < 600 ? 'small' : 'medium'}
+            sx={{
+              bgcolor: 'rgba(255,255,255,0.2)',
+              color: 'white',
+              '&:hover': {
+                bgcolor: 'rgba(255,255,255,0.3)',
+                transform: 'translateY(-2px)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+              },
+              transition: 'all 0.3s ease'
+            }}
           >
             <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Logout</Box>
             <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Out</Box>
           </Button>
+          </Box>
         </Box>
-      </Box>
+      </Paper>
 
       {/* View Mode and Date Selector */}
-      <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: { xs: 2, sm: 3 } }}>
+      <Paper elevation={2} sx={{ 
+        p: { xs: 1.5, sm: 2 }, 
+        mb: { xs: 2, sm: 3 },
+        borderRadius: 2,
+        bgcolor: 'background.paper'
+      }}>
         <Stack spacing={2}>
           <Box sx={{ 
             display: 'flex', 
@@ -656,7 +686,12 @@ export default function ManagerDashboard() {
       </Paper>
 
       {/* Filters */}
-      <Paper sx={{ p: 2, mb: 3 }}>
+      <Paper elevation={2} sx={{ 
+        p: 2, 
+        mb: 3,
+        borderRadius: 2,
+        bgcolor: 'background.paper'
+      }}>
         <Stack spacing={2}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <FilterIcon />
@@ -799,36 +834,63 @@ export default function ManagerDashboard() {
           {/* Summary Cards */}
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid item xs={12} sm={4}>
-              <Card>
+              <Card elevation={3} sx={{ 
+                borderRadius: 2,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: 6
+                },
+                background: 'linear-gradient(135deg, #3f7a6a 0%, #2d5a4f 100%)',
+                color: 'white'
+              }}>
                 <CardContent>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }} gutterBottom>
                     Total Sales
                   </Typography>
-                  <Typography variant="h5">
+                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
                     {filteredSales.length}
                   </Typography>
                 </CardContent>
               </Card>
             </Grid>
             <Grid item xs={12} sm={4}>
-              <Card>
+              <Card elevation={3} sx={{ 
+                borderRadius: 2,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: 6
+                },
+                background: 'linear-gradient(135deg, #5a9a8a 0%, #3f7a6a 100%)',
+                color: 'white'
+              }}>
                 <CardContent>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }} gutterBottom>
                     Total Bags
                   </Typography>
-                  <Typography variant="h5">
+                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
                     {filteredSales.reduce((sum, s) => sum + s.totalBags, 0).toLocaleString()}
                   </Typography>
                 </CardContent>
               </Card>
             </Grid>
             <Grid item xs={12} sm={4}>
-              <Card>
+              <Card elevation={3} sx={{ 
+                borderRadius: 2,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: 6
+                },
+                background: 'linear-gradient(135deg, #3f7a6a 0%, #5a9a8a 100%)',
+                color: 'white'
+              }}>
                 <CardContent>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }} gutterBottom>
                     Expected Amount
                   </Typography>
-                  <Typography variant="h5">
+                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
                     {formatCurrency(filteredSales.reduce((sum, s) => {
                       // Use expectedAmount from sale, fallback to calculation for legacy data
                       let expected = s.expectedAmount || 0;
@@ -1036,24 +1098,42 @@ export default function ManagerDashboard() {
           {/* Summary Cards */}
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid item xs={12} sm={6}>
-              <Card>
+              <Card elevation={3} sx={{ 
+                borderRadius: 2,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: 6
+                },
+                background: 'linear-gradient(135deg, #3f7a6a 0%, #2d5a4f 100%)',
+                color: 'white'
+              }}>
                 <CardContent>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }} gutterBottom>
                     Total Entries
                   </Typography>
-                  <Typography variant="h5">
+                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
                     {filteredEntries.length}
                   </Typography>
                 </CardContent>
               </Card>
             </Grid>
             <Grid item xs={12} sm={6}>
-              <Card>
+              <Card elevation={3} sx={{ 
+                borderRadius: 2,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: 6
+                },
+                background: 'linear-gradient(135deg, #5a9a8a 0%, #3f7a6a 100%)',
+                color: 'white'
+              }}>
                 <CardContent>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }} gutterBottom>
                     Total Bags
                   </Typography>
-                  <Typography variant="h5">
+                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
                     {filteredEntries.reduce((sum, e) => sum + e.bagsCount, 0).toLocaleString()}
                   </Typography>
                 </CardContent>
@@ -1133,36 +1213,65 @@ export default function ManagerDashboard() {
           {/* Summary Cards */}
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid item xs={12} sm={4}>
-              <Card>
+              <Card elevation={3} sx={{ 
+                borderRadius: 2,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: 6
+                },
+                background: 'linear-gradient(135deg, #3f7a6a 0%, #2d5a4f 100%)',
+                color: 'white'
+              }}>
                 <CardContent>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }} gutterBottom>
                     Total Settlements
                   </Typography>
-                  <Typography variant="h5">
+                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
                     {filteredSettlements.length}
                   </Typography>
                 </CardContent>
               </Card>
             </Grid>
             <Grid item xs={12} sm={4}>
-              <Card>
+              <Card elevation={3} sx={{ 
+                borderRadius: 2,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: 6
+                },
+                background: 'linear-gradient(135deg, #3f7a6a 0%, #5a9a8a 100%)',
+                color: 'white'
+              }}>
                 <CardContent>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }} gutterBottom>
                     Total Settled
                   </Typography>
-                  <Typography variant="h5">
+                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
                     {formatCurrency(filteredSettlements.reduce((sum, s) => sum + s.settledAmount, 0))}
                   </Typography>
                 </CardContent>
               </Card>
             </Grid>
             <Grid item xs={12} sm={4}>
-              <Card>
+              <Card elevation={3} sx={{ 
+                borderRadius: 2,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: 6
+                },
+                background: filteredSettlements.reduce((sum, s) => sum + s.remainingBalance, 0) > 0 
+                  ? 'linear-gradient(135deg, #5a9a8a 0%, #3f7a6a 100%)'
+                  : 'linear-gradient(135deg, #3f7a6a 0%, #5a9a8a 100%)',
+                color: 'white'
+              }}>
                 <CardContent>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                  <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }} gutterBottom>
                     Remaining Balance
                   </Typography>
-                  <Typography variant="h5" color={filteredSettlements.reduce((sum, s) => sum + s.remainingBalance, 0) > 0 ? 'error.main' : 'success.main'}>
+                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
                     {formatCurrency(filteredSettlements.reduce((sum, s) => sum + s.remainingBalance, 0))}
                   </Typography>
                 </CardContent>
@@ -1192,7 +1301,15 @@ export default function ManagerDashboard() {
               
               return (
                 <Grid item xs={12} md={6} key={settlement.id}>
-                  <Card>
+                  <Card elevation={2} sx={{ 
+                    borderRadius: 2,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: 4
+                    },
+                    height: '100%'
+                  }}>
                     <CardContent>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, alignItems: 'start' }}>
                         <Box>

@@ -26,7 +26,10 @@ import { authService } from './services/authService';
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#1976d2',
+      main: '#3f7a6a',
+      light: '#5a9a8a',
+      dark: '#2d5a4f',
+      contrastText: '#ffffff',
     },
     secondary: {
       main: '#dc004e',

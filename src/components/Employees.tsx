@@ -257,7 +257,7 @@ export default function Employees() {
         </Paper>
       )}
 
-      <Paper sx={{ p: 2, mb: 3, backgroundColor: 'info.light', color: 'info.contrastText' }}>
+      <Paper sx={{ p: 2, mb: 3, backgroundColor: 'primary.light', color: 'primary.contrastText' }}>
         <Typography variant="h6">
           Total Employees: {filteredEmployees.length} ({employees.length} total)
         </Typography>
@@ -302,7 +302,7 @@ export default function Employees() {
                           : employee.role === 'Driver'
                           ? 'secondary'
                           : employee.role === 'Packers'
-                          ? 'info'
+                          ? 'primary'
                           : 'default'
                       }
                     />
