@@ -1314,33 +1314,31 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
                           </IconButton>
                         </Tooltip>
                       )}
-                      {(user.role === 'director' || user.role === 'manager') && (
-                        <Tooltip title={user.twoFactorEnabled ? 'Disable 2FA' : 'Enable 2FA'}>
-                          <IconButton 
-                            size="small" 
-                            onClick={() => {
-                              if (user.twoFactorEnabled) {
-                                if (window.confirm('Are you sure you want to disable 2FA? This will reduce account security.')) {
-                                  apiService.disable2FA(user.id!)
-                                    .then(() => {
-                                      alert('2FA disabled successfully');
-                                      loadData();
-                                    })
-                                    .catch((error) => {
-                                      console.error('Error disabling 2FA:', error);
-                                      alert('Error disabling 2FA. Please try again.');
-                                    });
-                                }
-                              } else {
-                                setSelectedUserFor2FA(user);
-                                setTwoFactorSetupOpen(true);
+                      <Tooltip title={user.twoFactorEnabled ? 'Disable 2FA (Director Only)' : 'Enable 2FA (Director Only)'}>
+                        <IconButton 
+                          size="small" 
+                          onClick={() => {
+                            if (user.twoFactorEnabled) {
+                              if (window.confirm(`Are you sure you want to disable 2FA for ${user.name}? This will reduce account security.`)) {
+                                apiService.disable2FA(user.id!)
+                                  .then(() => {
+                                    alert('2FA disabled successfully');
+                                    loadData();
+                                  })
+                                  .catch((error) => {
+                                    console.error('Error disabling 2FA:', error);
+                                    alert('Error disabling 2FA. Please try again.');
+                                  });
                               }
-                            }}
-                          >
-                            {user.twoFactorEnabled ? <VerifiedUserIcon /> : <SecurityIcon />}
-                          </IconButton>
-                        </Tooltip>
-                      )}
+                            } else {
+                              setSelectedUserFor2FA(user);
+                              setTwoFactorSetupOpen(true);
+                            }
+                          }}
+                        >
+                          {user.twoFactorEnabled ? <VerifiedUserIcon /> : <SecurityIcon />}
+                        </IconButton>
+                      </Tooltip>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -2010,9 +2008,10 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
                 <Switch
                   checked={userFormData.isActive}
                   onChange={(e) => setUserFormData({ ...userFormData, isActive: e.target.checked })}
+                  disabled={editingUser?.role === 'director'}
                 />
               }
-              label="Active"
+              label={editingUser?.role === 'director' ? 'Active (Director cannot be deactivated)' : 'Active'}
             />
           </Box>
         </DialogContent>

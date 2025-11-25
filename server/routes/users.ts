@@ -117,6 +117,27 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Check if user exists and get current role
+    const currentUser = await db('users').where('id', id).first();
+    if (!currentUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Prevent deactivating director
+    if (req.body.isActive !== undefined && currentUser.role === 'director') {
+      const isActiveValue = req.body.isActive === true || req.body.isActive === 'true' || req.body.isActive === 1 || req.body.isActive === '1';
+      if (!isActiveValue) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot deactivate Director account. This would lock everyone out of the system.'
+        });
+      }
+    }
+
     const updateData: any = {
       updated_at: new Date().toISOString()
     };
@@ -125,9 +146,23 @@ router.put('/:id', async (req, res) => {
     if (req.body.email !== undefined) updateData.email = req.body.email;
     if (req.body.phone !== undefined) updateData.phone = req.body.phone;
     if (req.body.password !== undefined) updateData.password = req.body.password;
-    if (req.body.role !== undefined) updateData.role = req.body.role;
+    if (req.body.role !== undefined) {
+      // Prevent changing director role
+      if (currentUser.role === 'director' && req.body.role !== 'director') {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot change Director role'
+        });
+      }
+      updateData.role = req.body.role;
+    }
     if (req.body.twoFactorEnabled !== undefined) updateData.two_factor_enabled = req.body.twoFactorEnabled ? 1 : 0;
-    if (req.body.isActive !== undefined) updateData.is_active = req.body.isActive ? 1 : 0;
+    if (req.body.isActive !== undefined) {
+      // Ensure we convert boolean/string to proper integer
+      const isActiveValue = req.body.isActive === true || req.body.isActive === 'true' || req.body.isActive === 1 || req.body.isActive === '1';
+      updateData.is_active = isActiveValue ? 1 : 0;
+      console.log('Updating is_active for user:', id, 'name:', currentUser.name, 'from request:', req.body.isActive, 'to DB value:', updateData.is_active);
+    }
 
     // Handle PIN update
     if (req.body.pin !== undefined) {
@@ -141,10 +176,23 @@ router.put('/:id', async (req, res) => {
       console.log('Setting pin_reset_required to:', updateData.pin_reset_required);
     }
 
-    await db('users').where('id', id).update(updateData);
+    const updateResult = await db('users').where('id', id).update(updateData);
+    console.log('User update completed for user:', id, 'Update data:', updateData, 'Rows affected:', updateResult);
 
-    // Return updated user
+    // Return updated user - force a fresh read
     const updatedUser = await db('users').where('id', id).first();
+    console.log('Updated user from DB:', { 
+      id: updatedUser.id, 
+      is_active: updatedUser.is_active, 
+      is_active_type: typeof updatedUser.is_active,
+      name: updatedUser.name,
+      role: updatedUser.role 
+    });
+    
+    // Verify the update actually took
+    if (req.body.isActive !== undefined && updatedUser.is_active !== updateData.is_active) {
+      console.error('WARNING: is_active update may have failed! Expected:', updateData.is_active, 'Got:', updatedUser.is_active);
+    }
 
     res.json({
       success: true,

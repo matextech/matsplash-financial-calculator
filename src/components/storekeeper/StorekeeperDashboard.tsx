@@ -333,37 +333,35 @@ export default function StorekeeperDashboard() {
             Storekeeper Dashboard
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-            {currentUser && (
-              <Tooltip title={currentUser.twoFactorEnabled ? '2FA Enabled' : 'Enable 2FA'}>
+            {currentUser && !currentUser.twoFactorEnabled && (
+              <Tooltip title="Enable 2FA">
                 <IconButton
                   onClick={() => {
-                    if (currentUser.twoFactorEnabled) {
-                      if (window.confirm('Are you sure you want to disable 2FA? This will reduce your account security.')) {
-                        apiService.disable2FA(currentUser.id)
-                          .then(() => {
-                            alert('2FA disabled successfully');
-                            loadCurrentUser().then(() => {
-                              window.location.reload();
-                            });
-                          })
-                          .catch((error) => {
-                            console.error('Error disabling 2FA:', error);
-                            alert('Error disabling 2FA. Please try again.');
-                          });
-                      }
-                    } else {
-                      setTwoFactorSetupOpen(true);
-                    }
+                    setTwoFactorSetupOpen(true);
                   }}
                   sx={{
                     color: 'white',
-                    bgcolor: currentUser.twoFactorEnabled ? 'rgba(76, 175, 80, 0.3)' : 'rgba(255,255,255,0.2)',
+                    bgcolor: 'rgba(255,255,255,0.2)',
                     '&:hover': {
-                      bgcolor: currentUser.twoFactorEnabled ? 'rgba(76, 175, 80, 0.4)' : 'rgba(255,255,255,0.3)',
+                      bgcolor: 'rgba(255,255,255,0.3)',
                     }
                   }}
                 >
-                  {currentUser.twoFactorEnabled ? <VerifiedUserIcon /> : <SecurityIcon />}
+                  <SecurityIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+            {currentUser && currentUser.twoFactorEnabled && (
+              <Tooltip title="2FA Enabled - Contact Director to disable">
+                <IconButton
+                  disabled
+                  sx={{
+                    color: 'white',
+                    bgcolor: 'rgba(76, 175, 80, 0.3)',
+                    cursor: 'not-allowed'
+                  }}
+                >
+                  <VerifiedUserIcon />
                 </IconButton>
               </Tooltip>
             )}

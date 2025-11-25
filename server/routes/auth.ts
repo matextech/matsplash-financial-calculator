@@ -24,12 +24,11 @@ router.post('/login', async (req, res) => {
 
     console.log('Login attempt:', { identifier });
 
-    // Find user by email or phone
+    // Find user by email or phone (check active status separately for better error messages)
     const user = await db('users')
       .where(function() {
         this.where('email', identifier).orWhere('phone', identifier);
       })
-      .andWhere('is_active', 1) // SQLite stores boolean as 0/1
       .first();
 
     if (!user) {
@@ -40,7 +39,25 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    console.log('User found:', { id: user.id, name: user.name, role: user.role });
+    // Check if user is active - handle different data types from SQLite
+    const isActive = user.is_active === 1 || user.is_active === true || user.is_active === '1';
+    console.log('Checking user active status:', { 
+      id: user.id, 
+      name: user.name, 
+      is_active: user.is_active, 
+      is_active_type: typeof user.is_active,
+      isActive_result: isActive 
+    });
+    
+    if (!isActive) {
+      console.log('User is inactive:', { id: user.id, name: user.name, is_active: user.is_active, is_active_type: typeof user.is_active });
+      return res.status(401).json({
+        success: false,
+        message: 'Account is disabled. Please contact administrator.'
+      });
+    }
+
+    console.log('User found and active:', { id: user.id, name: user.name, role: user.role, is_active: user.is_active });
 
     // Verify password/PIN
     let isValid = false;
@@ -363,18 +380,35 @@ router.post('/verify-2fa', async (req, res) => {
       });
     }
 
-    // Find user by email or phone
+    // Find user by email or phone (check active status separately for better error messages)
     const user = await db('users')
       .where(function() {
         this.where('email', identifier).orWhere('phone', identifier);
       })
-      .andWhere('is_active', 1)
       .first();
 
     if (!user) {
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
+      });
+    }
+
+    // Check if user is active - handle different data types from SQLite
+    const isActive = user.is_active === 1 || user.is_active === true || user.is_active === '1';
+    console.log('Checking user active status in verify-2fa:', { 
+      id: user.id, 
+      name: user.name, 
+      is_active: user.is_active, 
+      is_active_type: typeof user.is_active,
+      isActive_result: isActive 
+    });
+    
+    if (!isActive) {
+      console.log('User is inactive in verify-2fa:', { id: user.id, name: user.name, is_active: user.is_active, is_active_type: typeof user.is_active });
+      return res.status(401).json({
+        success: false,
+        message: 'Account is disabled. Please contact administrator.'
       });
     }
 
