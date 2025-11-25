@@ -25,6 +25,8 @@ import {
   Warning as WarningIcon,
   Logout as LogoutIcon,
   Notifications as NotificationsIcon,
+  Security as SecurityIcon,
+  VerifiedUser as VerifiedUserIcon,
 } from '@mui/icons-material';
 import { ReceptionistSale, Notification } from '../../types/sales-log';
 import { Employee } from '../../types';
@@ -34,6 +36,8 @@ import { authService } from '../../services/authService';
 import { AuditService } from '../../services/auditService';
 import { useNavigate } from 'react-router-dom';
 import { format, subDays, startOfDay, endOfDay, isSameDay } from 'date-fns';
+import TwoFactorSetup from '../auth/TwoFactorSetup';
+import { Tooltip } from '@mui/material';
 
 export default function ReceptionistDashboard() {
   const navigate = useNavigate();
@@ -48,6 +52,8 @@ export default function ReceptionistDashboard() {
   const [filterType, setFilterType] = useState<'all' | 'driver' | 'general' | 'mini_store'>('all');
   const [dateFilter, setDateFilter] = useState<'today' | 'yesterday' | '2days' | 'custom'>('2days');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [twoFactorSetupOpen, setTwoFactorSetupOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   
   const [formData, setFormData] = useState({
     date: new Date(),
@@ -64,10 +70,23 @@ export default function ReceptionistDashboard() {
   useEffect(() => {
     loadData();
     loadNotifications();
+    loadCurrentUser();
     // Refresh notifications every 30 seconds
     const interval = setInterval(loadNotifications, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  const loadCurrentUser = async () => {
+    try {
+      const session = authService.getCurrentSession();
+      if (session) {
+        const user = await apiService.getUser(session.userId);
+        setCurrentUser(user);
+      }
+    } catch (error) {
+      console.error('Error loading current user:', error);
+    }
+  };
 
   const loadNotifications = async () => {
     try {
@@ -400,23 +419,59 @@ export default function ReceptionistDashboard() {
               }}
             />
           )}
-          <Button
-            variant="contained"
-            startIcon={<LogoutIcon />}
-            onClick={handleLogout}
-            sx={{
-              bgcolor: 'rgba(255,255,255,0.2)',
-              color: 'white',
-              '&:hover': {
-                bgcolor: 'rgba(255,255,255,0.3)',
-                transform: 'translateY(-2px)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
-              },
-              transition: 'all 0.3s ease'
-            }}
-          >
-            Logout
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            {currentUser && (
+              <Tooltip title={currentUser.twoFactorEnabled ? '2FA Enabled' : 'Enable 2FA'}>
+                <IconButton
+                  onClick={() => {
+                    if (currentUser.twoFactorEnabled) {
+                      if (window.confirm('Are you sure you want to disable 2FA? This will reduce your account security.')) {
+                        apiService.disable2FA(currentUser.id)
+                          .then(() => {
+                            alert('2FA disabled successfully');
+                            loadCurrentUser().then(() => {
+                              window.location.reload();
+                            });
+                          })
+                          .catch((error) => {
+                            console.error('Error disabling 2FA:', error);
+                            alert('Error disabling 2FA. Please try again.');
+                          });
+                      }
+                    } else {
+                      setTwoFactorSetupOpen(true);
+                    }
+                  }}
+                  sx={{
+                    color: 'white',
+                    bgcolor: currentUser.twoFactorEnabled ? 'rgba(76, 175, 80, 0.3)' : 'rgba(255,255,255,0.2)',
+                    '&:hover': {
+                      bgcolor: currentUser.twoFactorEnabled ? 'rgba(76, 175, 80, 0.4)' : 'rgba(255,255,255,0.3)',
+                    }
+                  }}
+                >
+                  {currentUser.twoFactorEnabled ? <VerifiedUserIcon /> : <SecurityIcon />}
+                </IconButton>
+              </Tooltip>
+            )}
+            <Button
+              variant="contained"
+              startIcon={<LogoutIcon />}
+              onClick={handleLogout}
+              sx={{
+                bgcolor: 'rgba(255,255,255,0.2)',
+                color: 'white',
+                '&:hover': {
+                  bgcolor: 'rgba(255,255,255,0.3)',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                },
+                transition: 'all 0.3s ease'
+              }}
+            >
+              Logout
+            </Button>
+          </Box>
           </Box>
         </Box>
       </Paper>
@@ -857,6 +912,22 @@ export default function ReceptionistDashboard() {
           </Button>
         </DialogActions>
       </Dialog>
+      {/* 2FA Setup Dialog */}
+      {currentUser && (
+        <TwoFactorSetup
+          open={twoFactorSetupOpen}
+          onClose={() => setTwoFactorSetupOpen(false)}
+          onSuccess={async () => {
+            setTwoFactorSetupOpen(false);
+            await loadCurrentUser();
+            // Reload to refresh 2FA status
+            window.location.reload();
+          }}
+          userId={currentUser.id}
+          userEmail={currentUser.email}
+          userName={currentUser.name}
+        />
+      )}
     </Box>
   );
 }

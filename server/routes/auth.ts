@@ -7,6 +7,9 @@ import { config } from '../config';
 
 const router = express.Router();
 
+// Log all registered routes for debugging
+console.log('🔐 Auth routes module loaded');
+
 // Login endpoint
 router.post('/login', async (req, res) => {
   try {
@@ -255,7 +258,9 @@ router.get('/verify', async (req, res) => {
 });
 
 // Enable 2FA endpoint
+console.log('🔐 Registering /enable-2fa route');
 router.post('/enable-2fa', async (req, res) => {
+  console.log('🔐 Enable 2FA endpoint called');
   try {
     const { userId, secret } = req.body;
 
