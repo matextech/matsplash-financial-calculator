@@ -35,17 +35,23 @@ class ApiService {
   }
 
   // Auth endpoints
-  async login(identifier: string, passwordOrPin: string) {
+  async login(identifier: string, passwordOrPin: string, twoFactorCode?: string) {
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier, passwordOrPin }),
+      body: JSON.stringify({ identifier, passwordOrPin, twoFactorCode }),
     });
 
     const data = await response.json();
     
     // Check if response was successful
     if (!response.ok) {
+      // If 2FA is required, throw specific error
+      if (data.requires2FA) {
+        const error: any = new Error('2FA code required');
+        error.requires2FA = true;
+        throw error;
+      }
       throw new Error(data.message || 'Invalid credentials');
     }
     
@@ -72,8 +78,62 @@ class ApiService {
     return data;
   }
 
-  async verifyToken() {
-    return this.request<{ success: boolean; user: any }>('/auth/verify');
+  async verifyToken(): Promise<{ success: boolean; user?: any }> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/verify`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.getAuthToken()}`,
+        },
+      });
+
+      if (!response.ok) {
+        return { success: false };
+      }
+
+      const data = await response.json();
+      return { success: data.success || false, user: data.user };
+    } catch (error) {
+      console.error('Token verification error:', error);
+      return { success: false };
+    }
+  }
+
+  // 2FA endpoints
+  async enable2FA(userId: number, secret: string): Promise<{ success: boolean; message?: string }> {
+    return this.request('/auth/enable-2fa', {
+      method: 'POST',
+      body: JSON.stringify({ userId, secret }),
+    });
+  }
+
+  async disable2FA(userId: number): Promise<{ success: boolean; message?: string }> {
+    return this.request('/auth/disable-2fa', {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    });
+  }
+
+  async verify2FACode(identifier: string, passwordOrPin: string, code: string): Promise<{ success: boolean; token?: string; user?: any; message?: string }> {
+    const response = await fetch(`${API_BASE_URL}/auth/verify-2fa`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, passwordOrPin, code }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || '2FA verification failed');
+    }
+
+    if (data.success && data.token) {
+      localStorage.setItem('authToken', data.token);
+      localStorage.setItem('currentUser', JSON.stringify(data.user));
+    }
+
+    return data;
   }
 
   async logout() {

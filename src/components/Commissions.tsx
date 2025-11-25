@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Fragment } from 'react';
 import {
   Box,
   Typography,
@@ -423,8 +423,8 @@ export default function Commissions() {
               {filteredData.map((item) => {
                 const isExpanded = expandedEmployees.has(item.employee.id || 0);
                 return (
-                  <>
-                    <TableRow key={item.employee.id} hover>
+                  <Fragment key={item.employee.id || `employee-${item.employee.email}`}>
+                    <TableRow hover>
                       <TableCell>
                         <Box>
                           <Typography variant="body2" fontWeight="bold">
@@ -526,7 +526,7 @@ export default function Commissions() {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </TableBody>

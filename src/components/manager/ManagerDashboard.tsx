@@ -41,6 +41,9 @@ import {
   FilterList as FilterIcon,
   ChevronLeft,
   ChevronRight,
+  Security as SecurityIcon,
+  VerifiedUser as VerifiedUserIcon,
+  Cancel as CancelIcon,
 } from '@mui/icons-material';
 import { ReceptionistSale, StorekeeperEntry, Settlement, SettlementPayment, Notification } from '../../types/sales-log';
 import { Settings, DEFAULT_SETTINGS, Employee, BagPrice } from '../../types';
@@ -49,6 +52,7 @@ import { authService } from '../../services/authService';
 import { AuditService } from '../../services/auditService';
 import { useNavigate } from 'react-router-dom';
 import { format, startOfMonth, endOfMonth, startOfDay, endOfDay, subMonths, isSameDay, addDays, subDays } from 'date-fns';
+import TwoFactorSetup from '../auth/TwoFactorSetup';
 
 export default function ManagerDashboard() {
   const navigate = useNavigate();
@@ -87,16 +91,32 @@ export default function ManagerDashboard() {
   const [updateField, setUpdateField] = useState('');
   const [updateValue, setUpdateValue] = useState('');
   const [updateReason, setUpdateReason] = useState('');
+  const [twoFactorSetupOpen, setTwoFactorSetupOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     loadData();
     loadNotifications();
     loadEmployees();
+    loadCurrentUser();
   }, [selectedMonth, viewMode, selectedDate, dateRange]);
 
   useEffect(() => {
     loadEmployees();
+    loadCurrentUser();
   }, []);
+
+  const loadCurrentUser = async () => {
+    try {
+      const session = authService.getCurrentSession();
+      if (session) {
+        const user = await apiService.getUser(session.userId);
+        setCurrentUser(user);
+      }
+    } catch (error) {
+      console.error('Error loading current user:', error);
+    }
+  };
 
   const loadEmployees = async () => {
     try {
@@ -565,26 +585,62 @@ export default function ManagerDashboard() {
               size="small"
             />
           )}
-          <Button
-            variant="contained"
-            startIcon={<LogoutIcon />}
-            onClick={handleLogout}
-            fullWidth={false}
-            size={window.innerWidth < 600 ? 'small' : 'medium'}
-            sx={{
-              bgcolor: 'rgba(255,255,255,0.2)',
-              color: 'white',
-              '&:hover': {
-                bgcolor: 'rgba(255,255,255,0.3)',
-                transform: 'translateY(-2px)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
-              },
-              transition: 'all 0.3s ease'
-            }}
-          >
-            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Logout</Box>
-            <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Out</Box>
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            {currentUser && (currentUser.role === 'manager' || currentUser.role === 'director') && (
+              <Tooltip title={currentUser.twoFactorEnabled ? '2FA Enabled' : 'Enable 2FA'}>
+                <IconButton
+                  onClick={() => {
+                    if (currentUser.twoFactorEnabled) {
+                      if (window.confirm('Are you sure you want to disable 2FA? This will reduce your account security.')) {
+                        apiService.disable2FA(currentUser.id)
+                          .then(() => {
+                            alert('2FA disabled successfully');
+                            loadCurrentUser().then(() => {
+                              window.location.reload();
+                            });
+                          })
+                          .catch((error) => {
+                            console.error('Error disabling 2FA:', error);
+                            alert('Error disabling 2FA. Please try again.');
+                          });
+                      }
+                    } else {
+                      setTwoFactorSetupOpen(true);
+                    }
+                  }}
+                  sx={{
+                    color: 'white',
+                    bgcolor: currentUser.twoFactorEnabled ? 'rgba(76, 175, 80, 0.3)' : 'rgba(255,255,255,0.2)',
+                    '&:hover': {
+                      bgcolor: currentUser.twoFactorEnabled ? 'rgba(76, 175, 80, 0.4)' : 'rgba(255,255,255,0.3)',
+                    }
+                  }}
+                >
+                  {currentUser.twoFactorEnabled ? <VerifiedUserIcon /> : <SecurityIcon />}
+                </IconButton>
+              </Tooltip>
+            )}
+            <Button
+              variant="contained"
+              startIcon={<LogoutIcon />}
+              onClick={handleLogout}
+              fullWidth={false}
+              size={window.innerWidth < 600 ? 'small' : 'medium'}
+              sx={{
+                bgcolor: 'rgba(255,255,255,0.2)',
+                color: 'white',
+                '&:hover': {
+                  bgcolor: 'rgba(255,255,255,0.3)',
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                },
+                transition: 'all 0.3s ease'
+              }}
+            >
+              <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Logout</Box>
+              <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Out</Box>
+            </Button>
+          </Box>
           </Box>
         </Box>
       </Paper>
@@ -1755,6 +1811,22 @@ export default function ManagerDashboard() {
           <Button onClick={() => setSettlementHistoryDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
+      {/* 2FA Setup Dialog */}
+      {currentUser && (
+        <TwoFactorSetup
+          open={twoFactorSetupOpen}
+          onClose={() => setTwoFactorSetupOpen(false)}
+          onSuccess={async () => {
+            setTwoFactorSetupOpen(false);
+            await loadCurrentUser();
+            // Reload to refresh 2FA status
+            window.location.reload();
+          }}
+          userId={currentUser.id}
+          userEmail={currentUser.email}
+          userName={currentUser.name}
+        />
+      )}
     </Box>
   );
 }

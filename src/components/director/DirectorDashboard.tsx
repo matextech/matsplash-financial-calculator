@@ -46,6 +46,8 @@ import {
   Visibility as VisibilityIcon,
   Info as InfoIcon,
   Refresh as RefreshIcon,
+  VerifiedUser as VerifiedUserIcon,
+  Cancel as CancelIcon,
 } from '@mui/icons-material';
 import { User } from '../../types/auth';
 import { ReceptionistSale, StorekeeperEntry, Settlement, AuditLog } from '../../types/sales-log';
@@ -55,6 +57,7 @@ import { authService } from '../../services/authService';
 import { apiService } from '../../services/apiService';
 import { useNavigate } from 'react-router-dom';
 import { format, startOfYear, endOfYear, subYears, startOfMonth, endOfMonth, startOfDay, endOfDay, addDays, subDays, isSameDay } from 'date-fns';
+import TwoFactorSetup from '../auth/TwoFactorSetup';
 
 interface DirectorDashboardProps {
   hideHeader?: boolean;
@@ -106,6 +109,8 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
     sortOrder: 0,
     isActive: true,
   });
+  const [twoFactorSetupOpen, setTwoFactorSetupOpen] = useState(false);
+  const [selectedUserFor2FA, setSelectedUserFor2FA] = useState<User | null>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [viewMode, setViewMode] = useState<'year' | 'month' | 'day' | 'range'>('year');
   const [selectedMonth, setSelectedMonth] = useState(new Date());
@@ -1309,6 +1314,33 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
                           </IconButton>
                         </Tooltip>
                       )}
+                      {(user.role === 'director' || user.role === 'manager') && (
+                        <Tooltip title={user.twoFactorEnabled ? 'Disable 2FA' : 'Enable 2FA'}>
+                          <IconButton 
+                            size="small" 
+                            onClick={() => {
+                              if (user.twoFactorEnabled) {
+                                if (window.confirm('Are you sure you want to disable 2FA? This will reduce account security.')) {
+                                  apiService.disable2FA(user.id!)
+                                    .then(() => {
+                                      alert('2FA disabled successfully');
+                                      loadData();
+                                    })
+                                    .catch((error) => {
+                                      console.error('Error disabling 2FA:', error);
+                                      alert('Error disabling 2FA. Please try again.');
+                                    });
+                                }
+                              } else {
+                                setSelectedUserFor2FA(user);
+                                setTwoFactorSetupOpen(true);
+                              }
+                            }}
+                          >
+                            {user.twoFactorEnabled ? <VerifiedUserIcon /> : <SecurityIcon />}
+                          </IconButton>
+                        </Tooltip>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -2302,6 +2334,24 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
           </Button>
         </DialogActions>
       </Dialog>
+      {/* 2FA Setup Dialog */}
+      {selectedUserFor2FA && (
+        <TwoFactorSetup
+          open={twoFactorSetupOpen}
+          onClose={() => {
+            setTwoFactorSetupOpen(false);
+            setSelectedUserFor2FA(null);
+          }}
+          onSuccess={async () => {
+            setTwoFactorSetupOpen(false);
+            setSelectedUserFor2FA(null);
+            await loadData();
+          }}
+          userId={selectedUserFor2FA.id!}
+          userEmail={selectedUserFor2FA.email}
+          userName={selectedUserFor2FA.name}
+        />
+      )}
     </Box>
   );
 }

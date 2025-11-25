@@ -23,5 +23,6 @@ export interface AuthSession {
   token: string;
   expiresAt: Date;
   pinResetRequired?: boolean; // True if user must change PIN
+  lastActivity?: Date; // Last user activity timestamp for inactivity monitoring
 }
 

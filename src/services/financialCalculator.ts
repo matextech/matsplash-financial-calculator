@@ -131,11 +131,17 @@ export class FinancialCalculator {
     try {
       const { apiService } = await import('./apiService');
       const allMaterialPrices = await apiService.getMaterialPrices(undefined, true); // Include inactive
-      allMaterialPrices.forEach(price => {
-        materialPricesMap[price.id!] = price;
-      });
+      if (Array.isArray(allMaterialPrices)) {
+        allMaterialPrices.forEach(price => {
+          if (price && price.id) {
+            materialPricesMap[price.id] = price;
+          }
+        });
+      }
     } catch (error) {
-      console.error('Error loading material prices for calculations:', error);
+      // Silently fail - material prices are optional for calculations
+      // Will fall back to default material costs from settings
+      console.warn('Material prices not available, using default costs:', error);
     }
     
     // Calculate material cost per bag for each sale using selected prices or defaults

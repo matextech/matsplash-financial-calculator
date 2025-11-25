@@ -34,7 +34,19 @@ export default function Login() {
 
     try {
       console.log('Starting login process...');
-      const session = await authService.login(identifier, passwordOrPin, needs2FA ? twoFactorCode : undefined);
+      let session;
+      try {
+        session = await authService.login(identifier, passwordOrPin, needs2FA ? twoFactorCode : undefined);
+      } catch (err: any) {
+        // Check if 2FA is required
+        if (err.requires2FA || err.message === '2FA code required') {
+          setNeeds2FA(true);
+          setError('Please enter your 2FA code from your authenticator app');
+          setLoading(false);
+          return;
+        }
+        throw err;
+      }
       console.log('Login successful, checking PIN reset requirement...', session);
       
       // Check if PIN reset is required
@@ -91,7 +103,12 @@ export default function Login() {
         setNeeds2FA(true);
         setError('Please enter your 2FA code');
       } else {
-        setError(err.message || 'Invalid credentials');
+        // Show user-friendly error messages
+        let errorMessage = err.message || 'Invalid credentials';
+        if (errorMessage.includes('Too many login attempts')) {
+          errorMessage = err.message; // Show the exact lockout message
+        }
+        setError(errorMessage);
       }
       setLoading(false);
     }
