@@ -151,10 +151,6 @@ class ApiService {
     }
     return data;
   }
-
-    const data = await response.json();
-
-    if (!response.ok) {
       throw new Error(data.message || '2FA verification failed');
     }
 
