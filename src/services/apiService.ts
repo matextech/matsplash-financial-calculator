@@ -187,6 +187,39 @@ class ApiService {
     return data;
   }
 
+  // Password Recovery endpoints (Director only - requires 2FA)
+  async requestPasswordRecovery(identifier: string, twoFactorCode: string): Promise<{ success: boolean; message?: string; recoveryToken?: string; expiresAt?: string }> {
+    const response = await fetch(`${API_BASE_URL}/auth/request-password-recovery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, twoFactorCode }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to request password recovery');
+    }
+
+    return data;
+  }
+
+  async verifyPasswordRecovery(token: string, newPassword: string): Promise<{ success: boolean; message?: string }> {
+    const response = await fetch(`${API_BASE_URL}/auth/verify-password-recovery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPassword }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to reset password');
+    }
+
+    return data;
+  }
+
   async verifyPinRecovery(token: string, newPin: string): Promise<{ success: boolean; message?: string }> {
     const response = await fetch(`${API_BASE_URL}/auth/verify-pin-recovery`, {
       method: 'POST',

@@ -658,7 +658,263 @@ router.post('/check-director', async (req, res) => {
   }
 });
 
-// PIN Recovery - Request recovery token (Director only - can reset PINs for any user)
+// Password Recovery - Request recovery token (Director only - requires 2FA)
+router.post('/request-password-recovery', async (req, res) => {
+  try {
+    const { identifier, twoFactorCode } = req.body;
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+
+    if (!identifier) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email or phone number is required'
+      });
+    }
+
+    if (!twoFactorCode) {
+      return res.status(400).json({
+        success: false,
+        message: '2FA code is required for password recovery'
+      });
+    }
+
+    console.log('🔐 Password recovery requested:', { identifier, ipAddress, timestamp: new Date().toISOString() });
+
+    // Find director by email or phone (must be director)
+    const director = await db('users')
+      .where(function() {
+        this.where('email', identifier).orWhere('phone', identifier);
+      })
+      .first();
+
+    if (!director) {
+      console.log('⚠️ Password recovery attempt for non-existent user:', identifier);
+      return res.status(403).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
+    // Only allow password recovery for Director role
+    if (director.role !== 'director') {
+      console.log('❌ Password recovery attempted for non-director account:', { identifier, role: director.role });
+      return res.status(403).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
+    // Check if director is active
+    const isActive = director.is_active === 1 || director.is_active === true || director.is_active === '1';
+    if (!isActive) {
+      console.log('❌ Password recovery attempted for inactive director account:', identifier);
+      return res.status(403).json({
+        success: false,
+        message: 'Account is disabled'
+      });
+    }
+
+    // Check if 2FA is enabled
+    const twoFactorEnabled = director.two_factor_enabled === 1 || director.two_factor_enabled === true;
+    if (!twoFactorEnabled) {
+      return res.status(403).json({
+        success: false,
+        message: '2FA must be enabled for password recovery. Please enable 2FA first.'
+      });
+    }
+
+    // Verify 2FA code
+    if (!director.two_factor_secret) {
+      return res.status(500).json({
+        success: false,
+        message: '2FA is enabled but secret is missing. Please contact administrator.'
+      });
+    }
+
+    try {
+      const totp = new TOTP({
+        secret: director.two_factor_secret,
+      });
+      const isValid2FA = totp.validate({ token: twoFactorCode, window: 2 }) !== null;
+
+      if (!isValid2FA) {
+        console.log('❌ Password recovery attempted with invalid 2FA code:', identifier);
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid 2FA code'
+        });
+      }
+    } catch (error) {
+      console.error('Error verifying 2FA code:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error verifying 2FA code'
+      });
+    }
+
+    // Generate secure token (32 bytes, base64 encoded)
+    const token = crypto.randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+
+    // Invalidate any existing unused tokens for this director
+    await db('password_recovery_tokens')
+      .where('user_id', director.id)
+      .where('used', 0)
+      .where('expires_at', '>', new Date())
+      .update({ used: 1, used_at: new Date() });
+
+    // Create new recovery token
+    await db('password_recovery_tokens').insert({
+      user_id: director.id,
+      token: token,
+      identifier: identifier,
+      two_factor_code: twoFactorCode,
+      expires_at: expiresAt,
+      used: 0,
+      ip_address: ipAddress
+    });
+
+    // Log recovery request in audit logs
+    await db('audit_logs').insert({
+      entity_type: 'user',
+      entity_id: director.id,
+      action: 'password_recovery_requested',
+      field: 'password_recovery',
+      old_value: null,
+      new_value: 'recovery_token_generated',
+      changed_by: director.id, // Self-initiated
+      reason: 'Password recovery requested via 2FA verification',
+      ip_address: ipAddress,
+      user_agent: req.headers['user-agent'] || 'unknown'
+    });
+
+    console.log('✅ Password recovery token generated for director:', { id: director.id, name: director.name });
+
+    // In production, send token via email/SMS
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('⚠️ PRODUCTION: Password recovery token should be sent via email/SMS, not returned in response');
+    }
+
+    res.json({
+      success: true,
+      message: 'Recovery token generated. Use this token to reset your password.',
+      // In production, remove this and send token via email/SMS
+      recoveryToken: process.env.NODE_ENV !== 'production' ? token : undefined,
+      expiresAt: expiresAt.toISOString()
+    });
+
+  } catch (error) {
+    console.error('Password recovery request error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Password Recovery - Verify token and reset password
+router.post('/verify-password-recovery', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token and new password are required'
+      });
+    }
+
+    // Validate password (minimum 6 characters)
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters'
+      });
+    }
+
+    console.log('🔐 Password recovery verification attempt:', { token: token.substring(0, 8) + '...', ipAddress });
+
+    // Find recovery token
+    const recoveryToken = await db('password_recovery_tokens')
+      .where('token', token)
+      .where('used', 0)
+      .first();
+
+    if (!recoveryToken) {
+      console.log('❌ Invalid or already used password recovery token');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired recovery token'
+      });
+    }
+
+    // Check if token is expired
+    if (new Date(recoveryToken.expires_at) < new Date()) {
+      console.log('❌ Expired password recovery token');
+      await db('password_recovery_tokens')
+        .where('id', recoveryToken.id)
+        .update({ used: 1, used_at: new Date() });
+      
+      return res.status(401).json({
+        success: false,
+        message: 'Recovery token has expired. Please request a new one.'
+      });
+    }
+
+    // Get director
+    const director = await db('users').where('id', recoveryToken.user_id).first();
+    if (!director) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Update director password (plain text for now - in production, hash it)
+    await db('users')
+      .where('id', director.id)
+      .update({
+        password: newPassword, // In production, hash this with bcrypt
+        updated_at: new Date().toISOString()
+      });
+
+    // Mark token as used
+    await db('password_recovery_tokens')
+      .where('id', recoveryToken.id)
+      .update({ used: 1, used_at: new Date() });
+
+    // Log password reset in audit logs
+    await db('audit_logs').insert({
+      entity_type: 'user',
+      entity_id: director.id,
+      action: 'password_reset_via_recovery',
+      field: 'password',
+      old_value: 'recovery_token_used',
+      new_value: 'password_reset_successful',
+      changed_by: director.id, // Self-initiated
+      reason: 'Password reset via secure recovery token with 2FA',
+      ip_address: ipAddress,
+      user_agent: req.headers['user-agent'] || 'unknown'
+    });
+
+    console.log('✅ Password reset successful via recovery token for director:', { id: director.id, name: director.name });
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully. You can now login with your new password.'
+    });
+
+  } catch (error) {
+    console.error('Password recovery verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// PIN Recovery - Request recovery token (for managers, receptionists, storekeepers - NOT directors)
 router.post('/request-pin-recovery', async (req, res) => {
   try {
     const { identifier, password, targetUserIdentifier } = req.body; 

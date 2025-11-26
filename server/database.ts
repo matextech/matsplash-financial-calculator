@@ -262,12 +262,30 @@ export default async function setupDatabase(): Promise<void> {
         table.index('is_read');
       });
       
-      // PIN recovery tokens table (secure backdoor for managers)
+      // PIN recovery tokens table (for managers, receptionists, storekeepers - NOT directors)
       await db.schema.createTable('pin_recovery_tokens', (table) => {
         table.increments('id').primary();
         table.integer('user_id').notNullable();
         table.string('token').notNullable().unique();
         table.string('identifier').notNullable(); // email or phone used for verification
+        table.timestamp('expires_at').notNullable();
+        table.integer('used').defaultTo(0); // SQLite uses 0/1 for boolean
+        table.string('ip_address');
+        table.timestamp('created_at').defaultTo(db.fn.now());
+        table.timestamp('used_at');
+        table.index('token');
+        table.index('user_id');
+        table.index('expires_at');
+        table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE');
+      });
+      
+      // Password recovery tokens table (for directors only - requires 2FA)
+      await db.schema.createTable('password_recovery_tokens', (table) => {
+        table.increments('id').primary();
+        table.integer('user_id').notNullable();
+        table.string('token').notNullable().unique();
+        table.string('identifier').notNullable(); // email or phone used for verification
+        table.string('two_factor_code').notNullable(); // 2FA code used for verification
         table.timestamp('expires_at').notNullable();
         table.integer('used').defaultTo(0); // SQLite uses 0/1 for boolean
         table.string('ip_address');
@@ -321,6 +339,29 @@ export default async function setupDatabase(): Promise<void> {
         table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE');
       });
       console.log('pin_recovery_tokens table created successfully');
+    }
+    
+    // Check and create password_recovery_tokens table if it doesn't exist (for existing databases)
+    const hasPasswordRecoveryTable = await db.schema.hasTable('password_recovery_tokens');
+    if (!hasPasswordRecoveryTable) {
+      console.log('Creating password_recovery_tokens table...');
+      await db.schema.createTable('password_recovery_tokens', (table) => {
+        table.increments('id').primary();
+        table.integer('user_id').notNullable();
+        table.string('token').notNullable().unique();
+        table.string('identifier').notNullable(); // email or phone used for verification
+        table.string('two_factor_code').notNullable(); // 2FA code used for verification
+        table.timestamp('expires_at').notNullable();
+        table.integer('used').defaultTo(0); // SQLite uses 0/1 for boolean
+        table.string('ip_address');
+        table.timestamp('created_at').defaultTo(db.fn.now());
+        table.timestamp('used_at');
+        table.index('token');
+        table.index('user_id');
+        table.index('expires_at');
+        table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE');
+      });
+      console.log('password_recovery_tokens table created successfully');
     }
     
     // Check and create audit_logs table if it doesn't exist (for existing databases)

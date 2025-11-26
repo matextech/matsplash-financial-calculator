@@ -16,6 +16,7 @@ import { apiService } from '../../services/apiService';
 import { useNavigate } from 'react-router-dom';
 import PinChangeDialog from './PinChangeDialog';
 import PinRecoveryDialog from './PinRecoveryDialog';
+import PasswordRecoveryDialog from './PasswordRecoveryDialog';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -28,11 +29,13 @@ export default function Login() {
   const [needs2FA, setNeeds2FA] = useState(false);
   const [showPinChangeDialog, setShowPinChangeDialog] = useState(false);
   const [showPinRecoveryDialog, setShowPinRecoveryDialog] = useState(false);
+  const [showPasswordRecoveryDialog, setShowPasswordRecoveryDialog] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const [isDirector, setIsDirector] = useState(false);
   const checkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Check if identifier belongs to a director (debounced)
+  // Check if identifier belongs to a director (debounced) - for showing password recovery
+  // Also check if it's a non-director for showing PIN recovery
   useEffect(() => {
     // Clear previous timeout
     if (checkTimeoutRef.current) {
@@ -252,8 +255,20 @@ export default function Login() {
             </Button>
           </form>
 
-          {/* Only show PIN recovery option if identifier belongs to a director */}
+          {/* Show password recovery for directors, PIN recovery for others */}
           {isDirector && (
+            <Box sx={{ textAlign: 'center', mt: 2 }}>
+              <Button
+                variant="text"
+                size="small"
+                onClick={() => setShowPasswordRecoveryDialog(true)}
+                sx={{ textTransform: 'none' }}
+              >
+                Forgot Password?
+              </Button>
+            </Box>
+          )}
+          {!isDirector && identifier.length >= 3 && (
             <Box sx={{ textAlign: 'center', mt: 2 }}>
               <Button
                 variant="text"
