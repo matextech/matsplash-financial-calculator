@@ -9,9 +9,9 @@ class AuthService {
 
   // Security settings for managers and directors
   private readonly HIGH_SECURITY_ROLES: UserRole[] = ['manager', 'director'];
-  private readonly INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes for managers/directors
-  private readonly SESSION_CHECK_INTERVAL = 5 * 60 * 1000; // Check every 5 minutes
-  private readonly SESSION_TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours for managers/directors (reduced from 24h)
+  private readonly INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes maximum inactivity
+  private readonly SESSION_CHECK_INTERVAL = 1 * 60 * 1000; // Check every 1 minute for better security
+  private readonly SESSION_TIMEOUT = 5 * 60 * 1000; // 5 minutes maximum session timeout
 
   async login(identifier: string, passwordOrPin: string, twoFactorCode?: string): Promise<AuthSession> {
     try {
@@ -64,8 +64,8 @@ class AuthService {
       // Clear successful login attempts
       this.clearLoginAttempts(identifier);
       
-      // Create session with shorter timeout for managers/directors
-      const sessionTimeout = isHighSecurity ? this.SESSION_TIMEOUT : 24 * 60 * 60 * 1000;
+      // Create session with 5 minute timeout for all users (maximum security)
+      const sessionTimeout = this.SESSION_TIMEOUT; // 5 minutes for all users
       const session: AuthSession = {
         userId: user.id,
         role: user.role as UserRole,

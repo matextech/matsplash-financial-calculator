@@ -352,17 +352,19 @@ export default function StorekeeperDashboard() {
               </Tooltip>
             )}
             {currentUser && currentUser.twoFactorEnabled && (
-              <Tooltip title="2FA Enabled - Contact Director to disable">
-                <IconButton
-                  disabled
-                  sx={{
-                    color: 'white',
-                    bgcolor: 'rgba(76, 175, 80, 0.3)',
-                    cursor: 'not-allowed'
-                  }}
-                >
-                  <VerifiedUserIcon />
-                </IconButton>
+              <Tooltip title="2FA Enabled">
+                <span>
+                  <IconButton
+                    disabled
+                    sx={{
+                      color: 'white',
+                      bgcolor: 'rgba(76, 175, 80, 0.3)',
+                      cursor: 'not-allowed'
+                    }}
+                  >
+                    <VerifiedUserIcon />
+                  </IconButton>
+                </span>
               </Tooltip>
             )}
             <Button

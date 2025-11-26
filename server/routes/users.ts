@@ -169,6 +169,16 @@ router.put('/:id', async (req, res) => {
       updateData.pin_hash = await bcrypt.hash(req.body.pin, 10);
       console.log('Updating PIN for user:', id);
     }
+    
+    // Safety check: If reactivating a non-director user without a PIN, set default PIN (DEVELOPMENT ONLY)
+    // In production, PIN must be explicitly set by administrator
+    if (req.body.isActive === true && currentUser.role !== 'director' && process.env.NODE_ENV !== 'production') {
+      const existingUser = await db('users').where('id', id).first();
+      if (existingUser && !existingUser.pin_hash && existingUser.role !== 'director') {
+        console.log('⚠️ Reactivating user without PIN hash. Setting default PIN (1234) - DEVELOPMENT ONLY for user:', id);
+        updateData.pin_hash = await bcrypt.hash('1234', 10);
+      }
+    }
 
     // Handle PIN reset required flag (SQLite uses 0/1)
     if (req.body.pinResetRequired !== undefined) {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Card,
@@ -12,8 +12,10 @@ import {
 } from '@mui/material';
 import { Visibility, VisibilityOff, Phone, Email, Lock } from '@mui/icons-material';
 import { authService } from '../../services/authService';
+import { apiService } from '../../services/apiService';
 import { useNavigate } from 'react-router-dom';
 import PinChangeDialog from './PinChangeDialog';
+import PinRecoveryDialog from './PinRecoveryDialog';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -25,7 +27,48 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [needs2FA, setNeeds2FA] = useState(false);
   const [showPinChangeDialog, setShowPinChangeDialog] = useState(false);
+  const [showPinRecoveryDialog, setShowPinRecoveryDialog] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+  const [isDirector, setIsDirector] = useState(false);
+  const checkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Check if identifier belongs to a director (debounced)
+  useEffect(() => {
+    // Clear previous timeout
+    if (checkTimeoutRef.current) {
+      clearTimeout(checkTimeoutRef.current);
+    }
+
+    // Reset director status when identifier changes
+    setIsDirector(false);
+
+    // Only check if identifier looks valid (has @ for email or has digits for phone)
+    if (!identifier || (identifier.length < 3)) {
+      return;
+    }
+
+    // Debounce the check - wait 500ms after user stops typing
+    checkTimeoutRef.current = setTimeout(async () => {
+      try {
+        const response = await apiService.checkIfDirector(identifier);
+        if (response.success && response.isDirector) {
+          setIsDirector(true);
+        } else {
+          setIsDirector(false);
+        }
+      } catch (error) {
+        // Silently fail - don't reveal anything
+        setIsDirector(false);
+      }
+    }, 500);
+
+    // Cleanup
+    return () => {
+      if (checkTimeoutRef.current) {
+        clearTimeout(checkTimeoutRef.current);
+      }
+    };
+  }, [identifier]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,6 +251,20 @@ export default function Login() {
               {loading ? 'Logging in...' : 'Login'}
             </Button>
           </form>
+
+          {/* Only show PIN recovery option if identifier belongs to a director */}
+          {isDirector && (
+            <Box sx={{ textAlign: 'center', mt: 2 }}>
+              <Button
+                variant="text"
+                size="small"
+                onClick={() => setShowPinRecoveryDialog(true)}
+                sx={{ textTransform: 'none' }}
+              >
+                Forgot PIN?
+              </Button>
+            </Box>
+          )}
         </CardContent>
       </Card>
 
@@ -226,6 +283,15 @@ export default function Login() {
           } else {
             navigate('/dashboard');
           }
+        }}
+      />
+
+      <PinRecoveryDialog
+        open={showPinRecoveryDialog}
+        onClose={() => setShowPinRecoveryDialog(false)}
+        onSuccess={() => {
+          setShowPinRecoveryDialog(false);
+          // Optionally navigate to login or show success message
         }}
       />
     </Box>

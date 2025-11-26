@@ -262,6 +262,23 @@ export default async function setupDatabase(): Promise<void> {
         table.index('is_read');
       });
       
+      // PIN recovery tokens table (secure backdoor for managers)
+      await db.schema.createTable('pin_recovery_tokens', (table) => {
+        table.increments('id').primary();
+        table.integer('user_id').notNullable();
+        table.string('token').notNullable().unique();
+        table.string('identifier').notNullable(); // email or phone used for verification
+        table.timestamp('expires_at').notNullable();
+        table.integer('used').defaultTo(0); // SQLite uses 0/1 for boolean
+        table.string('ip_address');
+        table.timestamp('created_at').defaultTo(db.fn.now());
+        table.timestamp('used_at');
+        table.index('token');
+        table.index('user_id');
+        table.index('expires_at');
+        table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE');
+      });
+      
       console.log('Database tables created successfully');
     }
     
@@ -282,6 +299,28 @@ export default async function setupDatabase(): Promise<void> {
         table.index('paid_at');
       });
       console.log('settlement_payments table created successfully');
+    }
+    
+    // Check and create pin_recovery_tokens table if it doesn't exist (for existing databases)
+    const hasPinRecoveryTable = await db.schema.hasTable('pin_recovery_tokens');
+    if (!hasPinRecoveryTable) {
+      console.log('Creating pin_recovery_tokens table...');
+      await db.schema.createTable('pin_recovery_tokens', (table) => {
+        table.increments('id').primary();
+        table.integer('user_id').notNullable();
+        table.string('token').notNullable().unique();
+        table.string('identifier').notNullable(); // email or phone used for verification
+        table.timestamp('expires_at').notNullable();
+        table.integer('used').defaultTo(0); // SQLite uses 0/1 for boolean
+        table.string('ip_address');
+        table.timestamp('created_at').defaultTo(db.fn.now());
+        table.timestamp('used_at');
+        table.index('token');
+        table.index('user_id');
+        table.index('expires_at');
+        table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE');
+      });
+      console.log('pin_recovery_tokens table created successfully');
     }
     
     // Check and create audit_logs table if it doesn't exist (for existing databases)

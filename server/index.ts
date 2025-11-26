@@ -28,7 +28,16 @@ app.use(express.urlencoded({ extended: true }));
 
 // Logging middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  console.log(`\n📥 ${new Date().toISOString()} - ${req.method} ${req.path}`);
+  if (req.body && Object.keys(req.body).length > 0) {
+    // Log request body (excluding sensitive data)
+    const sanitizedBody = { ...req.body };
+    if (sanitizedBody.passwordOrPin) sanitizedBody.passwordOrPin = '***';
+    if (sanitizedBody.password) sanitizedBody.password = '***';
+    if (sanitizedBody.pin) sanitizedBody.pin = '***';
+    if (sanitizedBody.twoFactorCode) sanitizedBody.twoFactorCode = '***';
+    console.log('📦 Request body:', sanitizedBody);
+  }
   next();
 });
 
@@ -37,7 +46,7 @@ try {
   app.use('/api/auth', authRoutes);
   console.log('✅ Auth routes registered at /api/auth');
   // Log available auth routes for debugging
-  console.log('📋 Available auth routes: /login, /change-pin, /verify, /enable-2fa, /disable-2fa, /verify-2fa, /logout');
+  console.log('📋 Available auth routes: /login, /change-pin, /verify, /enable-2fa, /disable-2fa, /verify-2fa, /request-pin-recovery, /verify-pin-recovery, /logout');
 } catch (error) {
   console.error('❌ Error registering auth routes:', error);
 }

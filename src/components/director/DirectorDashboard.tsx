@@ -1307,13 +1307,11 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
                           <EditIcon />
                         </IconButton>
                       </Tooltip>
-                      {user.role !== 'director' && (
-                        <Tooltip title="Reset PIN">
-                          <IconButton size="small" onClick={() => handleResetPin(user.id!)}>
-                            <SecurityIcon />
-                          </IconButton>
-                        </Tooltip>
-                      )}
+                      <Tooltip title="Reset PIN">
+                        <IconButton size="small" onClick={() => handleResetPin(user.id!)}>
+                          <SecurityIcon />
+                        </IconButton>
+                      </Tooltip>
                       <Tooltip title={user.twoFactorEnabled ? 'Disable 2FA (Director Only)' : 'Enable 2FA (Director Only)'}>
                         <IconButton 
                           size="small" 
@@ -1991,6 +1989,27 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
                   />
                 )}
               </>
+            )}
+            {editingUser && editingUser.role === 'director' && (
+              <TextField
+                label="New Password (leave blank to keep current)"
+                fullWidth
+                type="password"
+                value={userFormData.password}
+                onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
+                helperText="Enter a new password to change it, or leave blank to keep the current password"
+              />
+            )}
+            {editingUser && editingUser.role !== 'director' && (
+              <TextField
+                label="New PIN (leave blank to keep current)"
+                fullWidth
+                type="text"
+                value={userFormData.pin}
+                onChange={(e) => setUserFormData({ ...userFormData, pin: e.target.value })}
+                inputProps={{ maxLength: 6, pattern: '[0-9]*' }}
+                helperText="Enter a new PIN (4-6 digits) to change it, or leave blank to keep the current PIN"
+              />
             )}
             {userFormData.role === 'director' && (
               <FormControlLabel

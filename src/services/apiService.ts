@@ -136,6 +136,56 @@ class ApiService {
     return data;
   }
 
+  // Check if identifier belongs to a director (for showing PIN recovery option)
+  async checkIfDirector(identifier: string): Promise<{ success: boolean; isDirector: boolean }> {
+    const response = await fetch(`${API_BASE_URL}/auth/check-director`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, isDirector: false };
+    }
+
+    return data;
+  }
+
+  // PIN Recovery endpoints (Director only - can reset PINs for any user)
+  async requestPinRecovery(directorIdentifier: string, targetUserIdentifier?: string): Promise<{ success: boolean; message?: string; recoveryToken?: string; expiresAt?: string }> {
+    const response = await fetch(`${API_BASE_URL}/auth/request-pin-recovery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: directorIdentifier, targetUserIdentifier }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to request PIN recovery');
+    }
+
+    return data;
+  }
+
+  async verifyPinRecovery(token: string, newPin: string): Promise<{ success: boolean; message?: string }> {
+    const response = await fetch(`${API_BASE_URL}/auth/verify-pin-recovery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPin }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to reset PIN');
+    }
+
+    return data;
+  }
+
   async logout() {
     localStorage.removeItem('authToken');
     localStorage.removeItem('currentUser');
