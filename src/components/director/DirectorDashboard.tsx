@@ -384,6 +384,8 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
       '• All Expenses\n' +
       '• All Commissions/Salary Payments\n' +
       '• All Material Purchases\n' +
+      '• All Material Inventory/Prices\n' +
+      '• All Bag Prices\n' +
       '• All Employees\n' +
       '• All Receptionist Sales\n' +
       '• All Storekeeper Entries\n' +
@@ -391,7 +393,7 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
       '• All Audit Logs\n' +
       '• All Notifications\n' +
       '• All Recovery Tokens\n\n' +
-      'Settings and User accounts will be preserved.\n\n' +
+      'ONLY Settings and User accounts will be preserved.\n\n' +
       'This action CANNOT be undone!\n\n' +
       'Are you absolutely sure you want to proceed?';
 

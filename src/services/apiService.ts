@@ -318,6 +318,8 @@ class ApiService {
         notifications: number;
         pinRecoveryTokens: number;
         passwordRecoveryTokens: number;
+        materialPrices: number;
+        bagPrices: number;
       };
       totalDeleted: number;
     }>('/users/clean-all-data', {
