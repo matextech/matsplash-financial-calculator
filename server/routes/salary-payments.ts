@@ -3,6 +3,25 @@ import { db } from '../database';
 
 const router = express.Router();
 
+// Transform database row to frontend format
+function transformSalaryPayment(payment: any) {
+  return {
+    id: payment.id,
+    employeeId: payment.employee_id,
+    employeeName: payment.employee_name,
+    fixedAmount: payment.fixed_salary ? parseFloat(payment.fixed_salary) : undefined,
+    commissionAmount: payment.commission ? parseFloat(payment.commission) : undefined,
+    totalAmount: parseFloat(payment.total_amount) || 0,
+    period: payment.period,
+    periodStart: payment.period_start,
+    periodEnd: payment.period_end,
+    paidDate: payment.payment_date,
+    notes: payment.notes,
+    createdAt: payment.created_at,
+    totalBags: payment.total_bags,
+  };
+}
+
 // Get salary payments with optional date filtering
 router.get('/', async (req, res) => {
   try {
@@ -16,7 +35,8 @@ router.get('/', async (req, res) => {
     }
 
     const payments = await query;
-    res.json(payments);
+    const transformedPayments = payments.map(transformSalaryPayment);
+    res.json(transformedPayments);
   } catch (error) {
     console.error('Error fetching salary payments:', error);
     res.status(500).json({

@@ -25,12 +25,26 @@ export class FinancialCalculator {
       apiService.getSalaryPayments(startDate, endDate)
     ]);
 
+    console.log('FinancialCalculator - Data loaded:', {
+      salesCount: sales?.length || 0,
+      expensesCount: expenses?.length || 0,
+      materialPurchasesCount: materialPurchases?.length || 0,
+      salaryPaymentsCount: salaryPayments?.length || 0,
+      dateRange: { start: startDate, end: endDate }
+    });
+
+    // Ensure we have arrays (handle potential undefined/null)
+    const safeSales = Array.isArray(sales) ? sales : [];
+    const safeExpenses = Array.isArray(expenses) ? expenses : [];
+    const safeMaterialPurchases = Array.isArray(materialPurchases) ? materialPurchases : [];
+    const safeSalaryPayments = Array.isArray(salaryPayments) ? salaryPayments : [];
+
     // Calculate revenue
-    const totalRevenue = sales.reduce((sum, sale) => sum + sale.totalAmount, 0);
+    const totalRevenue = safeSales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0);
 
     // Calculate expenses - ensure ALL expenses are captured
     // Filter for fuel expenses (generator fuel)
-    const fuelCosts = expenses
+    const fuelCosts = safeExpenses
       .filter(e => {
         const type = e.type || (e as any).type;
         return type === 'fuel' || type === 'generator_fuel';
@@ -38,7 +52,7 @@ export class FinancialCalculator {
       .reduce((sum, e) => sum + (e.amount || 0), 0);
 
     // Filter for driver fuel expenses
-    const driverPayments = expenses
+    const driverPayments = safeExpenses
       .filter(e => {
         const type = e.type || (e as any).type;
         return type === 'driver_fuel' || type === 'driver_payment';
@@ -46,7 +60,7 @@ export class FinancialCalculator {
       .reduce((sum, e) => sum + (e.amount || 0), 0);
 
     // Filter for other expenses - use same robust pattern
-    const otherExpenses = expenses
+    const otherExpenses = safeExpenses
       .filter(e => {
         const type = e.type || (e as any).type;
         return type === 'other';
@@ -54,7 +68,7 @@ export class FinancialCalculator {
       .reduce((sum, e) => sum + (e.amount || 0), 0);
 
     // Catch-all for any expenses that don't match known types (safety net)
-    const uncategorizedExpenses = expenses
+    const uncategorizedExpenses = safeExpenses
       .filter(e => {
         const type = e.type || (e as any).type;
         return type !== 'fuel' && 
@@ -67,20 +81,20 @@ export class FinancialCalculator {
 
     // Log comprehensive expense breakdown for debugging
     console.log('FinancialCalculator - Expense breakdown:', {
-      totalExpensesCount: expenses.length,
-      fuelExpensesCount: expenses.filter(e => {
+      totalExpensesCount: safeExpenses.length,
+      fuelExpensesCount: safeExpenses.filter(e => {
         const type = e.type || (e as any).type;
         return type === 'fuel' || type === 'generator_fuel';
       }).length,
-      driverFuelExpensesCount: expenses.filter(e => {
+      driverFuelExpensesCount: safeExpenses.filter(e => {
         const type = e.type || (e as any).type;
         return type === 'driver_fuel' || type === 'driver_payment';
       }).length,
-      otherExpensesCount: expenses.filter(e => {
+      otherExpensesCount: safeExpenses.filter(e => {
         const type = e.type || (e as any).type;
         return type === 'other';
       }).length,
-      uncategorizedExpensesCount: expenses.filter(e => {
+      uncategorizedExpensesCount: safeExpenses.filter(e => {
         const type = e.type || (e as any).type;
         return type !== 'fuel' && 
                type !== 'generator_fuel' && 
@@ -98,22 +112,22 @@ export class FinancialCalculator {
 
     // Calculate actual material purchase costs for this period
     let materialCosts = 0;
-    for (const purchase of materialPurchases) {
+    for (const purchase of safeMaterialPurchases) {
       if (purchase.type === 'sachet_roll') {
-        materialCosts += purchase.cost;
+        materialCosts += purchase.cost || 0;
       } else if (purchase.type === 'packing_nylon') {
-        materialCosts += purchase.cost;
+        materialCosts += purchase.cost || 0;
       }
     }
 
     // Calculate total material cost per bag sold (for profit calculation)
-    const totalBagsSold = sales.reduce((sum, sale) => sum + sale.bagsSold, 0);
-    const sachetRollsPurchased = materialPurchases
+    const totalBagsSold = safeSales.reduce((sum, sale) => sum + (sale.bagsSold || 0), 0);
+    const sachetRollsPurchased = safeMaterialPurchases
       .filter(m => m.type === 'sachet_roll')
-      .reduce((sum, m) => sum + m.quantity, 0);
-    const packingNylonPurchased = materialPurchases
+      .reduce((sum, m) => sum + (m.quantity || 0), 0);
+    const packingNylonPurchased = safeMaterialPurchases
       .filter(m => m.type === 'packing_nylon')
-      .reduce((sum, m) => sum + m.quantity, 0);
+      .reduce((sum, m) => sum + (m.quantity || 0), 0);
 
     // Get settings for material costs from API
     let settings;
@@ -146,7 +160,7 @@ export class FinancialCalculator {
     
     // Calculate material cost per bag for each sale using selected prices or defaults
     let totalMaterialCostAllocated = 0;
-    for (const sale of sales) {
+    for (const sale of safeSales) {
       let sachetCostPerBag: number;
       let nylonCostPerBag: number;
       
@@ -165,11 +179,11 @@ export class FinancialCalculator {
         nylonCostPerBag = settings.packingNylonCost / settings.packingNylonBagsPerPackage;
       }
       
-      totalMaterialCostAllocated += sale.bagsSold * (sachetCostPerBag + nylonCostPerBag);
+      totalMaterialCostAllocated += (sale.bagsSold || 0) * (sachetCostPerBag + nylonCostPerBag);
     }
 
     // Calculate salaries
-    const totalSalaries = salaryPayments.reduce((sum, payment) => sum + payment.totalAmount, 0);
+    const totalSalaries = safeSalaryPayments.reduce((sum, payment) => sum + (payment.totalAmount || 0), 0);
 
     // Calculate total expenses
     // Include ALL expense categories:
