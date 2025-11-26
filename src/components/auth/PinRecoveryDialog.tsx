@@ -13,6 +13,7 @@ import {
   Step,
   StepLabel,
   InputAdornment,
+  IconButton,
 } from '@mui/material';
 import { Security as SecurityIcon, Lock as LockIcon } from '@mui/icons-material';
 import { apiService } from '../../services/apiService';
@@ -26,6 +27,7 @@ interface PinRecoveryDialogProps {
 export default function PinRecoveryDialog({ open, onClose, onSuccess }: PinRecoveryDialogProps) {
   const [step, setStep] = useState(0);
   const [directorIdentifier, setDirectorIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [targetUserIdentifier, setTargetUserIdentifier] = useState('');
   const [recoveryToken, setRecoveryToken] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -33,12 +35,18 @@ export default function PinRecoveryDialog({ open, onClose, onSuccess }: PinRecov
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [tokenReceived, setTokenReceived] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const steps = ['Request Recovery', 'Enter Token', 'Set New PIN'];
+  const steps = ['Verify Credentials', 'Enter Token', 'Set New PIN'];
 
   const handleRequestRecovery = async () => {
     if (!directorIdentifier) {
       setError('Please enter your email or phone number');
+      return;
+    }
+
+    if (!password) {
+      setError('Please enter your password');
       return;
     }
 
@@ -47,7 +55,8 @@ export default function PinRecoveryDialog({ open, onClose, onSuccess }: PinRecov
 
     try {
       const response = await apiService.requestPinRecovery(
-        directorIdentifier, 
+        directorIdentifier,
+        password,
         targetUserIdentifier || undefined
       );
       
@@ -117,12 +126,14 @@ export default function PinRecoveryDialog({ open, onClose, onSuccess }: PinRecov
   const handleClose = () => {
     setStep(0);
     setDirectorIdentifier('');
+    setPassword('');
     setTargetUserIdentifier('');
     setRecoveryToken('');
     setNewPin('');
     setConfirmPin('');
     setError('');
     setTokenReceived(false);
+    setShowPassword(false);
     onClose();
   };
 
@@ -152,7 +163,7 @@ export default function PinRecoveryDialog({ open, onClose, onSuccess }: PinRecov
         {step === 0 && (
           <Box>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Enter your email or phone number to receive a recovery token. This token will expire in 1 hour.
+              Enter your credentials to verify your identity. A recovery token will be generated and expire in 1 hour.
             </Typography>
             <TextField
               fullWidth
@@ -163,6 +174,28 @@ export default function PinRecoveryDialog({ open, onClose, onSuccess }: PinRecov
               required
               disabled={loading}
               placeholder="Enter your email or phone"
+            />
+            <TextField
+              fullWidth
+              label="Password"
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              margin="normal"
+              required
+              disabled={loading}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowPassword(!showPassword)}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <TextField
               fullWidth

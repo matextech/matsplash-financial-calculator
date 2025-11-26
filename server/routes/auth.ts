@@ -606,15 +606,23 @@ router.post('/check-director', async (req, res) => {
 // PIN Recovery - Request recovery token (Director only - can reset PINs for any user)
 router.post('/request-pin-recovery', async (req, res) => {
   try {
-    const { identifier, targetUserIdentifier } = req.body; 
+    const { identifier, password, targetUserIdentifier } = req.body; 
     // identifier: Director's email/phone (for verification)
+    // password: Director's password (required for security)
     // targetUserIdentifier: Email/phone of user whose PIN needs to be reset (optional, defaults to director's identifier)
     const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
 
     if (!identifier) {
       return res.status(400).json({
         success: false,
-        message: 'Director email or phone number is required'
+        message: 'Email or phone number is required'
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password is required for PIN recovery'
       });
     }
 
@@ -631,7 +639,7 @@ router.post('/request-pin-recovery', async (req, res) => {
       console.log('⚠️ PIN recovery attempt for non-existent user:', identifier);
       return res.status(403).json({
         success: false,
-        message: 'Director account not found. PIN recovery is only available to Directors.'
+        message: 'Invalid credentials'
       });
     }
 
@@ -640,7 +648,16 @@ router.post('/request-pin-recovery', async (req, res) => {
       console.log('❌ PIN recovery attempted for non-director account:', { identifier, role: director.role });
       return res.status(403).json({
         success: false,
-        message: 'PIN recovery is only available to Directors. Please contact your administrator.'
+        message: 'Invalid credentials'
+      });
+    }
+
+    // Verify director's password
+    if (director.password !== password) {
+      console.log('❌ PIN recovery attempted with incorrect password:', identifier);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid password'
       });
     }
 
@@ -650,7 +667,7 @@ router.post('/request-pin-recovery', async (req, res) => {
       console.log('❌ PIN recovery attempted for inactive director account:', identifier);
       return res.status(403).json({
         success: false,
-        message: 'Director account is disabled.'
+        message: 'Account is disabled'
       });
     }
 

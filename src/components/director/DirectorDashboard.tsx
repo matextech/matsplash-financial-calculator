@@ -142,6 +142,13 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
     twoFactorEnabled: false,
     isActive: true,
   });
+  
+  // PIN reset password verification dialog
+  const [pinResetDialogOpen, setPinResetDialogOpen] = useState(false);
+  const [pinResetPassword, setPinResetPassword] = useState('');
+  const [pinResetNewPin, setPinResetNewPin] = useState('');
+  const [pinResetUserId, setPinResetUserId] = useState<number | null>(null);
+  const [showPinResetPassword, setShowPinResetPassword] = useState(false);
 
   // Employee management dialogs
   const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false);
@@ -298,48 +305,90 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
   };
 
   const handleResetPin = async (userId: number) => {
+    // Open password verification dialog
+    setPinResetUserId(userId);
+    setPinResetPassword('');
+    setPinResetNewPin('');
+    setPinResetDialogOpen(true);
+  };
+
+  const handleConfirmPinReset = async () => {
+    if (!pinResetUserId) return;
+
+    if (!pinResetPassword) {
+      alert('Please enter your password');
+      return;
+    }
+
+    if (!pinResetNewPin) {
+      alert('Please enter the new PIN');
+      return;
+    }
+
+    // Validate PIN
+    if (!/^\d{4,6}$/.test(pinResetNewPin)) {
+      alert('❌ Invalid PIN. Must be 4-6 digits.');
+      return;
+    }
+
     try {
-      console.log('🔐 Resetting PIN for user:', userId);
+      console.log('🔐 Resetting PIN for user:', pinResetUserId);
       
-      // Prompt director to enter new PIN
-      const newPin = window.prompt(
-        '🔐 Enter new PIN for user (4-6 digits):\n\n' +
-        'The user will be required to change this PIN on their next login.',
-        '1234'
-      );
-      
-      if (!newPin) {
-        console.log('PIN reset cancelled');
-        return;
+      // Get current director session
+      const session = authService.getCurrentSession();
+      if (!session) {
+        throw new Error('Session expired. Please login again.');
       }
-      
-      // Validate PIN
-      if (!/^\d{4,6}$/.test(newPin)) {
-        alert('❌ Invalid PIN. Must be 4-6 digits.');
-        return;
+
+      // Get director's identifier
+      const director = users.find(u => u.id === session.userId);
+      if (!director || director.role !== 'director') {
+        throw new Error('Only directors can reset PINs');
       }
-      
-      // Get user info
-      const user = users.find(u => u.id === userId);
-      if (!user) {
-        throw new Error('User not found');
+
+      // Verify password by attempting login
+      const directorIdentifier = director.email || director.phone;
+      if (!directorIdentifier) {
+        throw new Error('Director email or phone not found');
       }
-      
-      // Update user via backend API
-      await apiService.updateUser(userId, {
-        pin: newPin,
+
+      // Verify password via login attempt (this will throw if password is wrong)
+      try {
+        await authService.login(directorIdentifier, pinResetPassword);
+        // Login successful, password is correct
+        // Note: This creates a new session, but that's okay
+      } catch (error: any) {
+        if (error.message && error.message.includes('Invalid credentials')) {
+          throw new Error('Invalid password. Please try again.');
+        }
+        throw error;
+      }
+
+      // Get target user
+      const targetUser = users.find(u => u.id === pinResetUserId);
+      if (!targetUser) {
+        throw new Error('Target user not found');
+      }
+
+      // Update user PIN (password verified above)
+      await apiService.updateUser(pinResetUserId, {
+        pin: pinResetNewPin,
         pinResetRequired: true
       });
       
-      console.log('✅ PIN reset successful. New PIN:', newPin);
+      console.log('✅ PIN reset successful. New PIN:', pinResetNewPin);
       
       alert(
         `✅ PIN reset successful!\n\n` +
-        `User: ${user.name}\n` +
-        `New temporary PIN: ${newPin}\n\n` +
+        `User: ${targetUser.name}\n` +
+        `New temporary PIN: ${pinResetNewPin}\n\n` +
         `The user will be required to change this PIN on their next login.`
       );
       
+      setPinResetDialogOpen(false);
+      setPinResetPassword('');
+      setPinResetNewPin('');
+      setPinResetUserId(null);
       await loadData();
     } catch (error) {
       console.error('❌ Error resetting PIN:', error);
@@ -2038,6 +2087,66 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
           <Button onClick={() => setUserDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleSaveUser} variant="contained">
             Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* PIN Reset Password Verification Dialog */}
+      <Dialog open={pinResetDialogOpen} onClose={() => {
+        setPinResetDialogOpen(false);
+        setPinResetPassword('');
+        setPinResetNewPin('');
+        setPinResetUserId(null);
+      }} maxWidth="sm" fullWidth>
+        <DialogTitle>Verify Password to Reset PIN</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Enter your password to verify your identity before resetting the PIN.
+            </Typography>
+            <TextField
+              label="Your Password"
+              type={showPinResetPassword ? 'text' : 'password'}
+              value={pinResetPassword}
+              onChange={(e) => setPinResetPassword(e.target.value)}
+              fullWidth
+              required
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowPinResetPassword(!showPinResetPassword)}
+                      edge="end"
+                    >
+                      {showPinResetPassword ? <VisibilityIcon /> : <VisibilityIcon />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <TextField
+              label="New PIN (4-6 digits)"
+              type="text"
+              value={pinResetNewPin}
+              onChange={(e) => setPinResetNewPin(e.target.value)}
+              fullWidth
+              required
+              inputProps={{ maxLength: 6, pattern: '[0-9]*' }}
+              helperText="Enter the new PIN for the user"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setPinResetDialogOpen(false);
+            setPinResetPassword('');
+            setPinResetNewPin('');
+            setPinResetUserId(null);
+          }}>
+            Cancel
+          </Button>
+          <Button onClick={handleConfirmPinReset} variant="contained" disabled={!pinResetPassword || !pinResetNewPin}>
+            Reset PIN
           </Button>
         </DialogActions>
       </Dialog>

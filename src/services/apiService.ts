@@ -154,11 +154,11 @@ class ApiService {
   }
 
   // PIN Recovery endpoints (Director only - can reset PINs for any user)
-  async requestPinRecovery(directorIdentifier: string, targetUserIdentifier?: string): Promise<{ success: boolean; message?: string; recoveryToken?: string; expiresAt?: string }> {
+  async requestPinRecovery(directorIdentifier: string, password: string, targetUserIdentifier?: string): Promise<{ success: boolean; message?: string; recoveryToken?: string; expiresAt?: string }> {
     const response = await fetch(`${API_BASE_URL}/auth/request-pin-recovery`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier: directorIdentifier, targetUserIdentifier }),
+      body: JSON.stringify({ identifier: directorIdentifier, password, targetUserIdentifier }),
     });
 
     const data = await response.json();
