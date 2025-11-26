@@ -482,6 +482,46 @@ class ApiService {
     });
   }
 
+  // Sales endpoints (legacy - for financial reports)
+  async getSales(startDate?: Date, endDate?: Date) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
+    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    
+    const queryString = params.toString();
+    return this.request<any[]>(`/sales${queryString ? '?' + queryString : ''}`);
+  }
+
+  // Expenses endpoints
+  async getExpenses(startDate?: Date, endDate?: Date) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
+    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    
+    const queryString = params.toString();
+    return this.request<any[]>(`/expenses${queryString ? '?' + queryString : ''}`);
+  }
+
+  // Material Purchases endpoints
+  async getMaterialPurchases(startDate?: Date, endDate?: Date) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
+    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    
+    const queryString = params.toString();
+    return this.request<any[]>(`/material-purchases${queryString ? '?' + queryString : ''}`);
+  }
+
+  // Salary Payments endpoints
+  async getSalaryPayments(startDate?: Date, endDate?: Date) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
+    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    
+    const queryString = params.toString();
+    return this.request<any[]>(`/salary-payments${queryString ? '?' + queryString : ''}`);
+  }
+
   // Settings endpoints
   async getSettings() {
     return this.request<any>('/settings');

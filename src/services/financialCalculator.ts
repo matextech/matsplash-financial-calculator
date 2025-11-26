@@ -9,7 +9,7 @@ import {
   MATERIAL_COSTS,
   DEFAULT_SETTINGS
 } from '../types';
-import { dbService } from './database';
+import { apiService } from './apiService';
 
 export class FinancialCalculator {
   static async generateReport(
@@ -17,12 +17,12 @@ export class FinancialCalculator {
     startDate: Date,
     endDate: Date
   ): Promise<FinancialReport> {
-    // Get all data for the period
+    // Get all data for the period from API
     const [sales, expenses, materialPurchases, salaryPayments] = await Promise.all([
-      dbService.getSales(startDate, endDate),
-      dbService.getExpenses(startDate, endDate),
-      dbService.getMaterialPurchases(startDate, endDate),
-      dbService.getSalaryPayments(startDate, endDate)
+      apiService.getSales(startDate, endDate),
+      apiService.getExpenses(startDate, endDate),
+      apiService.getMaterialPurchases(startDate, endDate),
+      apiService.getSalaryPayments(startDate, endDate)
     ]);
 
     // Calculate revenue
@@ -115,10 +115,10 @@ export class FinancialCalculator {
       .filter(m => m.type === 'packing_nylon')
       .reduce((sum, m) => sum + m.quantity, 0);
 
-    // Get settings for material costs
+    // Get settings for material costs from API
     let settings;
     try {
-      settings = await dbService.getSettings();
+      settings = await apiService.getSettings();
     } catch (error) {
       console.error('Error loading settings, using defaults:', error);
       settings = DEFAULT_SETTINGS;
@@ -251,7 +251,7 @@ export class FinancialCalculator {
     startDate?: Date,
     endDate?: Date
   ): Promise<{ totalBags: number; commission: number; sales: Sale[] }> {
-    const allSales = await dbService.getSales(startDate, endDate);
+    const allSales = await apiService.getSales(startDate, endDate);
     // Filter by employeeId - must match exactly and not be undefined/null
     const employeeSales = allSales.filter(sale => 
       sale.employeeId !== undefined && 
@@ -262,7 +262,7 @@ export class FinancialCalculator {
     const totalBags = employeeSales.reduce((sum, sale) => sum + sale.bagsSold, 0);
     
     // Get employee to get commission rate
-    const employees = await dbService.getEmployees();
+    const employees = await apiService.getEmployees();
     const employee = employees.find(e => e.id === employeeId);
     
     let commission = 0;
@@ -289,18 +289,20 @@ export class FinancialCalculator {
     startDate?: Date,
     endDate?: Date
   ): Promise<{ totalBags: number; commission: number; entries: PackerEntry[] }> {
-    const allEntries = await dbService.getPackerEntries(startDate, endDate);
-    // Filter by employeeId - must match exactly and not be undefined/null
+    // Note: Packer entries are now storekeeper entries with entry_type 'packer_production'
+    const allEntries = await apiService.getStorekeeperEntries(startDate, endDate);
+    // Filter by packer employeeId and entry type
     const employeeEntries = allEntries.filter(entry => 
-      entry.employeeId !== undefined && 
-      entry.employeeId !== null && 
-      entry.employeeId === employeeId
+      entry.entry_type === 'packer_production' &&
+      entry.packer_id !== undefined && 
+      entry.packer_id !== null && 
+      entry.packer_id === employeeId
     );
     
-    const totalBags = employeeEntries.reduce((sum, entry) => sum + entry.bagsPacked, 0);
+    const totalBags = employeeEntries.reduce((sum, entry) => sum + (entry.bags_count || 0), 0);
     
     // Get employee to get commission rate
-    const employees = await dbService.getEmployees();
+    const employees = await apiService.getEmployees();
     const employee = employees.find(e => e.id === employeeId);
     
     let commission = 0;
@@ -311,7 +313,7 @@ export class FinancialCalculator {
     return {
       totalBags,
       commission,
-      entries: employeeEntries
+      entries: employeeEntries as any[]
     };
   }
 }
