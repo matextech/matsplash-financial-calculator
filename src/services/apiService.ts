@@ -151,16 +151,6 @@ class ApiService {
     }
     return data;
   }
-      throw new Error(data.message || '2FA verification failed');
-    }
-
-    if (data.success && data.token) {
-      localStorage.setItem('authToken', data.token);
-      localStorage.setItem('currentUser', JSON.stringify(data.user));
-    }
-
-    return data;
-  }
 
   // Verify director password (for PIN reset operations)
   async verifyDirectorPassword(identifier: string, password: string): Promise<{ success: boolean; isValid: boolean }> {
