@@ -309,6 +309,15 @@ export default function Login() {
           // Optionally navigate to login or show success message
         }}
       />
+
+      <PasswordRecoveryDialog
+        open={showPasswordRecoveryDialog}
+        onClose={() => setShowPasswordRecoveryDialog(false)}
+        onSuccess={() => {
+          setShowPasswordRecoveryDialog(false);
+          // Optionally navigate to login or show success message
+        }}
+      />
     </Box>
   );
 }

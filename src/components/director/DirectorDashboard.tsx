@@ -144,12 +144,21 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
     isActive: true,
   });
   
-  // PIN reset password verification dialog
+  // PIN reset password verification dialog (for non-directors)
   const [pinResetDialogOpen, setPinResetDialogOpen] = useState(false);
   const [pinResetPassword, setPinResetPassword] = useState('');
   const [pinResetNewPin, setPinResetNewPin] = useState('');
   const [pinResetUserId, setPinResetUserId] = useState<number | null>(null);
   const [showPinResetPassword, setShowPinResetPassword] = useState(false);
+  
+  // Password reset 2FA verification dialog (for directors)
+  const [passwordResetDialogOpen, setPasswordResetDialogOpen] = useState(false);
+  const [passwordResetTwoFactorCode, setPasswordResetTwoFactorCode] = useState('');
+  const [passwordResetNewPassword, setPasswordResetNewPassword] = useState('');
+  const [passwordResetConfirmPassword, setPasswordResetConfirmPassword] = useState('');
+  const [passwordResetUserId, setPasswordResetUserId] = useState<number | null>(null);
+  const [showPasswordResetNewPassword, setShowPasswordResetNewPassword] = useState(false);
+  const [showPasswordResetConfirmPassword, setShowPasswordResetConfirmPassword] = useState(false);
 
   // Employee management dialogs
   const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false);
@@ -306,11 +315,110 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
   };
 
   const handleResetPin = async (userId: number) => {
-    // Open password verification dialog
-    setPinResetUserId(userId);
-    setPinResetPassword('');
-    setPinResetNewPin('');
-    setPinResetDialogOpen(true);
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return;
+    
+    // If director, use password reset with 2FA
+    if (targetUser.role === 'director') {
+      setPasswordResetUserId(userId);
+      setPasswordResetTwoFactorCode('');
+      setPasswordResetNewPassword('');
+      setPasswordResetConfirmPassword('');
+      setPasswordResetDialogOpen(true);
+    } else {
+      // For non-directors, use PIN reset with password verification
+      setPinResetUserId(userId);
+      setPinResetPassword('');
+      setPinResetNewPin('');
+      setPinResetDialogOpen(true);
+    }
+  };
+  
+  const handleConfirmPasswordReset = async () => {
+    if (!passwordResetUserId) return;
+
+    if (!passwordResetTwoFactorCode) {
+      alert('Please enter your 2FA code');
+      return;
+    }
+
+    if (!passwordResetNewPassword || !passwordResetConfirmPassword) {
+      alert('Please enter and confirm your new password');
+      return;
+    }
+
+    if (passwordResetNewPassword !== passwordResetConfirmPassword) {
+      alert('Passwords do not match');
+      return;
+    }
+
+    if (passwordResetNewPassword.length < 6) {
+      alert('Password must be at least 6 characters');
+      return;
+    }
+
+    try {
+      console.log('🔐 Resetting password for director:', passwordResetUserId);
+      
+      // Get current director session
+      const session = authService.getCurrentSession();
+      if (!session) {
+        throw new Error('Session expired. Please login again.');
+      }
+
+      // Get current director (the one performing the reset)
+      const currentDirector = users.find(u => u.id === session.userId);
+      if (!currentDirector || currentDirector.role !== 'director') {
+        throw new Error('Only directors can reset passwords');
+      }
+
+      // Get target user
+      const targetUser = users.find(u => u.id === passwordResetUserId);
+      if (!targetUser) {
+        throw new Error('Target user not found');
+      }
+
+      if (targetUser.role !== 'director') {
+        throw new Error('This dialog is only for resetting director passwords');
+      }
+
+      // Verify 2FA code for the current director (to authorize the reset)
+      // Use the verify-2fa endpoint
+      const directorIdentifier = currentDirector.email || currentDirector.phone;
+      if (!directorIdentifier) {
+        throw new Error('Director email or phone not found');
+      }
+
+      // Verify 2FA code using the API
+      try {
+        await apiService.verify2FACode(currentDirector.id!, passwordResetTwoFactorCode);
+      } catch (error: any) {
+        throw new Error(error.message || 'Invalid 2FA code. Please try again.');
+      }
+
+      // 2FA verified, now update the target director's password
+      await apiService.updateUser(passwordResetUserId, {
+        password: passwordResetNewPassword
+      });
+      
+      console.log('✅ Password reset successful');
+      
+      alert(
+        `✅ Password reset successful!\n\n` +
+        `User: ${targetUser.name}\n\n` +
+        `The password has been updated successfully.`
+      );
+      
+      setPasswordResetDialogOpen(false);
+      setPasswordResetTwoFactorCode('');
+      setPasswordResetNewPassword('');
+      setPasswordResetConfirmPassword('');
+      setPasswordResetUserId(null);
+      await loadData();
+    } catch (error) {
+      console.error('❌ Error resetting password:', error);
+      alert(`Error resetting password: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const handleConfirmPinReset = async () => {
@@ -1351,7 +1459,7 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
                           <EditIcon />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Reset PIN">
+                      <Tooltip title={user.role === 'director' ? 'Reset Password' : 'Reset PIN'}>
                         <IconButton size="small" onClick={() => handleResetPin(user.id!)}>
                           <SecurityIcon />
                         </IconButton>
@@ -2143,6 +2251,94 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
           </Button>
           <Button onClick={handleConfirmPinReset} variant="contained" disabled={!pinResetPassword || !pinResetNewPin}>
             Reset PIN
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Password Reset 2FA Verification Dialog (for directors) */}
+      <Dialog open={passwordResetDialogOpen} onClose={() => {
+        setPasswordResetDialogOpen(false);
+        setPasswordResetTwoFactorCode('');
+        setPasswordResetNewPassword('');
+        setPasswordResetConfirmPassword('');
+        setPasswordResetUserId(null);
+      }} maxWidth="sm" fullWidth>
+        <DialogTitle>Verify 2FA to Reset Password</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Enter your 2FA code from your authenticator app to verify your identity before resetting the password.
+            </Typography>
+            <TextField
+              label="2FA Code"
+              type="text"
+              value={passwordResetTwoFactorCode}
+              onChange={(e) => setPasswordResetTwoFactorCode(e.target.value)}
+              fullWidth
+              required
+              inputProps={{ maxLength: 6, pattern: '[0-9]*' }}
+              helperText="Enter 6-digit code from your authenticator app"
+            />
+            <TextField
+              label="New Password"
+              type={showPasswordResetNewPassword ? 'text' : 'password'}
+              value={passwordResetNewPassword}
+              onChange={(e) => setPasswordResetNewPassword(e.target.value)}
+              fullWidth
+              required
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowPasswordResetNewPassword(!showPasswordResetNewPassword)}
+                      edge="end"
+                      size="small"
+                    >
+                      {showPasswordResetNewPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <TextField
+              label="Confirm New Password"
+              type={showPasswordResetConfirmPassword ? 'text' : 'password'}
+              value={passwordResetConfirmPassword}
+              onChange={(e) => setPasswordResetConfirmPassword(e.target.value)}
+              fullWidth
+              required
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowPasswordResetConfirmPassword(!showPasswordResetConfirmPassword)}
+                      edge="end"
+                      size="small"
+                    >
+                      {showPasswordResetConfirmPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setPasswordResetDialogOpen(false);
+            setPasswordResetTwoFactorCode('');
+            setPasswordResetNewPassword('');
+            setPasswordResetConfirmPassword('');
+            setPasswordResetUserId(null);
+          }}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleConfirmPasswordReset} 
+            variant="contained" 
+            disabled={!passwordResetTwoFactorCode || !passwordResetNewPassword || !passwordResetConfirmPassword}
+          >
+            Reset Password
           </Button>
         </DialogActions>
       </Dialog>
