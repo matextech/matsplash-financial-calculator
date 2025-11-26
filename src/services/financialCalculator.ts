@@ -143,7 +143,6 @@ export class FinancialCalculator {
     // Load material prices for calculations
     let materialPricesMap: { [key: number]: any } = {};
     try {
-      const { apiService } = await import('./apiService');
       const allMaterialPrices = await apiService.getMaterialPrices(undefined, true); // Include inactive
       if (Array.isArray(allMaterialPrices)) {
         allMaterialPrices.forEach(price => {
@@ -266,18 +265,22 @@ export class FinancialCalculator {
     endDate?: Date
   ): Promise<{ totalBags: number; commission: number; sales: Sale[] }> {
     const allSales = await apiService.getSales(startDate, endDate);
+    // Ensure we have an array
+    const safeAllSales = Array.isArray(allSales) ? allSales : [];
     // Filter by employeeId - must match exactly and not be undefined/null
-    const employeeSales = allSales.filter(sale => 
+    const employeeSales = safeAllSales.filter(sale => 
       sale.employeeId !== undefined && 
       sale.employeeId !== null && 
       sale.employeeId === employeeId
     );
     
-    const totalBags = employeeSales.reduce((sum, sale) => sum + sale.bagsSold, 0);
+    const totalBags = employeeSales.reduce((sum, sale) => sum + (sale.bagsSold || 0), 0);
     
     // Get employee to get commission rate
     const employees = await apiService.getEmployees();
-    const employee = employees.find(e => e.id === employeeId);
+    // Ensure we have an array
+    const safeEmployees = Array.isArray(employees) ? employees : [];
+    const employee = safeEmployees.find(e => e.id === employeeId);
     
     let commission = 0;
     if (employee && employee.commissionRate) {
@@ -305,8 +308,10 @@ export class FinancialCalculator {
   ): Promise<{ totalBags: number; commission: number; entries: PackerEntry[] }> {
     // Note: Packer entries are now storekeeper entries with entry_type 'packer_production'
     const allEntries = await apiService.getStorekeeperEntries(startDate, endDate);
+    // Ensure we have an array
+    const safeAllEntries = Array.isArray(allEntries) ? allEntries : [];
     // Filter by packer employeeId and entry type
-    const employeeEntries = allEntries.filter(entry => 
+    const employeeEntries = safeAllEntries.filter(entry => 
       entry.entry_type === 'packer_production' &&
       entry.packer_id !== undefined && 
       entry.packer_id !== null && 
@@ -317,7 +322,9 @@ export class FinancialCalculator {
     
     // Get employee to get commission rate
     const employees = await apiService.getEmployees();
-    const employee = employees.find(e => e.id === employeeId);
+    // Ensure we have an array
+    const safeEmployees = Array.isArray(employees) ? employees : [];
+    const employee = safeEmployees.find(e => e.id === employeeId);
     
     let commission = 0;
     if (employee && employee.commissionRate) {
