@@ -136,6 +136,23 @@ class ApiService {
     return data;
   }
 
+  // Verify director password (for PIN reset operations)
+  async verifyDirectorPassword(identifier: string, password: string): Promise<{ success: boolean; isValid: boolean }> {
+    const response = await fetch(`${API_BASE_URL}/auth/verify-director-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, password }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, isValid: false };
+    }
+
+    return data;
+  }
+
   // Check if identifier belongs to a director (for showing PIN recovery option)
   async checkIfDirector(identifier: string): Promise<{ success: boolean; isDirector: boolean }> {
     const response = await fetch(`${API_BASE_URL}/auth/check-director`, {

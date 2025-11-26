@@ -44,6 +44,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
   Info as InfoIcon,
   Refresh as RefreshIcon,
   VerifiedUser as VerifiedUserIcon,
@@ -346,22 +347,16 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
         throw new Error('Only directors can reset PINs');
       }
 
-      // Verify password by attempting login
+      // Verify password using dedicated verification endpoint
       const directorIdentifier = director.email || director.phone;
       if (!directorIdentifier) {
         throw new Error('Director email or phone not found');
       }
 
-      // Verify password via login attempt (this will throw if password is wrong)
-      try {
-        await authService.login(directorIdentifier, pinResetPassword);
-        // Login successful, password is correct
-        // Note: This creates a new session, but that's okay
-      } catch (error: any) {
-        if (error.message && error.message.includes('Invalid credentials')) {
-          throw new Error('Invalid password. Please try again.');
-        }
-        throw error;
+      // Verify password without creating a new session
+      const passwordVerification = await apiService.verifyDirectorPassword(directorIdentifier, pinResetPassword);
+      if (!passwordVerification.success || !passwordVerification.isValid) {
+        throw new Error('Invalid password. Please try again.');
       }
 
       // Get target user
@@ -2117,8 +2112,9 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
                     <IconButton
                       onClick={() => setShowPinResetPassword(!showPinResetPassword)}
                       edge="end"
+                      size="small"
                     >
-                      {showPinResetPassword ? <VisibilityIcon /> : <VisibilityIcon />}
+                      {showPinResetPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
                     </IconButton>
                   </InputAdornment>
                 ),

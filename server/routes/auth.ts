@@ -561,6 +561,61 @@ router.post('/verify-2fa', async (req, res) => {
   }
 });
 
+// Verify director password (for PIN reset operations)
+router.post('/verify-director-password', async (req, res) => {
+  try {
+    const { identifier, password } = req.body;
+
+    if (!identifier || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Identifier and password are required'
+      });
+    }
+
+    // Find director by email or phone
+    const director = await db('users')
+      .where(function() {
+        this.where('email', identifier).orWhere('phone', identifier);
+      })
+      .first();
+
+    if (!director || director.role !== 'director') {
+      // Don't reveal if user exists (security best practice)
+      return res.json({
+        success: true,
+        isValid: false
+      });
+    }
+
+    // Check if director is active
+    const isActive = director.is_active === 1 || director.is_active === true || director.is_active === '1';
+    if (!isActive) {
+      return res.json({
+        success: true,
+        isValid: false
+      });
+    }
+
+    // Verify password (directors use plain text password in current implementation)
+    const isValid = director.password === password;
+
+    console.log('🔐 Password verification:', { identifier, isValid, timestamp: new Date().toISOString() });
+
+    return res.json({
+      success: true,
+      isValid: isValid
+    });
+
+  } catch (error) {
+    console.error('Verify password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
 // Check if identifier belongs to a director (for showing PIN recovery option)
 router.post('/check-director', async (req, res) => {
   try {

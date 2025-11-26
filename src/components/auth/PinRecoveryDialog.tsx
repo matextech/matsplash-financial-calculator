@@ -15,7 +15,7 @@ import {
   InputAdornment,
   IconButton,
 } from '@mui/material';
-import { Security as SecurityIcon, Lock as LockIcon } from '@mui/icons-material';
+import { Security as SecurityIcon, Lock as LockIcon, Visibility, VisibilityOff } from '@mui/icons-material';
 import { apiService } from '../../services/apiService';
 
 interface PinRecoveryDialogProps {
