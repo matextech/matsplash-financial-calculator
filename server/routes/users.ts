@@ -268,13 +268,87 @@ router.post('/:id/reset-pin', async (req, res) => {
 // Delete user
 router.delete('/:id', async (req, res) => {
   try {
-    await db('users').where('id', req.params.id).delete();
+    const { id } = req.params;
+    
+    // Check if user exists
+    const user = await db('users').where('id', id).first();
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Prevent deleting director
+    if (user.role === 'director') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete Director account. This would lock everyone out of the system.'
+      });
+    }
+
+    // Delete user
+    await db('users').where('id', id).delete();
+    
+    console.log('✅ User deleted:', { id, name: user.name, role: user.role });
+    
     res.json({
       success: true,
       message: 'User deleted successfully'
     });
   } catch (error) {
     console.error('Error deleting user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Clean receptionist and storekeeper data
+router.post('/clean-data', async (req, res) => {
+  try {
+    const { dataType } = req.body; // 'receptionist', 'storekeeper', or 'all'
+
+    if (!dataType || !['receptionist', 'storekeeper', 'all'].includes(dataType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid data type. Must be "receptionist", "storekeeper", or "all"'
+      });
+    }
+
+    let deletedCount = 0;
+
+    if (dataType === 'receptionist' || dataType === 'all') {
+      // Delete all receptionist sales
+      const receptionistCount = await db('receptionist_sales').count('* as count').first();
+      await db('receptionist_sales').delete();
+      deletedCount += parseInt(receptionistCount?.count || '0');
+      console.log('✅ Cleaned receptionist sales:', receptionistCount?.count || 0);
+    }
+
+    if (dataType === 'storekeeper' || dataType === 'all') {
+      // Delete all storekeeper entries
+      const storekeeperCount = await db('storekeeper_entries').count('* as count').first();
+      await db('storekeeper_entries').delete();
+      deletedCount += parseInt(storekeeperCount?.count || '0');
+      console.log('✅ Cleaned storekeeper entries:', storekeeperCount?.count || 0);
+    }
+
+    if (dataType === 'all') {
+      // Also clean settlements related to receptionist sales
+      await db('settlements').delete();
+      await db('settlement_payments').delete();
+      console.log('✅ Cleaned settlements and settlement payments');
+    }
+
+    res.json({
+      success: true,
+      message: `Data cleaned successfully. Deleted ${deletedCount} records.`,
+      deletedCount
+    });
+  } catch (error) {
+    console.error('Error cleaning data:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error'

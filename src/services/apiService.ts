@@ -293,6 +293,19 @@ class ApiService {
     });
   }
 
+  async cleanData(dataType: 'receptionist' | 'storekeeper' | 'all') {
+    return this.request<{ success: boolean; message: string; deletedCount: number }>('/users/clean-data', {
+      method: 'POST',
+      body: JSON.stringify({ dataType }),
+    });
+  }
+
+  async deleteUser(id: number) {
+    return this.request(`/users/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Employee endpoints
   async getEmployees() {
     return this.request<any[]>('/employees');

@@ -334,6 +334,48 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
     }
   };
   
+  const handleDeleteUser = async (userId: number) => {
+    try {
+      const user = users.find(u => u.id === userId);
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      if (user.role === 'director') {
+        alert('Cannot delete Director account.');
+        return;
+      }
+
+      await apiService.deleteUser(userId);
+      alert(`User ${user.name} deleted successfully.`);
+      await loadData();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert(`Error deleting user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleCleanData = async (dataType: 'receptionist' | 'storekeeper' | 'all') => {
+    const confirmMessage = dataType === 'all' 
+      ? 'Are you sure you want to delete ALL receptionist sales and storekeeper entries? This action cannot be undone!'
+      : dataType === 'receptionist'
+      ? 'Are you sure you want to delete ALL receptionist sales? This action cannot be undone!'
+      : 'Are you sure you want to delete ALL storekeeper entries? This action cannot be undone!';
+
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      const result = await apiService.cleanData(dataType);
+      alert(`✅ Data cleaned successfully!\n\nDeleted ${result.deletedCount} records.`);
+      await loadData(); // Reload to refresh the view
+    } catch (error) {
+      console.error('Error cleaning data:', error);
+      alert(`Error cleaning data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   const handleConfirmPasswordReset = async () => {
     if (!passwordResetUserId) return;
 
@@ -1460,6 +1502,21 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
                           <SecurityIcon />
                         </IconButton>
                       </Tooltip>
+                      {user.role !== 'director' && (
+                        <Tooltip title="Delete User">
+                          <IconButton 
+                            size="small" 
+                            onClick={() => {
+                              if (window.confirm(`Are you sure you want to delete ${user.name}? This action cannot be undone.`)) {
+                                handleDeleteUser(user.id!);
+                              }
+                            }}
+                            sx={{ color: 'error.main' }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       <Tooltip title={user.twoFactorEnabled ? 'Disable 2FA (Director Only)' : 'Enable 2FA (Director Only)'}>
                         <IconButton 
                           size="small" 
