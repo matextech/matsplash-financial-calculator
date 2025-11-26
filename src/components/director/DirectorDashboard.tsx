@@ -391,9 +391,11 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
       }
 
       // 2FA verified, now update the target director's password
-      await apiService.updateUser(passwordResetUserId, {
+      console.log('Updating password for user:', passwordResetUserId, 'New password length:', passwordResetNewPassword.length);
+      const updateResult = await apiService.updateUser(passwordResetUserId, {
         password: passwordResetNewPassword
       });
+      console.log('Password update result:', updateResult);
       
       console.log('✅ Password reset successful');
       

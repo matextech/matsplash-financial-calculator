@@ -145,7 +145,20 @@ router.put('/:id', async (req, res) => {
     if (req.body.name !== undefined) updateData.name = req.body.name;
     if (req.body.email !== undefined) updateData.email = req.body.email;
     if (req.body.phone !== undefined) updateData.phone = req.body.phone;
-    if (req.body.password !== undefined) updateData.password = req.body.password;
+    
+    // Handle password update for director
+    if (req.body.password !== undefined && currentUser.role === 'director') {
+      if (req.body.password && req.body.password.trim() !== '') {
+        // Only update if password is provided and not empty
+        updateData.password = req.body.password;
+        console.log('Updating password for director:', id);
+      } else {
+        console.log('Password field was empty for director, not updating.');
+      }
+    } else if (req.body.password !== undefined && currentUser.role !== 'director') {
+      // Non-directors don't use passwords, ignore this field
+      console.log('Password update attempted for non-director user, ignoring.');
+    }
     if (req.body.role !== undefined) {
       // Prevent changing director role
       if (currentUser.role === 'director' && req.body.role !== 'director') {
@@ -187,7 +200,7 @@ router.put('/:id', async (req, res) => {
     }
 
     const updateResult = await db('users').where('id', id).update(updateData);
-    console.log('User update completed for user:', id, 'Update data:', updateData, 'Rows affected:', updateResult);
+    console.log('User update completed for user:', id, 'Update data:', { ...updateData, password: updateData.password ? '***HIDDEN***' : undefined }, 'Rows affected:', updateResult);
 
     // Return updated user - force a fresh read
     const updatedUser = await db('users').where('id', id).first();
