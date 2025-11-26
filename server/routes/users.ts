@@ -147,17 +147,19 @@ router.put('/:id', async (req, res) => {
     if (req.body.phone !== undefined) updateData.phone = req.body.phone;
     
     // Handle password update for director
-    if (req.body.password !== undefined && currentUser.role === 'director') {
-      if (req.body.password && req.body.password.trim() !== '') {
-        // Only update if password is provided and not empty
-        updateData.password = req.body.password;
-        console.log('Updating password for director:', id);
+    if (req.body.password !== undefined) {
+      if (currentUser.role === 'director') {
+        if (req.body.password && req.body.password.trim() !== '') {
+          // Only update if password is provided and not empty
+          updateData.password = req.body.password.trim();
+          console.log('✅ Updating password for director:', id, 'Password length:', updateData.password.length);
+        } else {
+          console.log('⚠️ Password field was empty for director, not updating.');
+        }
       } else {
-        console.log('Password field was empty for director, not updating.');
+        // Non-directors don't use passwords, ignore this field
+        console.log('⚠️ Password update attempted for non-director user, ignoring.');
       }
-    } else if (req.body.password !== undefined && currentUser.role !== 'director') {
-      // Non-directors don't use passwords, ignore this field
-      console.log('Password update attempted for non-director user, ignoring.');
     }
     if (req.body.role !== undefined) {
       // Prevent changing director role
