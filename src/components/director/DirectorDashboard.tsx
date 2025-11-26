@@ -1449,13 +1449,27 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
         <Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
             <Typography variant="h6">User Accounts</Typography>
-            <Button
-              variant="contained"
-              startIcon={<PersonAddIcon />}
-              onClick={() => handleOpenUserDialog()}
-            >
-              Add User
-            </Button>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="outlined"
+                color="warning"
+                startIcon={<DeleteIcon />}
+                onClick={() => {
+                  if (window.confirm('Clean all receptionist and storekeeper data? This will delete all sales and entries. This action cannot be undone!')) {
+                    handleCleanData('all');
+                  }
+                }}
+              >
+                Clean All Data
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<PersonAddIcon />}
+                onClick={() => handleOpenUserDialog()}
+              >
+                Add User
+              </Button>
+            </Box>
           </Box>
           <TableContainer component={Paper}>
             <Table>
