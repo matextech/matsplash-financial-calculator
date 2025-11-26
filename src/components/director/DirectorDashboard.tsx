@@ -383,15 +383,9 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
       }
 
       // Verify 2FA code for the current director (to authorize the reset)
-      // Use the verify-2fa endpoint
-      const directorIdentifier = currentDirector.email || currentDirector.phone;
-      if (!directorIdentifier) {
-        throw new Error('Director email or phone not found');
-      }
-
-      // Verify 2FA code using the API
+      // Use the verify-2fa-authenticated endpoint (no password needed since user is already authenticated)
       try {
-        await apiService.verify2FACode(currentDirector.id!, passwordResetTwoFactorCode);
+        await apiService.verify2FACodeAuthenticated(currentDirector.id!, passwordResetTwoFactorCode);
       } catch (error: any) {
         throw new Error(error.message || 'Invalid 2FA code. Please try again.');
       }

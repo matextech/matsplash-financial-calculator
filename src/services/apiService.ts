@@ -123,6 +123,36 @@ class ApiService {
     });
 
     const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to verify 2FA code');
+    }
+    return data;
+  }
+
+  // Verify 2FA code for authenticated user (for password reset in dashboard)
+  async verify2FACodeAuthenticated(userId: number, code: string): Promise<{ success: boolean; message?: string }> {
+    const token = this.getAuthToken();
+    if (!token) {
+      throw new Error('Authentication required');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/auth/verify-2fa-authenticated`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ userId, code }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to verify 2FA code');
+    }
+    return data;
+  }
+
+    const data = await response.json();
 
     if (!response.ok) {
       throw new Error(data.message || '2FA verification failed');

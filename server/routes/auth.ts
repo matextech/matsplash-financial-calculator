@@ -561,6 +561,121 @@ router.post('/verify-2fa', async (req, res) => {
   }
 });
 
+// Verify 2FA code for authenticated user (for password reset in dashboard)
+router.post('/verify-2fa-authenticated', async (req, res) => {
+  try {
+    const { userId, code } = req.body;
+
+    if (!userId || !code) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and 2FA code are required'
+      });
+    }
+
+    // Verify JWT token from Authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    const token = authHeader.substring(7);
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, config.jwtSecret);
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired token'
+      });
+    }
+
+    // Verify the user ID matches the token
+    if (decoded.userId !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'User ID mismatch'
+      });
+    }
+
+    // Get user from database
+    const user = await db('users').where('id', userId).first();
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check if user is active
+    const isActive = user.is_active === 1 || user.is_active === true || user.is_active === '1';
+    if (!isActive) {
+      return res.status(403).json({
+        success: false,
+        message: 'Account is disabled'
+      });
+    }
+
+    // Check if 2FA is enabled
+    const twoFactorEnabled = user.two_factor_enabled === 1 || user.two_factor_enabled === true;
+    if (!twoFactorEnabled) {
+      return res.status(403).json({
+        success: false,
+        message: '2FA is not enabled for this account'
+      });
+    }
+
+    // Verify 2FA code
+    if (!user.two_factor_secret) {
+      return res.status(500).json({
+        success: false,
+        message: '2FA is enabled but secret is missing'
+      });
+    }
+
+    try {
+      const totp = new TOTP({
+        secret: user.two_factor_secret,
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+      });
+
+      const delta = totp.validate({ token: code, window: 2 });
+      if (delta === null) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid 2FA code'
+        });
+      }
+
+      console.log('✅ 2FA verified for authenticated user:', { userId: user.id, name: user.name });
+
+      return res.json({
+        success: true,
+        message: '2FA code verified successfully'
+      });
+    } catch (error) {
+      console.error('2FA verification error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error verifying 2FA code'
+      });
+    }
+
+  } catch (error) {
+    console.error('Verify 2FA authenticated error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
 // Verify director password (for PIN reset operations)
 router.post('/verify-director-password', async (req, res) => {
   try {
