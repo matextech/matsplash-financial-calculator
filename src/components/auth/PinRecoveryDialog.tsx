@@ -34,11 +34,11 @@ export default function PinRecoveryDialog({ open, onClose, onSuccess }: PinRecov
   const [loading, setLoading] = useState(false);
   const [tokenReceived, setTokenReceived] = useState(false);
 
-  const steps = ['Verify Director', 'Enter Token', 'Set New PIN'];
+  const steps = ['Request Recovery', 'Enter Token', 'Set New PIN'];
 
   const handleRequestRecovery = async () => {
     if (!directorIdentifier) {
-      setError('Please enter your director email or phone number');
+      setError('Please enter your email or phone number');
       return;
     }
 
@@ -151,24 +151,18 @@ export default function PinRecoveryDialog({ open, onClose, onSuccess }: PinRecov
 
         {step === 0 && (
           <Box>
-            <Alert severity="info" sx={{ mb: 2 }}>
-              <Typography variant="body2" fontWeight="bold">
-                Director Only - PIN Recovery
-              </Typography>
-              <Typography variant="body2">
-                This feature allows Directors to reset PINs for managers, receptionists, and storekeepers. Enter your director credentials to proceed.
-              </Typography>
-            </Alert>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Enter your email or phone number to receive a recovery token. This token will expire in 1 hour.
+            </Typography>
             <TextField
               fullWidth
-              label="Director Email or Phone Number"
+              label="Email or Phone Number"
               value={directorIdentifier}
               onChange={(e) => setDirectorIdentifier(e.target.value)}
               margin="normal"
               required
               disabled={loading}
-              placeholder="director@matsplash.com"
-              helperText="Your director account email or phone"
+              placeholder="Enter your email or phone"
             />
             <TextField
               fullWidth
@@ -177,8 +171,8 @@ export default function PinRecoveryDialog({ open, onClose, onSuccess }: PinRecov
               onChange={(e) => setTargetUserIdentifier(e.target.value)}
               margin="normal"
               disabled={loading}
-              placeholder="manager@matsplash.com"
-              helperText="Leave blank to reset your own PIN, or enter the user whose PIN you want to reset"
+              placeholder="Enter target user email or phone (optional)"
+              helperText="Leave blank to reset your own PIN, or enter another user's email/phone to reset their PIN"
             />
           </Box>
         )}
