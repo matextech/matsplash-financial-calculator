@@ -727,10 +727,17 @@ router.post('/request-pin-recovery', async (req, res) => {
     }
 
     // Find target user (user whose PIN will be reset)
-    const targetIdentifier = targetUserIdentifier || identifier;
+    // If no target specified, require it (director cannot reset their own PIN since they use passwords)
+    if (!targetUserIdentifier) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please specify the user whose PIN you want to reset. Directors use passwords, not PINs.'
+      });
+    }
+
     const targetUser = await db('users')
       .where(function() {
-        this.where('email', targetIdentifier).orWhere('phone', targetIdentifier);
+        this.where('email', targetUserIdentifier).orWhere('phone', targetUserIdentifier);
       })
       .first();
 
@@ -745,7 +752,7 @@ router.post('/request-pin-recovery', async (req, res) => {
     if (targetUser.role === 'director') {
       return res.status(403).json({
         success: false,
-        message: 'Directors use passwords, not PINs. Please use password reset instead.'
+        message: 'Cannot reset PIN for director accounts. Directors use passwords.'
       });
     }
 

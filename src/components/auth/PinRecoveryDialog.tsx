@@ -199,13 +199,14 @@ export default function PinRecoveryDialog({ open, onClose, onSuccess }: PinRecov
             />
             <TextField
               fullWidth
-              label="Target User Email or Phone (Optional)"
+              label="Target User Email or Phone"
               value={targetUserIdentifier}
               onChange={(e) => setTargetUserIdentifier(e.target.value)}
               margin="normal"
+              required
               disabled={loading}
-              placeholder="Enter target user email or phone (optional)"
-              helperText="Leave blank to reset your own PIN, or enter another user's email/phone to reset their PIN"
+              placeholder="Enter target user email or phone"
+              helperText="Enter the email or phone of the user whose PIN you want to reset"
             />
           </Box>
         )}
