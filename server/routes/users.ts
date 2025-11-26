@@ -356,5 +356,104 @@ router.post('/clean-data', async (req, res) => {
   }
 });
 
+// Clean all data except settings and users
+router.post('/clean-all-data', async (req, res) => {
+  try {
+    const results: any = {};
+
+    // Clean sales
+    const salesCount = await db('sales').count('* as count').first();
+    await db('sales').delete();
+    results.sales = parseInt(salesCount?.count || '0');
+    console.log('✅ Cleaned sales:', results.sales);
+
+    // Clean expenses
+    const expensesCount = await db('expenses').count('* as count').first();
+    await db('expenses').delete();
+    results.expenses = parseInt(expensesCount?.count || '0');
+    console.log('✅ Cleaned expenses:', results.expenses);
+
+    // Clean material purchases
+    const materialPurchasesCount = await db('material_purchases').count('* as count').first();
+    await db('material_purchases').delete();
+    results.materialPurchases = parseInt(materialPurchasesCount?.count || '0');
+    console.log('✅ Cleaned material purchases:', results.materialPurchases);
+
+    // Clean salary payments (commissions)
+    const salaryPaymentsCount = await db('salary_payments').count('* as count').first();
+    await db('salary_payments').delete();
+    results.salaryPayments = parseInt(salaryPaymentsCount?.count || '0');
+    console.log('✅ Cleaned salary payments:', results.salaryPayments);
+
+    // Clean employees
+    const employeesCount = await db('employees').count('* as count').first();
+    await db('employees').delete();
+    results.employees = parseInt(employeesCount?.count || '0');
+    console.log('✅ Cleaned employees:', results.employees);
+
+    // Clean receptionist sales
+    const receptionistSalesCount = await db('receptionist_sales').count('* as count').first();
+    await db('receptionist_sales').delete();
+    results.receptionistSales = parseInt(receptionistSalesCount?.count || '0');
+    console.log('✅ Cleaned receptionist sales:', results.receptionistSales);
+
+    // Clean storekeeper entries
+    const storekeeperEntriesCount = await db('storekeeper_entries').count('* as count').first();
+    await db('storekeeper_entries').delete();
+    results.storekeeperEntries = parseInt(storekeeperEntriesCount?.count || '0');
+    console.log('✅ Cleaned storekeeper entries:', results.storekeeperEntries);
+
+    // Clean settlements
+    const settlementsCount = await db('settlements').count('* as count').first();
+    await db('settlements').delete();
+    results.settlements = parseInt(settlementsCount?.count || '0');
+    console.log('✅ Cleaned settlements:', results.settlements);
+
+    // Clean settlement payments
+    const settlementPaymentsCount = await db('settlement_payments').count('* as count').first();
+    await db('settlement_payments').delete();
+    results.settlementPayments = parseInt(settlementPaymentsCount?.count || '0');
+    console.log('✅ Cleaned settlement payments:', results.settlementPayments);
+
+    // Clean audit logs (optional - you might want to keep these)
+    const auditLogsCount = await db('audit_logs').count('* as count').first();
+    await db('audit_logs').delete();
+    results.auditLogs = parseInt(auditLogsCount?.count || '0');
+    console.log('✅ Cleaned audit logs:', results.auditLogs);
+
+    // Clean notifications
+    const notificationsCount = await db('notifications').count('* as count').first();
+    await db('notifications').delete();
+    results.notifications = parseInt(notificationsCount?.count || '0');
+    console.log('✅ Cleaned notifications:', results.notifications);
+
+    // Clean recovery tokens
+    const pinRecoveryTokensCount = await db('pin_recovery_tokens').count('* as count').first();
+    await db('pin_recovery_tokens').delete();
+    results.pinRecoveryTokens = parseInt(pinRecoveryTokensCount?.count || '0');
+    console.log('✅ Cleaned PIN recovery tokens:', results.pinRecoveryTokens);
+
+    const passwordRecoveryTokensCount = await db('password_recovery_tokens').count('* as count').first();
+    await db('password_recovery_tokens').delete();
+    results.passwordRecoveryTokens = parseInt(passwordRecoveryTokensCount?.count || '0');
+    console.log('✅ Cleaned password recovery tokens:', results.passwordRecoveryTokens);
+
+    const totalDeleted = Object.values(results).reduce((sum: number, count: any) => sum + count, 0);
+
+    res.json({
+      success: true,
+      message: `All data cleaned successfully. Deleted ${totalDeleted} total records.`,
+      results,
+      totalDeleted
+    });
+  } catch (error) {
+    console.error('Error cleaning all data:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
 export default router;
 

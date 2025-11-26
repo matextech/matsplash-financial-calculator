@@ -376,6 +376,54 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
     }
   };
 
+  const handleCleanAllData = async () => {
+    const confirmMessage = 
+      '⚠️ WARNING: This will delete ALL data except Settings and Users!\n\n' +
+      'This includes:\n' +
+      '• All Sales\n' +
+      '• All Expenses\n' +
+      '• All Commissions/Salary Payments\n' +
+      '• All Material Purchases\n' +
+      '• All Employees\n' +
+      '• All Receptionist Sales\n' +
+      '• All Storekeeper Entries\n' +
+      '• All Settlements\n' +
+      '• All Audit Logs\n' +
+      '• All Notifications\n' +
+      '• All Recovery Tokens\n\n' +
+      'Settings and User accounts will be preserved.\n\n' +
+      'This action CANNOT be undone!\n\n' +
+      'Are you absolutely sure you want to proceed?';
+
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    // Double confirmation
+    if (!window.confirm('FINAL CONFIRMATION: Delete ALL data? Type OK to confirm.')) {
+      return;
+    }
+
+    try {
+      const result = await apiService.cleanAllData();
+      const details = Object.entries(result.results)
+        .filter(([_, count]) => count > 0)
+        .map(([key, count]) => `  • ${key}: ${count}`)
+        .join('\n');
+
+      alert(
+        `✅ All data cleaned successfully!\n\n` +
+        `Total records deleted: ${result.totalDeleted}\n\n` +
+        `Breakdown:\n${details || '  (No data found to delete)'}\n\n` +
+        `Settings and Users have been preserved.`
+      );
+      await loadData(); // Reload to refresh the view
+    } catch (error) {
+      console.error('Error cleaning all data:', error);
+      alert(`Error cleaning all data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   const handleConfirmPasswordReset = async () => {
     if (!passwordResetUserId) return;
 
@@ -1452,15 +1500,12 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Button
                 variant="outlined"
-                color="warning"
+                color="error"
                 startIcon={<DeleteIcon />}
-                onClick={() => {
-                  if (window.confirm('Clean all receptionist and storekeeper data? This will delete all sales and entries. This action cannot be undone!')) {
-                    handleCleanData('all');
-                  }
-                }}
+                onClick={handleCleanAllData}
+                sx={{ fontWeight: 'bold' }}
               >
-                Clean All Data
+                Clean ALL Data
               </Button>
               <Button
                 variant="contained"

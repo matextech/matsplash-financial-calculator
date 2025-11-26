@@ -300,6 +300,31 @@ class ApiService {
     });
   }
 
+  async cleanAllData() {
+    return this.request<{ 
+      success: boolean; 
+      message: string; 
+      results: {
+        sales: number;
+        expenses: number;
+        materialPurchases: number;
+        salaryPayments: number;
+        employees: number;
+        receptionistSales: number;
+        storekeeperEntries: number;
+        settlements: number;
+        settlementPayments: number;
+        auditLogs: number;
+        notifications: number;
+        pinRecoveryTokens: number;
+        passwordRecoveryTokens: number;
+      };
+      totalDeleted: number;
+    }>('/users/clean-all-data', {
+      method: 'POST',
+    });
+  }
+
   async deleteUser(id: number) {
     return this.request(`/users/${id}`, {
       method: 'DELETE',
