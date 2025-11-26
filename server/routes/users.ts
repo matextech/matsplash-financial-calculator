@@ -438,6 +438,18 @@ router.post('/clean-all-data', async (req, res) => {
     results.passwordRecoveryTokens = parseInt(passwordRecoveryTokensCount?.count || '0');
     console.log('✅ Cleaned password recovery tokens:', results.passwordRecoveryTokens);
 
+    // Clean material prices (inventory/pricing configuration)
+    const materialPricesCount = await db('material_prices').count('* as count').first();
+    await db('material_prices').delete();
+    results.materialPrices = parseInt(materialPricesCount?.count || '0');
+    console.log('✅ Cleaned material prices:', results.materialPrices);
+
+    // Clean bag prices (pricing configuration)
+    const bagPricesCount = await db('bag_prices').count('* as count').first();
+    await db('bag_prices').delete();
+    results.bagPrices = parseInt(bagPricesCount?.count || '0');
+    console.log('✅ Cleaned bag prices:', results.bagPrices);
+
     const totalDeleted = Object.values(results).reduce((sum: number, count: any) => sum + count, 0);
 
     res.json({
