@@ -61,7 +61,16 @@ export class FinancialCalculator {
     const safeSalaryPayments = Array.isArray(salaryPayments) ? salaryPayments : [];
 
     // Calculate revenue
-    const totalRevenue = safeSales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0);
+    const totalRevenue = safeSales.reduce((sum, sale) => {
+      const amount = sale.totalAmount || sale.total_amount || 0;
+      return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
+    }, 0);
+    
+    console.log('FinancialCalculator - Revenue calculation:', {
+      salesCount: safeSales.length,
+      totalRevenue,
+      sampleSale: safeSales.length > 0 ? safeSales[0] : null
+    });
 
     // Calculate expenses - ensure ALL expenses are captured
     // Filter for fuel expenses (generator fuel)
