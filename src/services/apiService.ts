@@ -31,7 +31,19 @@ class ApiService {
     }
 
     const data = await response.json();
-    return data.data || data;
+    // Handle both { success: true, data: [...] } and direct array responses
+    const result = data.data || data;
+    
+    // Log for debugging (only in development)
+    if (process.env.NODE_ENV === 'development' && endpoint.includes('/sales')) {
+      console.log(`API Response for ${endpoint}:`, {
+        isArray: Array.isArray(result),
+        length: Array.isArray(result) ? result.length : 'N/A',
+        sample: Array.isArray(result) && result.length > 0 ? result[0] : null
+      });
+    }
+    
+    return result;
   }
 
   // Auth endpoints

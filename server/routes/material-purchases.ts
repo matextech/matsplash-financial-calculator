@@ -29,6 +29,9 @@ router.get('/', async (req, res) => {
     }
 
     const purchases = await query;
+    console.log(`Material Purchases API - Query params:`, { startDate: req.query.startDate, endDate: req.query.endDate });
+    console.log(`Material Purchases API - Found ${purchases.length} purchases`);
+    
     const transformedPurchases = purchases.map(transformMaterialPurchase);
     res.json(transformedPurchases);
   } catch (error) {

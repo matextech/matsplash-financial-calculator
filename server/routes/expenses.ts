@@ -29,6 +29,9 @@ router.get('/', async (req, res) => {
     }
 
     const expenses = await query;
+    console.log(`Expenses API - Query params:`, { startDate: req.query.startDate, endDate: req.query.endDate });
+    console.log(`Expenses API - Found ${expenses.length} expenses`);
+    
     const transformedExpenses = expenses.map(transformExpense);
     res.json(transformedExpenses);
   } catch (error) {

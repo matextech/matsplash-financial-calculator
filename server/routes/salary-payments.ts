@@ -35,6 +35,9 @@ router.get('/', async (req, res) => {
     }
 
     const payments = await query;
+    console.log(`Salary Payments API - Query params:`, { startDate: req.query.startDate, endDate: req.query.endDate });
+    console.log(`Salary Payments API - Found ${payments.length} payments`);
+    
     const transformedPayments = payments.map(transformSalaryPayment);
     res.json(transformedPayments);
   } catch (error) {

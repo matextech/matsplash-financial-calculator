@@ -34,7 +34,12 @@ router.get('/', async (req, res) => {
     }
 
     const sales = await query;
+    console.log(`Sales API - Query params:`, { startDate: req.query.startDate, endDate: req.query.endDate });
+    console.log(`Sales API - Found ${sales.length} sales`);
+    
     const transformedSales = sales.map(transformSale);
+    console.log(`Sales API - Transformed ${transformedSales.length} sales`);
+    
     res.json(transformedSales);
   } catch (error) {
     console.error('Error fetching sales:', error);

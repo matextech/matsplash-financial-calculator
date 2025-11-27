@@ -18,19 +18,40 @@ export class FinancialCalculator {
     endDate: Date
   ): Promise<FinancialReport> {
     // Get all data for the period from API
-    const [sales, expenses, materialPurchases, salaryPayments] = await Promise.all([
-      apiService.getSales(startDate, endDate),
-      apiService.getExpenses(startDate, endDate),
-      apiService.getMaterialPurchases(startDate, endDate),
-      apiService.getSalaryPayments(startDate, endDate)
-    ]);
+    console.log('FinancialCalculator - Fetching data for period:', {
+      period,
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0]
+    });
+
+    let sales, expenses, materialPurchases, salaryPayments;
+    try {
+      [sales, expenses, materialPurchases, salaryPayments] = await Promise.all([
+        apiService.getSales(startDate, endDate),
+        apiService.getExpenses(startDate, endDate),
+        apiService.getMaterialPurchases(startDate, endDate),
+        apiService.getSalaryPayments(startDate, endDate)
+      ]);
+    } catch (error) {
+      console.error('FinancialCalculator - Error fetching data:', error);
+      throw error;
+    }
+
+    console.log('FinancialCalculator - Raw API responses:', {
+      sales: Array.isArray(sales) ? sales.length : typeof sales,
+      expenses: Array.isArray(expenses) ? expenses.length : typeof expenses,
+      materialPurchases: Array.isArray(materialPurchases) ? materialPurchases.length : typeof materialPurchases,
+      salaryPayments: Array.isArray(salaryPayments) ? salaryPayments.length : typeof salaryPayments,
+      salesSample: Array.isArray(sales) && sales.length > 0 ? sales[0] : null,
+      expensesSample: Array.isArray(expenses) && expenses.length > 0 ? expenses[0] : null
+    });
 
     console.log('FinancialCalculator - Data loaded:', {
       salesCount: sales?.length || 0,
       expensesCount: expenses?.length || 0,
       materialPurchasesCount: materialPurchases?.length || 0,
       salaryPaymentsCount: salaryPayments?.length || 0,
-      dateRange: { start: startDate, end: endDate }
+      dateRange: { start: startDate.toISOString().split('T')[0], end: endDate.toISOString().split('T')[0] }
     });
 
     // Ensure we have arrays (handle potential undefined/null)
@@ -182,7 +203,16 @@ export class FinancialCalculator {
     }
 
     // Calculate salaries
-    const totalSalaries = safeSalaryPayments.reduce((sum, payment) => sum + (payment.totalAmount || 0), 0);
+    const totalSalaries = safeSalaryPayments.reduce((sum, payment) => {
+      const amount = payment.totalAmount || payment.total_amount || 0;
+      return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
+    }, 0);
+    
+    console.log('FinancialCalculator - Salaries calculation:', {
+      paymentsCount: safeSalaryPayments.length,
+      totalSalaries,
+      samplePayment: safeSalaryPayments.length > 0 ? safeSalaryPayments[0] : null
+    });
 
     // Calculate total expenses
     // Include ALL expense categories:
