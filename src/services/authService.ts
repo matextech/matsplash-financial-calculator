@@ -64,8 +64,8 @@ class AuthService {
       // Clear successful login attempts
       this.clearLoginAttempts(identifier);
       
-      // Create session with 5 minute timeout for all users (maximum security)
-      const sessionTimeout = this.SESSION_TIMEOUT; // 5 minutes for all users
+      // Create session with extended timeout (activity-based logout handles security)
+      const sessionTimeout = this.SESSION_TIMEOUT; // 24 hours, but activity monitoring will logout after 2 min inactivity
       const session: AuthSession = {
         userId: user.id,
         role: user.role as UserRole,

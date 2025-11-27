@@ -124,6 +124,8 @@ export interface Settings {
   // Legacy fields for backward compatibility
   salesPrice1?: number; // Deprecated - use bagPrices[0]
   salesPrice2?: number; // Deprecated - use bagPrices[1]
+  // Inventory settings
+  inventoryLowThreshold?: number; // Alert when bags below this number (default: 4000)
   updatedAt?: Date;
 }
 

@@ -19,6 +19,7 @@ import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { FinancialCalculator } from '../services/financialCalculator';
 import { FinancialReport } from '../types';
 import { InventoryService, InventoryStatus } from '../services/inventoryService';
+import { apiService } from '../services/apiService';
 
 export default function Dashboard() {
   const navigate = useNavigate();
