@@ -5,11 +5,25 @@ const router = express.Router();
 
 // Helper function to transform database fields to frontend format
 function transformEmployee(employee: any) {
+  // Convert snake_case to camelCase - only return camelCase fields
   return {
-    ...employee,
+    id: employee.id,
+    name: employee.name,
+    email: employee.email,
+    phone: employee.phone || null,
+    role: employee.role,
+    salaryType: employee.salary_type || employee.salaryType || 'commission', // Convert snake_case to camelCase
+    fixedSalary: (employee.fixed_salary !== null && employee.fixed_salary !== undefined) 
+      ? employee.fixed_salary 
+      : (employee.fixedSalary !== null && employee.fixedSalary !== undefined ? employee.fixedSalary : undefined),
+    commissionRate: (employee.commission_rate !== null && employee.commission_rate !== undefined) 
+      ? employee.commission_rate 
+      : (employee.commissionRate !== null && employee.commissionRate !== undefined ? employee.commissionRate : undefined),
+    createdAt: employee.created_at || employee.createdAt,
+    updatedAt: employee.updated_at || employee.updatedAt,
     // Note: employees table doesn't have is_active field yet
     // Consider all employees active for now
-    isActive: true,
+    isActive: employee.is_active !== undefined ? employee.is_active : true,
   };
 }
 
@@ -17,9 +31,11 @@ function transformEmployee(employee: any) {
 router.get('/', async (req, res) => {
   try {
     const employees = await db('employees').select('*').orderBy('name');
+    const transformed = employees.map(transformEmployee);
+    console.log('📋 Employees route - Transformed sample:', transformed.length > 0 ? JSON.stringify(transformed[0], null, 2) : 'No employees');
     res.json({
       success: true,
-      data: employees.map(transformEmployee)
+      data: transformed
     });
   } catch (error) {
     console.error('Error fetching employees:', error);
@@ -65,6 +81,18 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Check for duplicate email
+    const existingEmployee = await db('employees')
+      .where('email', email)
+      .first();
+
+    if (existingEmployee) {
+      return res.status(409).json({
+        success: false,
+        message: 'An employee with this email already exists'
+      });
+    }
+
     const [id] = await db('employees').insert({
       name,
       email,
@@ -84,8 +112,17 @@ router.post('/', async (req, res) => {
       data: transformEmployee(newEmployee),
       message: 'Employee created successfully'
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating employee:', error);
+    
+    // Check for unique constraint violation
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.message?.includes('UNIQUE constraint')) {
+      return res.status(409).json({
+        success: false,
+        message: 'An employee with this email already exists'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Internal server error'
@@ -102,7 +139,21 @@ router.put('/:id', async (req, res) => {
     };
 
     if (req.body.name !== undefined) updateData.name = req.body.name;
-    if (req.body.email !== undefined) updateData.email = req.body.email;
+    if (req.body.email !== undefined) {
+      // Check if email is being changed and if it already exists for another employee
+      const existingEmployee = await db('employees')
+        .where('email', req.body.email)
+        .whereNot('id', id)
+        .first();
+      
+      if (existingEmployee) {
+        return res.status(409).json({
+          success: false,
+          message: 'An employee with this email already exists'
+        });
+      }
+      updateData.email = req.body.email;
+    }
     if (req.body.phone !== undefined) updateData.phone = req.body.phone;
     if (req.body.role !== undefined) updateData.role = req.body.role;
     if (req.body.salaryType !== undefined) updateData.salary_type = req.body.salaryType;
@@ -120,8 +171,17 @@ router.put('/:id', async (req, res) => {
       data: transformEmployee(updatedEmployee),
       message: 'Employee updated successfully'
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating employee:', error);
+    
+    // Check for unique constraint violation
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.message?.includes('UNIQUE constraint')) {
+      return res.status(409).json({
+        success: false,
+        message: 'An employee with this email already exists'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Internal server error'

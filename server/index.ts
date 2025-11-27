@@ -18,6 +18,7 @@ import salesRoutes from './routes/sales';
 import expensesRoutes from './routes/expenses';
 import materialPurchasesRoutes from './routes/material-purchases';
 import salaryPaymentsRoutes from './routes/salary-payments';
+import packerEntriesRoutes from './routes/packer-entries';
 
 // Load environment variables
 dotenv.config();
@@ -68,6 +69,7 @@ app.use('/api/sales', salesRoutes);
 app.use('/api/expenses', expensesRoutes);
 app.use('/api/material-purchases', materialPurchasesRoutes);
 app.use('/api/salary-payments', salaryPaymentsRoutes);
+app.use('/api/packer-entries', packerEntriesRoutes);
 console.log('✅ All routes registered, including /api/audit-logs');
 
 // Health check endpoint

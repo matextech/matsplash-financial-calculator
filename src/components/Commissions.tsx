@@ -33,7 +33,7 @@ import {
   ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
 import { Employee, Sale } from '../types';
-import { dbService } from '../services/database';
+import { apiService } from '../services/apiService';
 import { FinancialCalculator } from '../services/financialCalculator';
 import { format, startOfDay, endOfDay, subDays, subMonths, subWeeks } from 'date-fns';
 
@@ -69,32 +69,74 @@ export default function Commissions() {
   }, [commissionData, filterEmployee, filterRole, dateRange, customStartDate, customEndDate, searchTerm]);
 
   const loadData = async () => {
-    const employeesData = await dbService.getEmployees();
-    setEmployees(employeesData);
+    try {
+      const employeesData = await apiService.getEmployees();
+      // Handle both array and object with data property
+      const employeesList = Array.isArray(employeesData) ? employeesData : (employeesData.data || []);
+      
+      // Normalize employee data - handle both snake_case and camelCase
+      const normalizedEmployees = employeesList.map(emp => ({
+        ...emp,
+        salaryType: emp.salaryType || emp.salary_type,
+        commissionRate: emp.commissionRate !== undefined ? emp.commissionRate : (emp.commission_rate !== undefined ? emp.commission_rate : null),
+        fixedSalary: emp.fixedSalary !== undefined ? emp.fixedSalary : (emp.fixed_salary !== undefined ? emp.fixed_salary : null),
+        role: emp.role,
+        id: emp.id,
+        name: emp.name,
+        email: emp.email,
+      }));
+      
+      setEmployees(normalizedEmployees);
 
-    // Calculate commission for each employee with commission rates
-    const commissionPromises = employeesData
-      .filter(emp => emp.salaryType === 'commission' || emp.salaryType === 'both')
-      .map(async (emp) => {
-        if (!emp.id) return null;
-        try {
-          const commissionInfo = await FinancialCalculator.calculateCommissionFromSales(emp.id);
-          return {
-            employee: emp,
-            totalBags: commissionInfo.totalBags,
-            commission: commissionInfo.commission,
-            sales: commissionInfo.sales,
-            salesCount: commissionInfo.sales.length,
-          };
-        } catch (error) {
-          console.error(`Error loading commission for employee ${emp.id}:`, error);
-          return null;
-        }
-      });
+      // Calculate commission for each employee with commission rates
+      // Include ALL employees with commission rates, even if they have 0 commission
+      const commissionPromises = normalizedEmployees
+        .filter(emp => (emp.salaryType === 'commission' || emp.salaryType === 'both') && emp.commissionRate)
+        .map(async (emp) => {
+          if (!emp.id) return null;
+          try {
+            let commissionInfo;
+            // Use packer entries for packers, sales for drivers and others
+            if (emp.role === 'Packers' || emp.role === 'Packer') {
+              commissionInfo = await FinancialCalculator.calculateCommissionFromPackerEntries(emp.id);
+              return {
+                employee: emp,
+                totalBags: commissionInfo.totalBags || 0,
+                commission: commissionInfo.commission || 0,
+                sales: [], // Packer entries don't have sales
+                salesCount: commissionInfo.entries?.length || 0, // Use entries count instead
+              };
+            } else {
+              // Drivers and other roles use sales
+              commissionInfo = await FinancialCalculator.calculateCommissionFromSales(emp.id);
+              return {
+                employee: emp,
+                totalBags: commissionInfo.totalBags || 0,
+                commission: commissionInfo.commission || 0,
+                sales: commissionInfo.sales || [],
+                salesCount: commissionInfo.sales?.length || 0,
+              };
+            }
+          } catch (error) {
+            console.error(`Error loading commission for employee ${emp.id}:`, error);
+            // Return employee with 0 values instead of null, so they still show up
+            return {
+              employee: emp,
+              totalBags: 0,
+              commission: 0,
+              sales: [],
+              salesCount: 0,
+            };
+          }
+        });
 
-    const results = await Promise.all(commissionPromises);
-    const validResults = results.filter((r): r is CommissionData => r !== null);
-    setCommissionData(validResults);
+      const results = await Promise.all(commissionPromises);
+      const validResults = results.filter((r): r is CommissionData => r !== null);
+      setCommissionData(validResults);
+    } catch (error) {
+      console.error('Error loading commission data:', error);
+      setCommissionData([]);
+    }
   };
 
   const getDateRange = (): { start?: Date; end?: Date } => {
@@ -139,18 +181,36 @@ export default function Commissions() {
         filtered.map(async (item) => {
           if (!item.employee.id) return null;
           try {
-            const commissionInfo = await FinancialCalculator.calculateCommissionFromSales(
-              item.employee.id,
-              start,
-              end
-            );
-            return {
-              ...item,
-              totalBags: commissionInfo.totalBags,
-              commission: commissionInfo.commission,
-              sales: commissionInfo.sales,
-              salesCount: commissionInfo.sales.length,
-            };
+            let commissionInfo;
+            // Use packer entries for packers, sales for drivers and others
+            if (item.employee.role === 'Packers' || item.employee.role === 'Packer') {
+              commissionInfo = await FinancialCalculator.calculateCommissionFromPackerEntries(
+                item.employee.id,
+                start,
+                end
+              );
+              return {
+                ...item,
+                totalBags: commissionInfo.totalBags,
+                commission: commissionInfo.commission,
+                sales: [], // Packer entries don't have sales
+                salesCount: commissionInfo.entries.length, // Use entries count instead
+              };
+            } else {
+              // Drivers and other roles use sales
+              commissionInfo = await FinancialCalculator.calculateCommissionFromSales(
+                item.employee.id,
+                start,
+                end
+              );
+              return {
+                ...item,
+                totalBags: commissionInfo.totalBags,
+                commission: commissionInfo.commission,
+                sales: commissionInfo.sales || [],
+                salesCount: commissionInfo.sales?.length || 0,
+              };
+            }
           } catch (error) {
             console.error(`Error calculating commission for employee ${item.employee.id}:`, error);
             return null;
@@ -479,49 +539,61 @@ export default function Commissions() {
                         </Tooltip>
                       </TableCell>
                     </TableRow>
-                    {isExpanded && item.sales.length > 0 && (
+                    {isExpanded && (
                       <TableRow>
                         <TableCell colSpan={7} sx={{ py: 2, backgroundColor: 'grey.50' }}>
                           <Box>
-                            <Typography variant="subtitle2" gutterBottom fontWeight="bold">
-                              Sales Details ({item.sales.length} sale{item.sales.length !== 1 ? 's' : ''})
-                            </Typography>
-                            <Table size="small">
-                              <TableHead>
-                                <TableRow>
-                                  <TableCell>Date</TableCell>
-                                  <TableCell align="right">Bags</TableCell>
-                                  <TableCell align="right">Price/Bag</TableCell>
-                                  <TableCell align="right">Total Amount</TableCell>
-                                  <TableCell align="right">Commission</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                {item.sales
-                                  .sort((a, b) => {
-                                    const dateA = a.date instanceof Date ? a.date : new Date(a.date);
-                                    const dateB = b.date instanceof Date ? b.date : new Date(b.date);
-                                    return dateB.getTime() - dateA.getTime();
-                                  })
-                                  .map((sale) => {
-                                    const saleDate = sale.date instanceof Date ? sale.date : new Date(sale.date);
-                                    const saleCommission = sale.bagsSold * (item.employee.commissionRate || 0);
-                                    return (
-                                      <TableRow key={sale.id}>
-                                        <TableCell>{format(saleDate, 'MMM d, yyyy')}</TableCell>
-                                        <TableCell align="right">{sale.bagsSold.toLocaleString()}</TableCell>
-                                        <TableCell align="right">₦{sale.pricePerBag.toLocaleString()}</TableCell>
-                                        <TableCell align="right">{formatCurrency(sale.totalAmount)}</TableCell>
-                                        <TableCell align="right">
-                                          <Typography variant="body2" color="success.main">
-                                            {formatCurrency(saleCommission)}
-                                          </Typography>
-                                        </TableCell>
-                                      </TableRow>
-                                    );
-                                  })}
-                              </TableBody>
-                            </Table>
+                            {(item.employee.role === 'Packers' || item.employee.role === 'Packer') ? (
+                              <Typography variant="body2" color="text.secondary">
+                                Packer entries are tracked separately. Total bags packed: {item.totalBags.toLocaleString()}
+                              </Typography>
+                            ) : item.sales.length > 0 ? (
+                              <>
+                                <Typography variant="subtitle2" gutterBottom fontWeight="bold">
+                                  Sales Details ({item.sales.length} sale{item.sales.length !== 1 ? 's' : ''})
+                                </Typography>
+                                <Table size="small">
+                                  <TableHead>
+                                    <TableRow>
+                                      <TableCell>Date</TableCell>
+                                      <TableCell align="right">Bags</TableCell>
+                                      <TableCell align="right">Price/Bag</TableCell>
+                                      <TableCell align="right">Total Amount</TableCell>
+                                      <TableCell align="right">Commission</TableCell>
+                                    </TableRow>
+                                  </TableHead>
+                                  <TableBody>
+                                    {item.sales
+                                      .sort((a, b) => {
+                                        const dateA = a.date instanceof Date ? a.date : new Date(a.date);
+                                        const dateB = b.date instanceof Date ? b.date : new Date(b.date);
+                                        return dateB.getTime() - dateA.getTime();
+                                      })
+                                      .map((sale) => {
+                                        const saleDate = sale.date instanceof Date ? sale.date : new Date(sale.date);
+                                        const saleCommission = sale.bagsSold * (item.employee.commissionRate || 0);
+                                        return (
+                                          <TableRow key={sale.id}>
+                                            <TableCell>{format(saleDate, 'MMM d, yyyy')}</TableCell>
+                                            <TableCell align="right">{sale.bagsSold.toLocaleString()}</TableCell>
+                                            <TableCell align="right">₦{sale.pricePerBag.toLocaleString()}</TableCell>
+                                            <TableCell align="right">{formatCurrency(sale.totalAmount)}</TableCell>
+                                            <TableCell align="right">
+                                              <Typography variant="body2" color="success.main">
+                                                {formatCurrency(saleCommission)}
+                                              </Typography>
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })}
+                                  </TableBody>
+                                </Table>
+                              </>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                No sales or entries found for this employee in the selected period.
+                              </Typography>
+                            )}
                           </Box>
                         </TableCell>
                       </TableRow>

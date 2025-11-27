@@ -30,7 +30,7 @@ import {
   ChevronRight,
 } from '@mui/icons-material';
 import { MaterialPurchase, Settings, DEFAULT_SETTINGS } from '../types';
-import { dbService } from '../services/database';
+import { apiService } from '../services/apiService';
 import { InventoryService, InventoryStatus } from '../services/inventoryService';
 import { format, startOfDay, endOfDay, isSameDay, isToday, addDays, subDays } from 'date-fns';
 
@@ -74,8 +74,10 @@ export default function Materials() {
 
   const loadSettings = async () => {
     try {
-      const data = await dbService.getSettings();
-      setSettings(data);
+      const data = await apiService.getSettings();
+      // apiService returns { success: true, data: {...} } or direct object
+      const settingsData = data.data || data;
+      setSettings(settingsData);
     } catch (error) {
       console.error('Error loading settings:', error);
       setSettings(DEFAULT_SETTINGS);
@@ -83,8 +85,14 @@ export default function Materials() {
   };
 
   const loadPurchases = async () => {
-    const data = await dbService.getMaterialPurchases();
-    setPurchases(data);
+    try {
+      const data = await apiService.getMaterialPurchases();
+      // apiService returns array directly
+      setPurchases(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading material purchases:', error);
+      setPurchases([]);
+    }
   };
 
   const getPurchasesForDate = (date: Date): MaterialPurchase[] => {
@@ -273,26 +281,30 @@ export default function Materials() {
 
       if (editingPurchase?.id) {
         try {
-          await dbService.updateMaterialPurchase(editingPurchase.id, purchaseData);
+          await apiService.updateMaterialPurchase(editingPurchase.id, purchaseData);
           console.log('Purchase updated successfully');
           handleClose();
           setTimeout(() => {
             loadPurchases();
             loadInventoryStatus();
           }, 100);
+          // Dispatch event to refresh dashboard
+          window.dispatchEvent(new Event('expensesUpdated'));
         } catch (error) {
           console.error('Error updating purchase:', error);
           alert(`Error updating purchase: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       } else {
         try {
-          await dbService.addMaterialPurchase(purchaseData);
+          await apiService.createMaterialPurchase(purchaseData);
           console.log('Purchase added successfully');
           handleClose();
           setTimeout(() => {
             loadPurchases();
             loadInventoryStatus();
           }, 100);
+          // Dispatch event to refresh dashboard
+          window.dispatchEvent(new Event('expensesUpdated'));
         } catch (error) {
           console.error('Error adding purchase:', error);
           alert(`Error adding purchase: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -307,8 +319,10 @@ export default function Materials() {
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this purchase?')) {
       try {
-        await dbService.deleteMaterialPurchase(id);
+        await apiService.deleteMaterialPurchase(id);
         loadPurchases();
+        // Dispatch event to refresh dashboard
+        window.dispatchEvent(new Event('expensesUpdated'));
         loadInventoryStatus();
       } catch (error) {
         console.error('Error deleting purchase:', error);

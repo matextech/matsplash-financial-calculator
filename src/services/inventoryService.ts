@@ -1,4 +1,4 @@
-import { dbService } from './database';
+import { apiService } from './apiService';
 import { MaterialPurchase, Sale, Settings, DEFAULT_SETTINGS } from '../types';
 
 export interface InventoryStatus {
@@ -26,13 +26,17 @@ export class InventoryService {
    */
   static async getInventoryStatus(restockThreshold?: number): Promise<InventoryStatus> {
     try {
-      // Get all material purchases and sales
+      // Get all material purchases and sales from API
       const [purchases, sales, settings] = await Promise.all([
-        dbService.getMaterialPurchases(),
-        dbService.getSales(),
-        dbService.getSettings()
+        apiService.getMaterialPurchases(),
+        apiService.getSales(),
+        apiService.getSettings()
       ]);
 
+      // Ensure we have arrays
+      const safePurchases = Array.isArray(purchases) ? purchases : [];
+      const safeSales = Array.isArray(sales) ? sales : [];
+      
       const effectiveSettings = settings || DEFAULT_SETTINGS;
       // Use threshold from settings if not provided, default to 4000
       const effectiveThreshold = restockThreshold !== undefined 
@@ -43,19 +47,22 @@ export class InventoryService {
       let totalSachetRolls = 0;
       let totalPackingNylon = 0;
 
-      for (const purchase of purchases) {
+      for (const purchase of safePurchases) {
         if (purchase.type === 'sachet_roll') {
-          totalSachetRolls += purchase.quantity;
+          totalSachetRolls += purchase.quantity || 0;
         } else if (purchase.type === 'packing_nylon') {
-          totalPackingNylon += purchase.quantity;
+          totalPackingNylon += purchase.quantity || 0;
         }
       }
 
-      const sachetRollBagsCapacity = totalSachetRolls * effectiveSettings.sachetRollBagsPerRoll;
-      const packingNylonBagsCapacity = totalPackingNylon * effectiveSettings.packingNylonBagsPerPackage;
+      const sachetRollBagsCapacity = totalSachetRolls * (effectiveSettings.sachetRollBagsPerRoll || 450);
+      const packingNylonBagsCapacity = totalPackingNylon * (effectiveSettings.packingNylonBagsPerPackage || 10000);
 
       // Calculate total bags sold
-      const totalBagsSold = sales.reduce((sum, sale) => sum + sale.bagsSold, 0);
+      const totalBagsSold = safeSales.reduce((sum, sale) => {
+        const bags = sale.bagsSold || sale.bags_sold || 0;
+        return sum + (typeof bags === 'number' ? bags : parseInt(String(bags)) || 0);
+      }, 0);
 
       // Calculate remaining inventory
       // Both materials are needed for each bag, so effective capacity is the minimum
@@ -116,25 +123,32 @@ export class InventoryService {
   static async getInventoryBreakdown() {
     try {
       const [purchases, sales, settings] = await Promise.all([
-        dbService.getMaterialPurchases(),
-        dbService.getSales(),
-        dbService.getSettings()
+        apiService.getMaterialPurchases(),
+        apiService.getSales(),
+        apiService.getSettings()
       ]);
 
+      // Ensure we have arrays
+      const safePurchases = Array.isArray(purchases) ? purchases : [];
+      const safeSales = Array.isArray(sales) ? sales : [];
+      
       const effectiveSettings = settings || DEFAULT_SETTINGS;
 
       // Group purchases by type
-      const sachetRollPurchases = purchases.filter(p => p.type === 'sachet_roll');
-      const packingNylonPurchases = purchases.filter(p => p.type === 'packing_nylon');
+      const sachetRollPurchases = safePurchases.filter(p => p.type === 'sachet_roll');
+      const packingNylonPurchases = safePurchases.filter(p => p.type === 'packing_nylon');
 
       // Calculate totals
-      const totalSachetRolls = sachetRollPurchases.reduce((sum, p) => sum + p.quantity, 0);
-      const totalPackingNylon = packingNylonPurchases.reduce((sum, p) => sum + p.quantity, 0);
+      const totalSachetRolls = sachetRollPurchases.reduce((sum, p) => sum + (p.quantity || 0), 0);
+      const totalPackingNylon = packingNylonPurchases.reduce((sum, p) => sum + (p.quantity || 0), 0);
 
-      const sachetRollBagsCapacity = totalSachetRolls * effectiveSettings.sachetRollBagsPerRoll;
-      const packingNylonBagsCapacity = totalPackingNylon * effectiveSettings.packingNylonBagsPerPackage;
+      const sachetRollBagsCapacity = totalSachetRolls * (effectiveSettings.sachetRollBagsPerRoll || 450);
+      const packingNylonBagsCapacity = totalPackingNylon * (effectiveSettings.packingNylonBagsPerPackage || 10000);
 
-      const totalBagsSold = sales.reduce((sum, sale) => sum + sale.bagsSold, 0);
+      const totalBagsSold = safeSales.reduce((sum, sale) => {
+        const bags = sale.bagsSold || sale.bags_sold || 0;
+        return sum + (typeof bags === 'number' ? bags : parseInt(String(bags)) || 0);
+      }, 0);
 
       return {
         sachetRolls: {

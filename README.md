@@ -58,7 +58,9 @@ A comprehensive financial management system for tracking earnings, expenses, sal
 - **React 18** with TypeScript
 - **Material-UI (MUI)** for modern UI components
 - **Vite** for fast development and building
-- **IndexedDB** for client-side data storage
+- **Express.js** backend API server
+- **SQLite** database for persistent data storage
+- **Knex.js** SQL query builder
 - **Recharts** for data visualization
 - **Date-fns** for date manipulation
 
@@ -69,12 +71,17 @@ A comprehensive financial management system for tracking earnings, expenses, sal
 npm install
 ```
 
-2. Start the development server:
+2. Start the backend server:
+```bash
+npm run server
+```
+
+3. Start the development server (in a new terminal):
 ```bash
 npm run dev
 ```
 
-3. Open your browser and navigate to `http://localhost:5179`
+4. Open your browser and navigate to `http://localhost:5179`
 
 ## Usage
 
@@ -125,13 +132,14 @@ npm run dev
 
 ## Data Storage
 
-All data is stored locally in your browser using IndexedDB. This means:
-- No server required
-- Data stays on your device
-- Fast and responsive
-- Works offline
+All data is stored in a SQLite database managed by the backend API server. This means:
+- Centralized data storage on the server
+- Data persistence across browser sessions
+- Secure authentication and authorization
+- Multi-user support with role-based access
+- Reliable data integrity with database constraints
 
-**Note**: Clearing browser data will delete all stored information. Consider exporting important data regularly.
+**Note**: The database file (`database.sqlite`) is stored in the `server` directory. Make sure to back up this file regularly for data safety.
 
 ## Cost Structure
 

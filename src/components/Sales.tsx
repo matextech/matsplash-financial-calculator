@@ -35,7 +35,6 @@ import {
   LocalShipping,
 } from '@mui/icons-material';
 import { Sale, Employee, Settings, DEFAULT_SETTINGS, MaterialPrice, BagPrice } from '../types';
-import { dbService } from '../services/database';
 import { apiService } from '../services/apiService';
 import { format, startOfDay, endOfDay, isSameDay, isToday, addDays, subDays } from 'date-fns';
 
@@ -109,12 +108,14 @@ export default function Sales() {
 
   const loadSettings = async () => {
     try {
-      const data = await dbService.getSettings();
-      setSettings(data);
+      const data = await apiService.getSettings();
+      // apiService returns { success: true, data: {...} } or direct object
+      const settingsData = data.data || data;
+      setSettings(settingsData);
       // Initialize form with default price
       setFormData(prev => ({
         ...prev,
-        combinedPrice: data.salesPrice1.toString(),
+        combinedPrice: settingsData.salesPrice1?.toString() || DEFAULT_SETTINGS.salesPrice1.toString(),
       }));
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -127,13 +128,26 @@ export default function Sales() {
   };
 
   const loadSales = async () => {
-    const data = await dbService.getSales();
-    setSales(data);
+    try {
+      const data = await apiService.getSales();
+      // apiService returns array directly
+      setSales(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading sales:', error);
+      setSales([]);
+    }
   };
 
   const loadEmployees = async () => {
-    const data = await dbService.getEmployees();
-    setEmployees(data);
+    try {
+      const data = await apiService.getEmployees();
+      // apiService returns { success: true, data: [...] } or direct array
+      const employeesList = Array.isArray(data) ? data : (data.data || []);
+      setEmployees(employeesList);
+    } catch (error) {
+      console.error('Error loading employees:', error);
+      setEmployees([]);
+    }
   };
 
   const getSalesForDate = (date: Date): Sale[] => {
@@ -337,12 +351,22 @@ export default function Sales() {
       const combinedBags = parseBags(formData.combinedBags);
       const combinedPrice = parseFloat(formData.combinedPrice);
 
-      // Find matching employee by name (only if not general/factory sale)
+      // Find matching employee by name or email (only if not general/factory sale)
       let matchingEmployee: Employee | undefined;
       if (!isGeneralSale && formData.driverName.trim()) {
         matchingEmployee = employees.find(
-          emp => emp.name.toLowerCase().trim() === formData.driverName.trim().toLowerCase()
+          emp => emp.name.toLowerCase().trim() === formData.driverName.trim().toLowerCase() ||
+                 (formData.driverEmail && emp.email.toLowerCase().trim() === formData.driverEmail.trim().toLowerCase())
         );
+        
+        // If no match by name/email, try to find by role (Driver)
+        if (!matchingEmployee) {
+          const driverEmployees = employees.filter(emp => emp.role === 'Driver');
+          if (driverEmployees.length === 1) {
+            // If only one driver, use it
+            matchingEmployee = driverEmployees[0];
+          }
+        }
       }
 
       const salesToSave: Omit<Sale, 'id'>[] = [];
@@ -403,12 +427,22 @@ export default function Sales() {
                                   formData.driverName.trim().toLowerCase() === 'factory' ||
                                   formData.driverName.trim() === '';
 
-        // Find matching employee by name (only if not general/factory sale)
+        // Find matching employee by name or email (only if not general/factory sale)
         let matchingEmployee: Employee | undefined;
         if (!isGeneralSaleEdit && formData.driverName.trim()) {
           matchingEmployee = employees.find(
-            emp => emp.name.toLowerCase().trim() === formData.driverName.toLowerCase().trim()
+            emp => emp.name.toLowerCase().trim() === formData.driverName.trim().toLowerCase() ||
+                   (formData.driverEmail && emp.email.toLowerCase().trim() === formData.driverEmail.trim().toLowerCase())
           );
+          
+          // If no match by name/email, try to find by role (Driver)
+          if (!matchingEmployee) {
+            const driverEmployees = employees.filter(emp => emp.role === 'Driver');
+            if (driverEmployees.length === 1) {
+              // If only one driver, use it
+              matchingEmployee = driverEmployees[0];
+            }
+          }
         }
 
         // Check if any bag price has bags entered
@@ -456,15 +490,18 @@ export default function Sales() {
         if (saleDataToUpdate) {
           console.log('Updating sale with:', saleDataToUpdate);
           try {
-            await dbService.updateSale(editingSale.id, saleDataToUpdate);
+            await apiService.updateSale(editingSale.id, saleDataToUpdate);
             console.log('Sale updated successfully');
             handleClose();
             setTimeout(() => {
               loadSales();
             }, 100);
-          } catch (error) {
+            // Dispatch event to refresh dashboard
+            window.dispatchEvent(new Event('expensesUpdated'));
+          } catch (error: any) {
             console.error('Error updating sale:', error);
-            alert(`Error updating sale: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            const errorMessage = error?.message || 'Error updating sale. Please try again.';
+            alert(errorMessage);
           }
           return;
         } else {
@@ -477,25 +514,30 @@ export default function Sales() {
       } else {
         // Add all sales
         for (const saleData of salesToSave) {
-          await dbService.addSale(saleData);
+          await apiService.createSale(saleData);
         }
         console.log(`${salesToSave.length} sale(s) added successfully`);
         handleClose();
         setTimeout(() => {
           loadSales();
         }, 100);
+        // Dispatch event to refresh dashboard
+        window.dispatchEvent(new Event('expensesUpdated'));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving sale:', error);
-      alert(`Error saving sale: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMessage = error?.message || 'Error saving sale. Please try again.';
+      alert(errorMessage);
     }
   };
 
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this sale?')) {
       try {
-        await dbService.deleteSale(id);
+        await apiService.deleteSale(id);
         loadSales();
+        // Dispatch event to refresh dashboard
+        window.dispatchEvent(new Event('expensesUpdated'));
       } catch (error) {
         console.error('Error deleting sale:', error);
         alert('Error deleting sale. Please try again.');

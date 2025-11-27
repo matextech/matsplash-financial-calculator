@@ -355,14 +355,52 @@ class DatabaseService {
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(['employees'], 'readwrite');
       const store = transaction.objectStore('employees');
-      const request = store.add({
-        ...employee,
-        role: employee.role || 'General', // Default to 'General' if not specified
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-      request.onsuccess = () => resolve(request.result as number);
-      request.onerror = () => reject(request.error);
+      
+      // Check for duplicate email before adding
+      const emailIndex = store.index('email');
+      const checkRequest = emailIndex.get(employee.email);
+      
+      checkRequest.onsuccess = () => {
+        if (checkRequest.result) {
+          reject(new Error('An employee with this email already exists'));
+          return;
+        }
+        
+        // No duplicate found, proceed with add
+        const addRequest = store.add({
+          ...employee,
+          role: employee.role || 'General', // Default to 'General' if not specified
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+        addRequest.onsuccess = () => resolve(addRequest.result as number);
+        addRequest.onerror = () => {
+          // Check if it's a constraint error
+          if (addRequest.error?.name === 'ConstraintError') {
+            reject(new Error('An employee with this email already exists'));
+          } else {
+            reject(addRequest.error);
+          }
+        };
+      };
+      
+      checkRequest.onerror = () => {
+        // Index might not exist or other error, try to add anyway
+        const addRequest = store.add({
+          ...employee,
+          role: employee.role || 'General',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+        addRequest.onsuccess = () => resolve(addRequest.result as number);
+        addRequest.onerror = () => {
+          if (addRequest.error?.name === 'ConstraintError') {
+            reject(new Error('An employee with this email already exists'));
+          } else {
+            reject(addRequest.error);
+          }
+        };
+      };
     });
   }
 
@@ -747,12 +785,49 @@ class DatabaseService {
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(['salaryPayments'], 'readwrite');
       const store = transaction.objectStore('salaryPayments');
-      const request = store.add({
-        ...payment,
-        createdAt: new Date()
-      });
-      request.onsuccess = () => resolve(request.result as number);
-      request.onerror = () => reject(request.error);
+      
+      // Check for duplicate payment for same employee and period
+      const employeeIndex = store.index('employeeId');
+      const periodStartIndex = store.index('periodStart');
+      
+      // Get all payments for this employee
+      const employeeRequest = employeeIndex.getAll(payment.employeeId);
+      
+      employeeRequest.onsuccess = () => {
+        const existingPayments = employeeRequest.result || [];
+        const duplicate = existingPayments.find((p: SalaryPayment) => {
+          const pStart = p.periodStart instanceof Date ? p.periodStart : new Date(p.periodStart);
+          const pEnd = p.periodEnd instanceof Date ? p.periodEnd : new Date(p.periodEnd);
+          const payStart = payment.periodStart instanceof Date ? payment.periodStart : new Date(payment.periodStart);
+          const payEnd = payment.periodEnd instanceof Date ? payment.periodEnd : new Date(payment.periodEnd);
+          
+          return pStart.getTime() === payStart.getTime() && 
+                 pEnd.getTime() === payEnd.getTime();
+        });
+        
+        if (duplicate) {
+          reject(new Error('A salary payment for this employee and period already exists'));
+          return;
+        }
+        
+        // No duplicate found, proceed with add
+        const addRequest = store.add({
+          ...payment,
+          createdAt: new Date()
+        });
+        addRequest.onsuccess = () => resolve(addRequest.result as number);
+        addRequest.onerror = () => reject(addRequest.error);
+      };
+      
+      employeeRequest.onerror = () => {
+        // Index might not exist, try to add anyway
+        const addRequest = store.add({
+          ...payment,
+          createdAt: new Date()
+        });
+        addRequest.onsuccess = () => resolve(addRequest.result as number);
+        addRequest.onerror = () => reject(addRequest.error);
+      };
     });
   }
 
@@ -949,21 +1024,55 @@ class DatabaseService {
         const store = transaction.objectStore('users');
         
         // Normalize phone number before storing
+        const normalizedPhone = this.normalizePhone(user.phone);
         const normalizedUser = {
           ...user,
-          phone: this.normalizePhone(user.phone),
+          phone: normalizedPhone,
           createdAt: new Date(),
           updatedAt: new Date()
         };
         
-        const request = store.add(normalizedUser);
-        request.onsuccess = () => {
-          console.log('User added successfully:', user.email || user.phone);
-          resolve(request.result as number);
+        // Check for duplicate phone before adding
+        const phoneIndex = store.index('phone');
+        const checkRequest = phoneIndex.get(normalizedPhone);
+        
+        checkRequest.onsuccess = () => {
+          if (checkRequest.result) {
+            reject(new Error('User with this phone number already exists'));
+            return;
+          }
+          
+          // No duplicate found, proceed with add
+          const addRequest = store.add(normalizedUser);
+          addRequest.onsuccess = () => {
+            console.log('User added successfully:', user.email || user.phone);
+            resolve(addRequest.result as number);
+          };
+          addRequest.onerror = () => {
+            console.error('addUser error:', addRequest.error);
+            if (addRequest.error?.name === 'ConstraintError') {
+              reject(new Error('User with this phone number already exists'));
+            } else {
+              reject(addRequest.error);
+            }
+          };
         };
-        request.onerror = () => {
-          console.error('addUser error:', request.error);
-          reject(request.error);
+        
+        checkRequest.onerror = () => {
+          // Index might not exist or other error, try to add anyway
+          const addRequest = store.add(normalizedUser);
+          addRequest.onsuccess = () => {
+            console.log('User added successfully:', user.email || user.phone);
+            resolve(addRequest.result as number);
+          };
+          addRequest.onerror = () => {
+            console.error('addUser error:', addRequest.error);
+            if (addRequest.error?.name === 'ConstraintError') {
+              reject(new Error('User with this phone number already exists'));
+            } else {
+              reject(addRequest.error);
+            }
+          };
         };
       } catch (error) {
         console.error('addUser exception:', error);

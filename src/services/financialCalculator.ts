@@ -18,11 +18,11 @@ export class FinancialCalculator {
     endDate: Date
   ): Promise<FinancialReport> {
     // Get all data for the period from API
-    console.log('FinancialCalculator - Fetching data for period:', {
+    console.log('📊 FinancialCalculator - Fetching data for period:', JSON.stringify({
       period,
       startDate: startDate.toISOString().split('T')[0],
       endDate: endDate.toISOString().split('T')[0]
-    });
+    }, null, 2));
 
     let sales, expenses, materialPurchases, salaryPayments;
     try {
@@ -37,22 +37,22 @@ export class FinancialCalculator {
       throw error;
     }
 
-    console.log('FinancialCalculator - Raw API responses:', {
+    console.log('📊 FinancialCalculator - Raw API responses:', JSON.stringify({
       sales: Array.isArray(sales) ? sales.length : typeof sales,
       expenses: Array.isArray(expenses) ? expenses.length : typeof expenses,
       materialPurchases: Array.isArray(materialPurchases) ? materialPurchases.length : typeof materialPurchases,
       salaryPayments: Array.isArray(salaryPayments) ? salaryPayments.length : typeof salaryPayments,
       salesSample: Array.isArray(sales) && sales.length > 0 ? sales[0] : null,
       expensesSample: Array.isArray(expenses) && expenses.length > 0 ? expenses[0] : null
-    });
+    }, null, 2));
 
-    console.log('FinancialCalculator - Data loaded:', {
+    console.log('📊 FinancialCalculator - Data loaded:', JSON.stringify({
       salesCount: sales?.length || 0,
       expensesCount: expenses?.length || 0,
       materialPurchasesCount: materialPurchases?.length || 0,
       salaryPaymentsCount: salaryPayments?.length || 0,
       dateRange: { start: startDate.toISOString().split('T')[0], end: endDate.toISOString().split('T')[0] }
-    });
+    }, null, 2));
 
     // Ensure we have arrays (handle potential undefined/null)
     const safeSales = Array.isArray(sales) ? sales : [];
@@ -66,11 +66,11 @@ export class FinancialCalculator {
       return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
     }, 0);
     
-    console.log('FinancialCalculator - Revenue calculation:', {
+    console.log('📊 FinancialCalculator - Revenue calculation:', JSON.stringify({
       salesCount: safeSales.length,
       totalRevenue,
       sampleSale: safeSales.length > 0 ? safeSales[0] : null
-    });
+    }, null, 2));
 
     // Calculate expenses - ensure ALL expenses are captured
     // Filter for fuel expenses (generator fuel)
@@ -122,7 +122,7 @@ export class FinancialCalculator {
       }, 0);
 
     // Log comprehensive expense breakdown for debugging
-    console.log('FinancialCalculator - Expense breakdown:', {
+    console.log('📊 FinancialCalculator - Expense breakdown:', JSON.stringify({
       totalExpensesCount: safeExpenses.length,
       fuelExpensesCount: safeExpenses.filter(e => {
         const type = e.type || (e as any).type;
@@ -149,18 +149,24 @@ export class FinancialCalculator {
       otherExpenses,
       uncategorizedExpenses,
       totalExpensesAmount: fuelCosts + driverPayments + otherExpenses + uncategorizedExpenses,
-      dateRange: { start: startDate, end: endDate }
-    });
+      dateRange: { start: startDate.toISOString().split('T')[0], end: endDate.toISOString().split('T')[0] }
+    }, null, 2));
 
     // Calculate actual material purchase costs for this period
     let materialCosts = 0;
     for (const purchase of safeMaterialPurchases) {
+      const cost = purchase.cost || 0;
       if (purchase.type === 'sachet_roll') {
-        materialCosts += purchase.cost || 0;
+        materialCosts += (typeof cost === 'number' ? cost : parseFloat(cost) || 0);
       } else if (purchase.type === 'packing_nylon') {
-        materialCosts += purchase.cost || 0;
+        materialCosts += (typeof cost === 'number' ? cost : parseFloat(cost) || 0);
       }
     }
+    console.log('📊 FinancialCalculator - Material costs calculation:', JSON.stringify({
+      purchasesCount: safeMaterialPurchases.length,
+      materialCosts,
+      samplePurchase: safeMaterialPurchases.length > 0 ? safeMaterialPurchases[0] : null
+    }, null, 2));
 
     // Calculate total material cost per bag sold (for profit calculation)
     const totalBagsSold = safeSales.reduce((sum, sale) => sum + (sale.bagsSold || 0), 0);
@@ -229,11 +235,11 @@ export class FinancialCalculator {
       return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
     }, 0);
     
-    console.log('FinancialCalculator - Salaries calculation:', {
+    console.log('📊 FinancialCalculator - Salaries calculation:', JSON.stringify({
       paymentsCount: safeSalaryPayments.length,
       totalSalaries,
       samplePayment: safeSalaryPayments.length > 0 ? safeSalaryPayments[0] : null
-    });
+    }, null, 2));
 
     // Calculate total expenses
     // Include ALL expense categories:
@@ -248,6 +254,23 @@ export class FinancialCalculator {
     // Calculate profit
     const profit = totalRevenue - totalExpenses;
     const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+
+    console.log('📊 FinancialCalculator - Final Report Summary:', JSON.stringify({
+      period,
+      dateRange: { start: startDate.toISOString().split('T')[0], end: endDate.toISOString().split('T')[0] },
+      totalRevenue,
+      totalExpenses,
+      breakdown: {
+        fuelCosts,
+        driverPayments,
+        otherExpenses,
+        uncategorizedExpenses,
+        materialCosts,
+        totalSalaries
+      },
+      profit,
+      profitMargin: `${profitMargin.toFixed(2)}%`
+    }, null, 2));
 
     return {
       period,
@@ -357,19 +380,18 @@ export class FinancialCalculator {
     startDate?: Date,
     endDate?: Date
   ): Promise<{ totalBags: number; commission: number; entries: PackerEntry[] }> {
-    // Note: Packer entries are now storekeeper entries with entry_type 'packer_production'
-    const allEntries = await apiService.getStorekeeperEntries(startDate, endDate);
+    // Get packer entries from the packer_entries table
+    const allEntries = await apiService.getPackerEntries(startDate, endDate);
     // Ensure we have an array
     const safeAllEntries = Array.isArray(allEntries) ? allEntries : [];
-    // Filter by packer employeeId and entry type
+    // Filter by employeeId - must match exactly and not be undefined/null
     const employeeEntries = safeAllEntries.filter(entry => 
-      entry.entry_type === 'packer_production' &&
-      entry.packer_id !== undefined && 
-      entry.packer_id !== null && 
-      entry.packer_id === employeeId
+      entry.employeeId !== undefined && 
+      entry.employeeId !== null && 
+      entry.employeeId === employeeId
     );
     
-    const totalBags = employeeEntries.reduce((sum, entry) => sum + (entry.bags_count || 0), 0);
+    const totalBags = employeeEntries.reduce((sum, entry) => sum + (entry.bagsPacked || 0), 0);
     
     // Get employee to get commission rate
     const employees = await apiService.getEmployees();
@@ -385,7 +407,7 @@ export class FinancialCalculator {
     return {
       totalBags,
       commission,
-      entries: employeeEntries as any[]
+      entries: employeeEntries
     };
   }
 }

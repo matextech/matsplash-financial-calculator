@@ -104,8 +104,17 @@ router.post('/', async (req, res) => {
       data: { id },
       message: 'User created successfully'
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating user:', error);
+    
+    // Check for unique constraint violation
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.message?.includes('UNIQUE constraint')) {
+      return res.status(409).json({
+        success: false,
+        message: 'User with this phone or email already exists'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Internal server error'
@@ -224,8 +233,17 @@ router.put('/:id', async (req, res) => {
       data: transformUser(updatedUser),
       message: 'User updated successfully'
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating user:', error);
+    
+    // Check for unique constraint violation
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.message?.includes('UNIQUE constraint')) {
+      return res.status(409).json({
+        success: false,
+        message: 'User with this phone or email already exists'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Internal server error'

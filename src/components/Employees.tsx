@@ -30,7 +30,7 @@ import {
   Clear as ClearIcon
 } from '@mui/icons-material';
 import { Employee } from '../types';
-import { dbService } from '../services/database';
+import { apiService } from '../services/apiService';
 
 export default function Employees() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -62,9 +62,17 @@ export default function Employees() {
   }, [employees, searchTerm, filterRole, filterSalaryType]);
 
   const loadEmployees = async () => {
-    const data = await dbService.getEmployees();
-    setEmployees(data);
-    setFilteredEmployees(data);
+    try {
+      const data = await apiService.getEmployees();
+      // apiService returns { success: true, data: [...] } or direct array
+      const employeesList = Array.isArray(data) ? data : (data.data || []);
+      setEmployees(employeesList);
+      setFilteredEmployees(employeesList);
+    } catch (error) {
+      console.error('Error loading employees:', error);
+      setEmployees([]);
+      setFilteredEmployees([]);
+    }
   };
 
   const applyFilters = () => {
@@ -144,23 +152,28 @@ export default function Employees() {
 
     try {
       if (editingEmployee?.id) {
-        await dbService.updateEmployee(editingEmployee.id, employeeData);
+        await apiService.updateEmployee(editingEmployee.id, employeeData);
       } else {
-        await dbService.addEmployee(employeeData);
+        await apiService.createEmployee(employeeData);
       }
       handleClose();
       loadEmployees();
-    } catch (error) {
+      // Dispatch event to refresh dashboard
+      window.dispatchEvent(new Event('expensesUpdated'));
+    } catch (error: any) {
       console.error('Error saving employee:', error);
-      alert('Error saving employee. Please try again.');
+      const errorMessage = error?.message || 'Error saving employee. Please try again.';
+      alert(errorMessage);
     }
   };
 
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this employee?')) {
       try {
-        await dbService.deleteEmployee(id);
+        await apiService.deleteEmployee(id);
         loadEmployees();
+        // Dispatch event to refresh dashboard
+        window.dispatchEvent(new Event('expensesUpdated'));
       } catch (error) {
         console.error('Error deleting employee:', error);
         alert('Error deleting employee. Please try again.');

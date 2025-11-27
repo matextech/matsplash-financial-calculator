@@ -24,7 +24,6 @@ import {
   AttachMoney as MoneyIcon,
 } from '@mui/icons-material';
 import { Settings as SettingsType, DEFAULT_SETTINGS, BagPrice } from '../types';
-import { dbService } from '../services/database';
 import { apiService } from '../services/apiService';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -45,8 +44,10 @@ export default function Settings() {
   const loadSettings = async () => {
     try {
       setLoading(true);
-      const data = await dbService.getSettings();
-      setSettings(data);
+      const data = await apiService.getSettings();
+      // apiService returns { success: true, data: {...} } or direct object
+      const settingsData = data.data || data;
+      setSettings(settingsData);
     } catch (error) {
       console.error('Error loading settings:', error);
       setSnackbar({ open: true, message: 'Error loading settings', severity: 'error' });
@@ -129,7 +130,7 @@ export default function Settings() {
       }
       // Note: Bag prices are now managed separately, so we don't validate salesPrice1/salesPrice2 here
 
-      await dbService.updateSettings(settings);
+      await apiService.updateSettings(settings);
       setSnackbar({ open: true, message: 'Settings saved successfully!', severity: 'success' });
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -361,6 +362,40 @@ export default function Settings() {
           </Card>
         </Grid>
 
+        {/* Inventory Settings Section */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                <MaterialsIcon sx={{ mr: 1, color: 'primary.main' }} />
+                <Typography variant="h5" component="h2">
+                  Inventory Settings
+                </Typography>
+              </Box>
+              <Divider sx={{ mb: 3 }} />
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Low Inventory Threshold (Bags)"
+                    type="number"
+                    value={settings.inventoryLowThreshold || 4000}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value) || 0;
+                      setSettings(prev => ({
+                        ...prev,
+                        inventoryLowThreshold: value,
+                      }));
+                    }}
+                    helperText="Alert when inventory falls below this number of bags"
+                    sx={{ mb: 2 }}
+                  />
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+
         {/* Summary Card */}
         <Grid item xs={12}>
           <Card>
@@ -406,6 +441,14 @@ export default function Settings() {
                   </Typography>
                   <Typography variant="body1">
                     {formatCurrency(settings.salesPrice2)} per bag
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Low Inventory Threshold
+                  </Typography>
+                  <Typography variant="body1">
+                    {settings.inventoryLowThreshold || 4000} bags
                   </Typography>
                 </Grid>
               </Grid>

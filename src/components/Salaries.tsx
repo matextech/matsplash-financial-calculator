@@ -42,7 +42,7 @@ import {
   CalendarToday as CalendarIcon,
 } from '@mui/icons-material';
 import { SalaryPayment, Employee, Sale } from '../types';
-import { dbService } from '../services/database';
+import { apiService } from '../services/apiService';
 import { FinancialCalculator } from '../services/financialCalculator';
 import { format, startOfDay, endOfDay, isSameDay, isToday, addDays, subDays, startOfMonth, endOfMonth, getDate, addMonths, setDate } from 'date-fns';
 
@@ -151,13 +151,42 @@ export default function Salaries() {
   }, [viewMode, paymentCycles]);
 
   const loadPayments = async () => {
-    const data = await dbService.getSalaryPayments();
-    setPayments(data);
+    try {
+      const data = await apiService.getSalaryPayments();
+      // apiService returns array directly
+      setPayments(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading salary payments:', error);
+      setPayments([]);
+    }
   };
 
   const loadEmployees = async () => {
-    const data = await dbService.getEmployees();
-    setEmployees(data);
+    try {
+      const data = await apiService.getEmployees();
+      // apiService returns { success: true, data: [...] } or direct array
+      const employeesList = Array.isArray(data) ? data : (data.data || []);
+      
+      // Normalize employee data - handle both snake_case and camelCase
+      const normalizedEmployees = employeesList.map(emp => ({
+        ...emp,
+        salaryType: emp.salaryType || emp.salary_type,
+        commissionRate: emp.commissionRate !== undefined ? emp.commissionRate : (emp.commission_rate !== undefined ? emp.commission_rate : null),
+        fixedSalary: emp.fixedSalary !== undefined ? emp.fixedSalary : (emp.fixed_salary !== undefined ? emp.fixed_salary : null),
+        role: emp.role,
+        id: emp.id,
+        name: emp.name,
+        email: emp.email,
+        phone: emp.phone,
+        createdAt: emp.createdAt || emp.created_at,
+        updatedAt: emp.updatedAt || emp.updated_at,
+      }));
+      
+      setEmployees(normalizedEmployees);
+    } catch (error) {
+      console.error('Error loading employees:', error);
+      setEmployees([]);
+    }
   };
 
   const getPaymentCycles = (month: Date): { first: PaymentCycleData; second: PaymentCycleData } => {
@@ -217,14 +246,23 @@ export default function Salaries() {
           // Get commission based on employee role
           // Drivers: from sales, Packers: from packer entries
           let commissionInfo;
-          if (employee.role === 'Packers') {
+          if (employee.role === 'Packers' || employee.role === 'Packer') {
+            // Packers get commission from packer entries
             commissionInfo = await FinancialCalculator.calculateCommissionFromPackerEntries(
               employee.id,
               startOfDay(cycle.workStart),
               endOfDay(cycle.workEnd)
             );
+          } else if (employee.role === 'Driver' || employee.role === 'Drivers') {
+            // Drivers get commission from sales
+            commissionInfo = await FinancialCalculator.calculateCommissionFromSales(
+              employee.id,
+              startOfDay(cycle.workStart),
+              endOfDay(cycle.workEnd)
+            );
           } else {
-            // Default to sales for drivers and other roles
+            // For other roles or employees without a specific role, try sales first
+            // This handles cases where role might not be set but employee is a driver
             commissionInfo = await FinancialCalculator.calculateCommissionFromSales(
               employee.id,
               startOfDay(cycle.workStart),
@@ -245,21 +283,34 @@ export default function Salaries() {
           const totalAmount = fixedAmount + commissionInfo.commission;
           
           // Check if payment already exists for this period
-          const existingPayment = payments.find(p => 
-            p.employeeId === employee.id &&
-            p.periodStart.getTime() === cycle.workStart.getTime() &&
-            p.periodEnd.getTime() === cycle.workEnd.getTime()
-          );
+          // Compare dates by day only (ignore time)
+          const existingPayment = payments.find(p => {
+            if (p.employeeId !== employee.id) return false;
+            const pStart = p.periodStart instanceof Date ? p.periodStart : new Date(p.periodStart);
+            const pEnd = p.periodEnd instanceof Date ? p.periodEnd : new Date(p.periodEnd);
+            const cycleStart = startOfDay(cycle.workStart);
+            const cycleEnd = startOfDay(cycle.workEnd);
+            return startOfDay(pStart).getTime() === cycleStart.getTime() &&
+                   startOfDay(pEnd).getTime() === cycleEnd.getTime();
+          });
           
-          // Include employee if they have sales, fixed salary, or existing payment
-          if (commissionInfo.totalBags > 0 || fixedAmount > 0 || existingPayment) {
+          // Include employee if they have:
+          // 1. Fixed salary (always include fixed-salary employees)
+          // 2. Commission/bags (for commission-based employees)
+          // 3. Existing payment (already paid)
+          const shouldInclude = fixedAmount > 0 || 
+                                commissionInfo.totalBags > 0 || 
+                                commissionInfo.commission > 0 ||
+                                existingPayment;
+          
+          if (shouldInclude) {
             cycleEmployees.push({
               employee,
               totalBags: commissionInfo.totalBags,
               commission: commissionInfo.commission,
               fixedAmount,
               totalAmount,
-              sales: commissionInfo.sales,
+              sales: commissionInfo.sales || [],
               isPaid: !!existingPayment,
               paymentId: existingPayment?.id,
             });
@@ -477,45 +528,58 @@ export default function Salaries() {
         return;
       }
 
+      // Ensure dates are properly formatted
+      const formatDate = (date: Date | string): string => {
+        if (date instanceof Date) {
+          return date.toISOString().split('T')[0];
+        }
+        return typeof date === 'string' ? date : new Date(date).toISOString().split('T')[0];
+      };
+
       const paymentData: Omit<SalaryPayment, 'id'> = {
         employeeId: parseInt(formData.employeeId),
         employeeName: employee.name,
         period: formData.period,
-        periodStart: formData.periodStart,
-        periodEnd: formData.periodEnd,
+        periodStart: formatDate(formData.periodStart) as any,
+        periodEnd: formatDate(formData.periodEnd) as any,
         fixedAmount: formData.fixedAmount ? parseFloat(formData.fixedAmount) : undefined,
         commissionAmount: formData.commissionAmount ? parseFloat(formData.commissionAmount) : undefined,
         totalBags: formData.totalBags ? parseInt(formData.totalBags) : undefined,
         totalAmount: parseFloat(formData.totalAmount),
-        paidDate: formData.paidDate,
+        paidDate: formatDate(formData.paidDate) as any,
         notes: formData.notes?.trim() || undefined,
       };
 
       if (editingPayment?.id) {
-        await dbService.updateSalaryPayment(editingPayment.id, paymentData);
+        await apiService.updateSalaryPayment(editingPayment.id, paymentData);
         handleClose();
         setTimeout(() => {
           loadPayments();
           if (viewMode === 'cycles') loadPaymentCycles();
         }, 100);
+        // Dispatch event to refresh dashboard
+        window.dispatchEvent(new Event('expensesUpdated'));
       } else {
-        await dbService.addSalaryPayment(paymentData);
+        await apiService.createSalaryPayment(paymentData);
         handleClose();
         setTimeout(() => {
           loadPayments();
           if (viewMode === 'cycles') loadPaymentCycles();
         }, 100);
+        // Dispatch event to refresh dashboard
+        window.dispatchEvent(new Event('expensesUpdated'));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving payment:', error);
-      alert(`Error saving payment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMessage = error?.message || 'Error saving payment. Please try again.';
+      alert(errorMessage);
     }
   };
 
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this salary payment?')) {
       try {
-        await dbService.deleteSalaryPayment(id);
+        await apiService.deleteSalaryPayment(id);
         loadPayments();
         if (viewMode === 'cycles') loadPaymentCycles();
       } catch (error) {

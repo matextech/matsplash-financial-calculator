@@ -20,6 +20,8 @@ class ApiService {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    console.log(`🔵 API Request: ${options.method || 'GET'} ${endpoint}`);
+    
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers,
@@ -27,6 +29,11 @@ class ApiService {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Request failed' }));
+      console.error(`❌ API Error for ${endpoint}:`, JSON.stringify({
+        status: response.status,
+        statusText: response.statusText,
+        error: error
+      }, null, 2));
       throw new Error(error.message || `HTTP error! status: ${response.status}`);
     }
 
@@ -34,13 +41,18 @@ class ApiService {
     // Handle both { success: true, data: [...] } and direct array responses
     const result = data.data || data;
     
-    // Log for debugging (only in development)
-    if (process.env.NODE_ENV === 'development' && endpoint.includes('/sales')) {
-      console.log(`API Response for ${endpoint}:`, {
+    // Log for debugging (always log in development)
+    if (import.meta.env.DEV) {
+      const logData = {
+        endpoint,
+        method: options.method || 'GET',
+        status: response.status,
         isArray: Array.isArray(result),
         length: Array.isArray(result) ? result.length : 'N/A',
-        sample: Array.isArray(result) && result.length > 0 ? result[0] : null
-      });
+        sample: Array.isArray(result) && result.length > 0 ? result[0] : null,
+        fullData: Array.isArray(result) && result.length <= 10 ? result : (Array.isArray(result) ? `[${result.length} items]` : result)
+      };
+      console.log(`✅ API Response for ${endpoint}:`, JSON.stringify(logData, null, 2));
     }
     
     return result;
@@ -339,12 +351,6 @@ class ApiService {
     });
   }
 
-  async deleteUser(id: number) {
-    return this.request(`/users/${id}`, {
-      method: 'DELETE',
-    });
-  }
-
   // Employee endpoints
   async getEmployees() {
     return this.request<any[]>('/employees');
@@ -494,7 +500,7 @@ class ApiService {
     });
   }
 
-  // Sales endpoints (legacy - for financial reports)
+  // Sales endpoints
   async getSales(startDate?: Date, endDate?: Date) {
     const params = new URLSearchParams();
     if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
@@ -502,6 +508,28 @@ class ApiService {
     
     const queryString = params.toString();
     return this.request<any[]>(`/sales${queryString ? '?' + queryString : ''}`);
+  }
+
+  async createSale(saleData: any) {
+    const response = await this.request<{ success: boolean; data: any; message?: string }>('/sales', {
+      method: 'POST',
+      body: JSON.stringify(saleData),
+    });
+    return response.data || response;
+  }
+
+  async updateSale(id: number, saleData: any) {
+    const response = await this.request<{ success: boolean; data: any; message?: string }>(`/sales/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(saleData),
+    });
+    return response.data || response;
+  }
+
+  async deleteSale(id: number) {
+    return this.request<{ success: boolean; message?: string }>(`/sales/${id}`, {
+      method: 'DELETE',
+    });
   }
 
   // Expenses endpoints
@@ -514,6 +542,28 @@ class ApiService {
     return this.request<any[]>(`/expenses${queryString ? '?' + queryString : ''}`);
   }
 
+  async createExpense(expenseData: any) {
+    const response = await this.request<{ success: boolean; data: any; message?: string }>('/expenses', {
+      method: 'POST',
+      body: JSON.stringify(expenseData),
+    });
+    return response.data || response;
+  }
+
+  async updateExpense(id: number, expenseData: any) {
+    const response = await this.request<{ success: boolean; data: any; message?: string }>(`/expenses/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(expenseData),
+    });
+    return response.data || response;
+  }
+
+  async deleteExpense(id: number) {
+    return this.request<{ success: boolean; message?: string }>(`/expenses/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Material Purchases endpoints
   async getMaterialPurchases(startDate?: Date, endDate?: Date) {
     const params = new URLSearchParams();
@@ -524,6 +574,28 @@ class ApiService {
     return this.request<any[]>(`/material-purchases${queryString ? '?' + queryString : ''}`);
   }
 
+  async createMaterialPurchase(purchaseData: any) {
+    const response = await this.request<{ success: boolean; data: any; message?: string }>('/material-purchases', {
+      method: 'POST',
+      body: JSON.stringify(purchaseData),
+    });
+    return response.data || response;
+  }
+
+  async updateMaterialPurchase(id: number, purchaseData: any) {
+    const response = await this.request<{ success: boolean; data: any; message?: string }>(`/material-purchases/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(purchaseData),
+    });
+    return response.data || response;
+  }
+
+  async deleteMaterialPurchase(id: number) {
+    return this.request<{ success: boolean; message?: string }>(`/material-purchases/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Salary Payments endpoints
   async getSalaryPayments(startDate?: Date, endDate?: Date) {
     const params = new URLSearchParams();
@@ -532,6 +604,28 @@ class ApiService {
     
     const queryString = params.toString();
     return this.request<any[]>(`/salary-payments${queryString ? '?' + queryString : ''}`);
+  }
+
+  async createSalaryPayment(paymentData: any) {
+    const response = await this.request<{ success: boolean; data: any; message?: string }>('/salary-payments', {
+      method: 'POST',
+      body: JSON.stringify(paymentData),
+    });
+    return response.data || response;
+  }
+
+  async updateSalaryPayment(id: number, paymentData: any) {
+    const response = await this.request<{ success: boolean; data: any; message?: string }>(`/salary-payments/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(paymentData),
+    });
+    return response.data || response;
+  }
+
+  async deleteSalaryPayment(id: number) {
+    return this.request<{ success: boolean; message?: string }>(`/salary-payments/${id}`, {
+      method: 'DELETE',
+    });
   }
 
   // Settings endpoints
@@ -635,6 +729,42 @@ class ApiService {
   async markNotificationAsRead(id: number) {
     // Placeholder
     return { success: true };
+  }
+
+  // Packer Entry endpoints
+  async getPackerEntries(startDate?: Date, endDate?: Date) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
+    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    
+    const queryString = params.toString();
+    return this.request<any[]>(`/packer-entries${queryString ? '?' + queryString : ''}`);
+  }
+
+  async getPackerEntry(id: number) {
+    return this.request<any>(`/packer-entries/${id}`);
+  }
+
+  async createPackerEntry(entryData: any) {
+    const response = await this.request<{ success: boolean; data: any; message?: string }>('/packer-entries', {
+      method: 'POST',
+      body: JSON.stringify(entryData),
+    });
+    return response.data || response;
+  }
+
+  async updatePackerEntry(id: number, entryData: any) {
+    const response = await this.request<{ success: boolean; data: any; message?: string }>(`/packer-entries/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(entryData),
+    });
+    return response.data || response;
+  }
+
+  async deletePackerEntry(id: number) {
+    return this.request<{ success: boolean; message?: string }>(`/packer-entries/${id}`, {
+      method: 'DELETE',
+    });
   }
 }
 

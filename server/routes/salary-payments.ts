@@ -49,5 +49,143 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Create salary payment
+router.post('/', async (req, res) => {
+  try {
+    const { employeeId, employeeName, fixedAmount, commissionAmount, totalAmount, period, periodStart, periodEnd, paidDate, notes, totalBags } = req.body;
+
+    if (!employeeId || !employeeName || !totalAmount || !period || !periodStart || !periodEnd || !paidDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Employee ID, name, total amount, period, dates, and paid date are required'
+      });
+    }
+
+    // Check for duplicate payment for the same employee and period
+    const existingPayment = await db('salary_payments')
+      .where('employee_id', employeeId)
+      .where('period_start', periodStart)
+      .where('period_end', periodEnd)
+      .first();
+
+    if (existingPayment) {
+      return res.status(409).json({
+        success: false,
+        message: 'A salary payment for this employee and period already exists'
+      });
+    }
+
+    const [id] = await db('salary_payments').insert({
+      employee_id: employeeId,
+      employee_name: employeeName,
+      fixed_salary: fixedAmount || null,
+      commission: commissionAmount || null,
+      total_amount: totalAmount,
+      period: period,
+      period_start: periodStart,
+      period_end: periodEnd,
+      payment_date: paidDate,
+      notes: notes || null,
+      total_bags: totalBags || null,
+      created_at: new Date().toISOString()
+    });
+
+    const newPayment = await db('salary_payments').where('id', id).first();
+
+    res.json({
+      success: true,
+      data: transformSalaryPayment(newPayment),
+      message: 'Salary payment created successfully'
+    });
+  } catch (error: any) {
+    console.error('Error creating salary payment:', error);
+    
+    // Check for unique constraint violation
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.message?.includes('UNIQUE constraint')) {
+      return res.status(409).json({
+        success: false,
+        message: 'A salary payment for this employee and period already exists'
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Update salary payment
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { employeeId, employeeName, fixedAmount, commissionAmount, totalAmount, period, periodStart, periodEnd, paidDate, notes, totalBags } = req.body;
+
+    const updateData: any = {};
+    if (employeeId !== undefined) updateData.employee_id = employeeId;
+    if (employeeName !== undefined) updateData.employee_name = employeeName;
+    if (fixedAmount !== undefined) updateData.fixed_salary = fixedAmount;
+    if (commissionAmount !== undefined) updateData.commission = commissionAmount;
+    if (totalAmount !== undefined) updateData.total_amount = totalAmount;
+    if (period !== undefined) updateData.period = period;
+    if (periodStart !== undefined) updateData.period_start = periodStart;
+    if (periodEnd !== undefined) updateData.period_end = periodEnd;
+    if (paidDate !== undefined) updateData.payment_date = paidDate;
+    if (notes !== undefined) updateData.notes = notes;
+    if (totalBags !== undefined) updateData.total_bags = totalBags;
+
+    await db('salary_payments').where('id', id).update(updateData);
+
+    const updatedPayment = await db('salary_payments').where('id', id).first();
+
+    if (!updatedPayment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Salary payment not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: transformSalaryPayment(updatedPayment),
+      message: 'Salary payment updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating salary payment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Delete salary payment
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const payment = await db('salary_payments').where('id', id).first();
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Salary payment not found'
+      });
+    }
+
+    await db('salary_payments').where('id', id).delete();
+
+    res.json({
+      success: true,
+      message: 'Salary payment deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting salary payment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
 export default router;
 

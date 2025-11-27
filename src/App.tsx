@@ -19,7 +19,6 @@ import StorekeeperDashboard from './components/storekeeper/StorekeeperDashboard'
 import ManagerDashboard from './components/manager/ManagerDashboard';
 import DirectorDashboard from './components/director/DirectorDashboard';
 import DirectorDashboardWrapper from './components/director/DirectorDashboardWrapper';
-import { dbService } from './services/database';
 import { authService } from './services/authService';
 // import { initializeDefaultDirector, initializeDefaultAccounts } from './services/setupService';
 
@@ -38,73 +37,8 @@ const theme = createTheme({
 });
 
 function App() {
-  const [dbInitialized, setDbInitialized] = useState(false);
-
-  useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout>;
-    
-    const initDb = async () => {
-      try {
-        console.log('Initializing database...');
-        
-        // Try to initialize with a shorter timeout first
-        const initPromise = dbService.init();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Database initialization timeout')), 10000)
-        );
-        
-        await Promise.race([initPromise, timeoutPromise]);
-        console.log('Database initialized successfully');
-        
-        // Initialize default director account if needed
-        // NOTE: Default users including director are created by backend on first run
-        console.log('Default users are created by backend API on initialization');
-        
-        // NOTE: User accounts are now managed by the backend API
-        // The frontend no longer creates or updates users via IndexedDB
-        // All user management is done through the /api/users endpoints
-        console.log('User management is handled by backend API');
-        
-        setDbInitialized(true);
-        console.log('App initialization complete');
-      } catch (error) {
-        console.error('Failed to initialize database:', error);
-        console.error('Error details:', {
-          name: error instanceof Error ? error.name : 'Unknown',
-          message: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined
-        });
-        
-        // Proceed immediately - the database service has its own safety timeout
-        // and will retry on first use if needed
-        console.warn('Database initialization failed, but proceeding anyway...');
-        console.warn('Database operations will retry automatically when needed.');
-        setDbInitialized(true);
-      }
-    };
-
-    initDb();
-
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, []);
-
-  if (!dbInitialized) {
-    return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '100vh' 
-        }}>
-          <div>Initializing database...</div>
-        </div>
-      </ThemeProvider>
-    );
-  }
+  // IndexedDB initialization removed - all data is now managed through the backend API
+  // The backend handles all database operations via SQLite
 
   // Check if user is already logged in and redirect
   const getDefaultRoute = () => {

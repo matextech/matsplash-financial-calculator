@@ -53,7 +53,6 @@ import {
 import { User } from '../../types/auth';
 import { ReceptionistSale, StorekeeperEntry, Settlement, AuditLog } from '../../types/sales-log';
 import { Employee, Settings, DEFAULT_SETTINGS, BagPrice } from '../../types';
-import { dbService } from '../../services/database';
 import { authService } from '../../services/authService';
 import { apiService } from '../../services/apiService';
 import { useNavigate } from 'react-router-dom';

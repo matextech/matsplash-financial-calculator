@@ -33,7 +33,7 @@ import {
   ChevronRight,
 } from '@mui/icons-material';
 import { PackerEntry, Employee } from '../types';
-import { dbService } from '../services/database';
+import { apiService } from '../services/apiService';
 import { format, startOfDay, endOfDay, isSameDay, isToday, addDays, subDays } from 'date-fns';
 
 export default function Packers() {
@@ -66,16 +66,30 @@ export default function Packers() {
   }, []);
 
   const loadEntries = async () => {
-    const data = await dbService.getPackerEntries();
-    console.log('Packer entries loaded:', data.length, 'entries');
-    setEntries(data);
+    try {
+      const data = await apiService.getPackerEntries();
+      // Handle both array and object with data property
+      const entriesList = Array.isArray(data) ? data : (data.data || []);
+      console.log('Packer entries loaded:', entriesList.length, 'entries');
+      setEntries(entriesList);
+    } catch (error) {
+      console.error('Error loading packer entries:', error);
+      setEntries([]);
+    }
   };
 
   const loadEmployees = async () => {
-    const data = await dbService.getEmployees();
-    // Filter to only show packers
-    const packers = data.filter(emp => emp.role === 'Packers');
-    setEmployees(packers);
+    try {
+      const data = await apiService.getEmployees();
+      // Handle both array and object with data property
+      const employeesList = Array.isArray(data) ? data : (data.data || []);
+      // Filter to only show packers
+      const packers = employeesList.filter(emp => emp.role === 'Packers');
+      setEmployees(packers);
+    } catch (error) {
+      console.error('Error loading employees:', error);
+      setEmployees([]);
+    }
   };
 
   const getEntriesForDate = (date: Date): PackerEntry[] => {
@@ -206,19 +220,20 @@ export default function Packers() {
 
     try {
       if (editingEntry?.id) {
-        await dbService.updatePackerEntry(editingEntry.id, entryData);
+        await apiService.updatePackerEntry(editingEntry.id, entryData);
         console.log('Packer entry updated successfully');
       } else {
-        await dbService.addPackerEntry(entryData);
+        await apiService.createPackerEntry(entryData);
         console.log('Packer entry added successfully');
       }
       handleClose();
       setTimeout(() => {
         loadEntries();
       }, 100);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving packer entry:', error);
-      alert(`Error saving packer entry: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMessage = error?.message || 'Error saving packer entry. Please try again.';
+      alert(errorMessage);
     }
   };
 
@@ -228,12 +243,13 @@ export default function Packers() {
     }
 
     try {
-      await dbService.deletePackerEntry(id);
+      await apiService.deletePackerEntry(id);
       console.log('Packer entry deleted successfully');
       loadEntries();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting packer entry:', error);
-      alert(`Error deleting packer entry: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMessage = error?.message || 'Error deleting packer entry. Please try again.';
+      alert(errorMessage);
     }
   };
 

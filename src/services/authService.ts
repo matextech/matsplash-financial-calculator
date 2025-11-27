@@ -102,17 +102,19 @@ class AuthService {
 
   private setupInactivityMonitoring(): void {
     // Reset activity on user interaction
-    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click', 'input', 'change', 'focus'];
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click', 'input', 'change', 'focus', 'keydown'];
     const resetActivity = () => {
-      this.lastActivityTime = Date.now();
+      const now = Date.now();
+      this.lastActivityTime = now;
       if (this.currentSession) {
-        this.currentSession.lastActivity = new Date();
+        this.currentSession.lastActivity = new Date(now);
         localStorage.setItem('authSession', JSON.stringify(this.currentSession));
       }
     };
 
+    // Use passive listeners for better performance
     events.forEach(event => {
-      document.addEventListener(event, resetActivity, true);
+      document.addEventListener(event, resetActivity, { passive: true, capture: true });
     });
 
     // Also track API calls as activity
@@ -122,9 +124,32 @@ class AuthService {
       return originalFetch(...args);
     };
 
-    // Check for inactivity more frequently
+    // Check for inactivity more frequently - but only logout if truly inactive
     this.inactivityTimer = setInterval(() => {
-      const timeSinceActivity = Date.now() - this.lastActivityTime;
+      if (!this.currentSession) return;
+      
+      // Get the most recent activity time from both memory and localStorage
+      const storedSession = localStorage.getItem('authSession');
+      let storedLastActivity = this.lastActivityTime;
+      
+      if (storedSession) {
+        try {
+          const parsed = JSON.parse(storedSession);
+          if (parsed.lastActivity) {
+            const storedTime = parsed.lastActivity instanceof Date 
+              ? parsed.lastActivity.getTime() 
+              : new Date(parsed.lastActivity).getTime();
+            // Use the most recent activity time
+            storedLastActivity = Math.max(storedLastActivity, storedTime);
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+      
+      const timeSinceActivity = Date.now() - storedLastActivity;
+      
+      // Only logout if we've been inactive for the full timeout period
       if (timeSinceActivity >= this.INACTIVITY_TIMEOUT) {
         console.warn('Inactivity timeout - logging out after', Math.round(timeSinceActivity / 1000), 'seconds of inactivity');
         this.logout();
@@ -251,18 +276,23 @@ class AuthService {
       return false;
     }
     
-    // For managers and directors, check inactivity
-    const isHighSecurity = this.HIGH_SECURITY_ROLES.includes(session.role);
-    if (isHighSecurity) {
-      const lastActivity = session.lastActivity 
-        ? (session.lastActivity instanceof Date ? session.lastActivity : new Date(session.lastActivity))
-        : new Date(expiresAt.getTime() - this.SESSION_TIMEOUT);
-      const timeSinceActivity = Date.now() - lastActivity.getTime();
-      
-      if (timeSinceActivity >= this.INACTIVITY_TIMEOUT) {
-        this.logout();
-        return false;
-      }
+    // For all users, check inactivity - but use the most recent activity time
+    const lastActivity = session.lastActivity 
+      ? (session.lastActivity instanceof Date ? session.lastActivity : new Date(session.lastActivity))
+      : new Date(expiresAt.getTime() - this.SESSION_TIMEOUT);
+    
+    // Use the most recent activity time from memory or session
+    const mostRecentActivity = Math.max(
+      lastActivity.getTime(),
+      this.lastActivityTime
+    );
+    
+    const timeSinceActivity = Date.now() - mostRecentActivity;
+    
+    // Only logout if we've been inactive for the full timeout period
+    if (timeSinceActivity >= this.INACTIVITY_TIMEOUT) {
+      this.logout();
+      return false;
     }
     
     return true;

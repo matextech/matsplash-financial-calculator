@@ -33,7 +33,7 @@ import {
   ChevronRight,
 } from '@mui/icons-material';
 import { Expense } from '../types';
-import { dbService } from '../services/database';
+import { apiService } from '../services/apiService';
 import { format, startOfDay, endOfDay, isSameDay, parseISO, isToday, addDays, subDays } from 'date-fns';
 
 export default function Expenses() {
@@ -72,14 +72,21 @@ export default function Expenses() {
   }, []);
 
   const loadExpenses = async () => {
-    const data = await dbService.getExpenses();
-    console.log('Expenses loaded:', data.length, 'expenses');
-    console.log('Expenses by type:', {
-      fuel: data.filter(e => e.type === 'fuel' || (e as any).type === 'generator_fuel').length,
-      driver_fuel: data.filter(e => e.type === 'driver_fuel' || (e as any).type === 'driver_payment').length,
-      other: data.filter(e => e.type === 'other').length,
-    });
-    setExpenses(data);
+    try {
+      const data = await apiService.getExpenses();
+      // apiService returns array directly
+      const expensesList = Array.isArray(data) ? data : [];
+      console.log('Expenses loaded:', expensesList.length, 'expenses');
+      console.log('Expenses by type:', {
+        fuel: expensesList.filter(e => e.type === 'fuel' || (e as any).type === 'generator_fuel').length,
+        driver_fuel: expensesList.filter(e => e.type === 'driver_fuel' || (e as any).type === 'driver_payment').length,
+        other: expensesList.filter(e => e.type === 'other').length,
+      });
+      setExpenses(expensesList);
+    } catch (error) {
+      console.error('Error loading expenses:', error);
+      setExpenses([]);
+    }
   };
 
   const getExpensesForDate = (date: Date): Expense[] => {
@@ -274,15 +281,18 @@ export default function Expenses() {
           };
           console.log('Updating expense with:', updateData);
           try {
-            await dbService.updateExpense(editingExpense.id, updateData);
+            await apiService.updateExpense(editingExpense.id, updateData);
             console.log('Expense updated successfully');
             handleClose();
             setTimeout(() => {
               loadExpenses();
             }, 100);
-          } catch (error) {
+            // Dispatch event to refresh dashboard
+            window.dispatchEvent(new Event('expensesUpdated'));
+          } catch (error: any) {
             console.error('Error updating expense:', error);
-            alert(`Error updating expense: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            const errorMessage = error?.message || 'Error updating expense. Please try again.';
+            alert(errorMessage);
           }
         } else {
           alert('Please enter a valid amount for the expense.');
@@ -341,10 +351,13 @@ export default function Expenses() {
         // Save all expenses sequentially
         for (const expense of expensesToSave) {
           try {
-            const id = await dbService.addExpense(expense);
+            const result = await apiService.createExpense(expense);
+            const id = result.id || (result as any).data?.id;
             console.log('Expense saved with ID:', id, expense);
-          } catch (error) {
+          } catch (error: any) {
             console.error('Error saving individual expense:', expense, error);
+            const errorMessage = error?.message || 'Error saving expense. Please try again.';
+            alert(errorMessage);
             throw error;
           }
         }
@@ -359,16 +372,17 @@ export default function Expenses() {
         // Trigger a custom event to notify Dashboard to refresh
         window.dispatchEvent(new CustomEvent('expensesUpdated'));
       }, 100);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving expenses:', error);
-      alert(`Error saving expenses: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMessage = error?.message || 'Error saving expenses. Please try again.';
+      alert(errorMessage);
     }
   };
 
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this expense?')) {
       try {
-        await dbService.deleteExpense(id);
+        await apiService.deleteExpense(id);
         loadExpenses();
         // Trigger a custom event to notify Dashboard to refresh
         window.dispatchEvent(new CustomEvent('expensesUpdated'));

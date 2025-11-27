@@ -109,6 +109,21 @@ export default async function setupDatabase(): Promise<void> {
         table.index('employee_id');
       });
       
+      // Packer entries table
+      await db.schema.createTable('packer_entries', (table) => {
+        table.increments('id').primary();
+        table.string('packer_name').notNullable();
+        table.string('packer_email');
+        table.integer('employee_id');
+        table.integer('bags_packed').notNullable();
+        table.date('date').notNullable();
+        table.text('notes');
+        table.timestamp('created_at').defaultTo(db.fn.now());
+        table.index('date');
+        table.index('employee_id');
+        table.index('packer_name');
+      });
+      
       // Salary payments table
       await db.schema.createTable('salary_payments', (table) => {
         table.increments('id').primary();
@@ -301,6 +316,35 @@ export default async function setupDatabase(): Promise<void> {
       console.log('Database tables created successfully');
     }
     
+    // Check and add inventory_low_threshold column to settings table if it doesn't exist
+    const hasSettingsTable = await db.schema.hasTable('settings');
+    if (hasSettingsTable) {
+      try {
+        // Try to query the column - if it fails, the column doesn't exist
+        await db('settings').select('inventory_low_threshold').limit(1);
+        console.log('✅ inventory_low_threshold column already exists');
+      } catch (error: any) {
+        // Column doesn't exist, add it using raw SQL (SQLite limitation)
+        if (error.message && error.message.includes('no such column')) {
+          console.log('📋 Adding inventory_low_threshold column to settings table...');
+          try {
+            // SQLite doesn't support ALTER TABLE ADD COLUMN in Knex easily, use raw SQL
+            await db.raw('ALTER TABLE settings ADD COLUMN inventory_low_threshold INTEGER DEFAULT 4000');
+            console.log('✅ inventory_low_threshold column added successfully');
+            
+            // Update existing records with default value
+            await db('settings').update({ inventory_low_threshold: 4000 });
+            console.log('✅ Updated existing settings with default inventory_low_threshold (4000)');
+          } catch (alterError: any) {
+            console.error('❌ Error adding inventory_low_threshold column:', alterError);
+            // Don't throw - allow app to continue with default value in code
+          }
+        } else {
+          console.error('❌ Unexpected error checking inventory_low_threshold column:', error);
+        }
+      }
+    }
+    
     // Check and create settlement_payments table if it doesn't exist (for existing databases)
     const hasSettlementPaymentsTable = await db.schema.hasTable('settlement_payments');
     if (!hasSettlementPaymentsTable) {
@@ -475,9 +519,29 @@ export default async function setupDatabase(): Promise<void> {
       }
     }
     
-    // Initialize default users if they don't exist
-    await initializeDefaultUsers();
-    
+      // Check and create packer_entries table if it doesn't exist (for existing databases)
+      const hasPackerEntriesTable = await db.schema.hasTable('packer_entries');
+      if (!hasPackerEntriesTable) {
+        console.log('Creating packer_entries table...');
+        await db.schema.createTable('packer_entries', (table) => {
+          table.increments('id').primary();
+          table.string('packer_name').notNullable();
+          table.string('packer_email');
+          table.integer('employee_id');
+          table.integer('bags_packed').notNullable();
+          table.date('date').notNullable();
+          table.text('notes');
+          table.timestamp('created_at').defaultTo(db.fn.now());
+          table.index('date');
+          table.index('employee_id');
+          table.index('packer_name');
+        });
+        console.log('packer_entries table created successfully');
+      }
+      
+      // Initialize default users if they don't exist
+      await initializeDefaultUsers();
+      
   } catch (error) {
     console.error('Error setting up database:', error);
     throw error;
