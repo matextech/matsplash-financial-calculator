@@ -70,7 +70,10 @@ export class FinancialCalculator {
         const type = e.type || (e as any).type;
         return type === 'fuel' || type === 'generator_fuel';
       })
-      .reduce((sum, e) => sum + (e.amount || 0), 0);
+      .reduce((sum, e) => {
+        const amount = e.amount || 0;
+        return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
+      }, 0);
 
     // Filter for driver fuel expenses
     const driverPayments = safeExpenses
@@ -78,7 +81,10 @@ export class FinancialCalculator {
         const type = e.type || (e as any).type;
         return type === 'driver_fuel' || type === 'driver_payment';
       })
-      .reduce((sum, e) => sum + (e.amount || 0), 0);
+      .reduce((sum, e) => {
+        const amount = e.amount || 0;
+        return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
+      }, 0);
 
     // Filter for other expenses - use same robust pattern
     const otherExpenses = safeExpenses
@@ -86,7 +92,10 @@ export class FinancialCalculator {
         const type = e.type || (e as any).type;
         return type === 'other';
       })
-      .reduce((sum, e) => sum + (e.amount || 0), 0);
+      .reduce((sum, e) => {
+        const amount = e.amount || 0;
+        return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
+      }, 0);
 
     // Catch-all for any expenses that don't match known types (safety net)
     const uncategorizedExpenses = safeExpenses
@@ -98,7 +107,10 @@ export class FinancialCalculator {
                type !== 'driver_payment' && 
                type !== 'other';
       })
-      .reduce((sum, e) => sum + (e.amount || 0), 0);
+      .reduce((sum, e) => {
+        const amount = e.amount || 0;
+        return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
+      }, 0);
 
     // Log comprehensive expense breakdown for debugging
     console.log('FinancialCalculator - Expense breakdown:', {
