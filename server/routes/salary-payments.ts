@@ -18,7 +18,7 @@ function transformSalaryPayment(payment: any) {
     paidDate: payment.payment_date,
     notes: payment.notes,
     createdAt: payment.created_at,
-    totalBags: payment.total_bags,
+    totalBags: payment.total_bags || undefined, // May not exist in older schemas
   };
 }
 
@@ -54,12 +54,35 @@ router.post('/', async (req, res) => {
   try {
     const { employeeId, employeeName, fixedAmount, commissionAmount, totalAmount, period, periodStart, periodEnd, paidDate, notes, totalBags } = req.body;
 
-    if (!employeeId || !employeeName || !totalAmount || !period || !periodStart || !periodEnd || !paidDate) {
+    console.log('📝 Creating salary payment with data:', {
+      employeeId,
+      employeeName,
+      fixedAmount,
+      commissionAmount,
+      totalAmount,
+      period,
+      periodStart,
+      periodEnd,
+      paidDate,
+      notes
+    });
+
+    // Validate required fields
+    if (!employeeId || !employeeName || totalAmount === undefined || totalAmount === null || !period || !periodStart || !periodEnd || !paidDate) {
       return res.status(400).json({
         success: false,
         message: 'Employee ID, name, total amount, period, dates, and paid date are required'
       });
     }
+
+    // Ensure numeric fields are properly converted
+    const numTotalAmount = typeof totalAmount === 'string' ? parseFloat(totalAmount) : totalAmount;
+    const numFixedAmount = fixedAmount !== undefined && fixedAmount !== null 
+      ? (typeof fixedAmount === 'string' ? parseFloat(fixedAmount) : fixedAmount)
+      : null;
+    const numCommissionAmount = commissionAmount !== undefined && commissionAmount !== null
+      ? (typeof commissionAmount === 'string' ? parseFloat(commissionAmount) : commissionAmount)
+      : null;
 
     // Check for duplicate payment for the same employee and period
     const existingPayment = await db('salary_payments')
@@ -75,18 +98,19 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Note: total_bags is not in the schema, so we don't insert it
+    // If needed in the future, add it to the database schema migration
     const [id] = await db('salary_payments').insert({
-      employee_id: employeeId,
+      employee_id: typeof employeeId === 'string' ? parseInt(employeeId) : employeeId,
       employee_name: employeeName,
-      fixed_salary: fixedAmount || null,
-      commission: commissionAmount || null,
-      total_amount: totalAmount,
+      fixed_salary: numFixedAmount,
+      commission: numCommissionAmount,
+      total_amount: numTotalAmount,
       period: period,
       period_start: periodStart,
       period_end: periodEnd,
       payment_date: paidDate,
       notes: notes || null,
-      total_bags: totalBags || null,
       created_at: new Date().toISOString()
     });
 
@@ -99,6 +123,12 @@ router.post('/', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Error creating salary payment:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+      body: req.body
+    });
     
     // Check for unique constraint violation
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.message?.includes('UNIQUE constraint')) {
@@ -108,9 +138,18 @@ router.post('/', async (req, res) => {
       });
     }
     
+    // Check for NOT NULL constraint violation
+    if (error.code === 'SQLITE_CONSTRAINT_NOTNULL' || error.message?.includes('NOT NULL constraint')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields. Please check all required fields are provided.'
+      });
+    }
+    
     res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -132,7 +171,7 @@ router.put('/:id', async (req, res) => {
     if (periodEnd !== undefined) updateData.period_end = periodEnd;
     if (paidDate !== undefined) updateData.payment_date = paidDate;
     if (notes !== undefined) updateData.notes = notes;
-    if (totalBags !== undefined) updateData.total_bags = totalBags;
+    // Note: total_bags is not in the schema, so we don't update it
 
     await db('salary_payments').where('id', id).update(updateData);
 
