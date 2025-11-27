@@ -24,7 +24,7 @@ export class InventoryService {
   /**
    * Calculate current inventory status based on purchases and sales
    */
-  static async getInventoryStatus(restockThreshold: number = 10000): Promise<InventoryStatus> {
+  static async getInventoryStatus(restockThreshold?: number): Promise<InventoryStatus> {
     try {
       // Get all material purchases and sales
       const [purchases, sales, settings] = await Promise.all([
@@ -34,6 +34,10 @@ export class InventoryService {
       ]);
 
       const effectiveSettings = settings || DEFAULT_SETTINGS;
+      // Use threshold from settings if not provided, default to 4000
+      const effectiveThreshold = restockThreshold !== undefined 
+        ? restockThreshold 
+        : (effectiveSettings.inventoryLowThreshold || 4000);
 
       // Calculate total capacity from purchases
       let totalSachetRolls = 0;
@@ -79,8 +83,8 @@ export class InventoryService {
         },
         totalRemainingBags: remainingBags,
         totalUsedBags: totalBagsSold,
-        needsRestock: remainingBags < restockThreshold,
-        restockThreshold,
+        needsRestock: remainingBags < effectiveThreshold,
+        restockThreshold: effectiveThreshold,
       };
     } catch (error) {
       console.error('Error calculating inventory status:', error);

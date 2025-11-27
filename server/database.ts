@@ -137,6 +137,7 @@ export default async function setupDatabase(): Promise<void> {
         table.integer('packing_nylon_bags_per_package').defaultTo(10000);
         table.decimal('sales_price_1', 10, 2).defaultTo(250);
         table.decimal('sales_price_2', 10, 2).defaultTo(270);
+        table.integer('inventory_low_threshold').defaultTo(4000); // Alert when bags below this number
         table.timestamp('updated_at').defaultTo(db.fn.now());
       });
       

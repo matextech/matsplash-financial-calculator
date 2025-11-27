@@ -9,9 +9,9 @@ class AuthService {
 
   // Security settings for managers and directors
   private readonly HIGH_SECURITY_ROLES: UserRole[] = ['manager', 'director'];
-  private readonly INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes maximum inactivity
-  private readonly SESSION_CHECK_INTERVAL = 1 * 60 * 1000; // Check every 1 minute for better security
-  private readonly SESSION_TIMEOUT = 5 * 60 * 1000; // 5 minutes maximum session timeout
+  private readonly INACTIVITY_TIMEOUT = 2 * 60 * 1000; // 2 minutes maximum inactivity (if no activity)
+  private readonly SESSION_CHECK_INTERVAL = 30 * 1000; // Check every 30 seconds for better responsiveness
+  private readonly SESSION_TIMEOUT = 24 * 60 * 60 * 1000; // 24 hours maximum session timeout (extended since we track activity)
 
   async login(identifier: string, passwordOrPin: string, twoFactorCode?: string): Promise<AuthSession> {
     try {
@@ -79,10 +79,8 @@ class AuthService {
       this.lastActivityTime = Date.now();
       localStorage.setItem('authSession', JSON.stringify(session));
       
-      // Set up security monitoring for managers and directors
-      if (isHighSecurity) {
-        this.setupSecurityMonitoring();
-      }
+      // Set up security monitoring for ALL users (activity-based logout)
+      this.setupSecurityMonitoring();
       
       return session;
     } catch (error: any) {
@@ -104,7 +102,7 @@ class AuthService {
 
   private setupInactivityMonitoring(): void {
     // Reset activity on user interaction
-    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click', 'input', 'change', 'focus'];
     const resetActivity = () => {
       this.lastActivityTime = Date.now();
       if (this.currentSession) {
@@ -117,15 +115,22 @@ class AuthService {
       document.addEventListener(event, resetActivity, true);
     });
 
-    // Check for inactivity
+    // Also track API calls as activity
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      resetActivity();
+      return originalFetch(...args);
+    };
+
+    // Check for inactivity more frequently
     this.inactivityTimer = setInterval(() => {
       const timeSinceActivity = Date.now() - this.lastActivityTime;
       if (timeSinceActivity >= this.INACTIVITY_TIMEOUT) {
-        console.warn('Inactivity timeout - logging out');
+        console.warn('Inactivity timeout - logging out after', Math.round(timeSinceActivity / 1000), 'seconds of inactivity');
         this.logout();
         window.location.href = '/login?reason=inactivity';
       }
-    }, 60000); // Check every minute
+    }, this.SESSION_CHECK_INTERVAL); // Check every 30 seconds
   }
 
   private setupSessionValidation(): void {

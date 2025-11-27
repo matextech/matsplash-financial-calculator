@@ -13,6 +13,7 @@ function transformSettings(settings: any) {
     packingNylonBagsPerPackage: settings.packing_nylon_bags_per_package || 0,
     salesPrice1: parseFloat(settings.sales_price_1) || 0,
     salesPrice2: parseFloat(settings.sales_price_2) || 0,
+    inventoryLowThreshold: settings.inventory_low_threshold || 4000,
     updatedAt: settings.updated_at
   };
 }
@@ -31,10 +32,17 @@ router.get('/', async (req, res) => {
         packing_nylon_bags_per_package: 10000,
         sales_price_1: 250,
         sales_price_2: 270,
+        inventory_low_threshold: 4000,
         updated_at: new Date().toISOString()
       });
       
       settings = await db('settings').where('id', id).first();
+    }
+    
+    // If inventory_low_threshold doesn't exist, add it
+    if (settings && settings.inventory_low_threshold === undefined || settings.inventory_low_threshold === null) {
+      await db('settings').where('id', settings.id).update({ inventory_low_threshold: 4000 });
+      settings = await db('settings').where('id', settings.id).first();
     }
     
     res.json({
@@ -63,6 +71,7 @@ router.put('/', async (req, res) => {
     if (req.body.packingNylonBagsPerPackage !== undefined) updateData.packing_nylon_bags_per_package = req.body.packingNylonBagsPerPackage;
     if (req.body.salesPrice1 !== undefined) updateData.sales_price_1 = req.body.salesPrice1;
     if (req.body.salesPrice2 !== undefined) updateData.sales_price_2 = req.body.salesPrice2;
+    if (req.body.inventoryLowThreshold !== undefined) updateData.inventory_low_threshold = req.body.inventoryLowThreshold;
 
     // Get first settings record (should only be one)
     const existingSettings = await db('settings').first();

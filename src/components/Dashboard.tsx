@@ -101,7 +101,10 @@ export default function Dashboard() {
 
   const loadInventoryStatus = async () => {
     try {
-      const status = await InventoryService.getInventoryStatus(10000); // Alert when below 10,000 bags
+      // Get threshold from settings, default to 4000
+      const settings = await apiService.getSettings();
+      const threshold = settings?.inventoryLowThreshold || 4000;
+      const status = await InventoryService.getInventoryStatus(threshold); // Alert when below 10,000 bags
       setInventoryStatus(status);
     } catch (error) {
       console.error('Error loading inventory status:', error);
