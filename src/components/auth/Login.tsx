@@ -38,7 +38,6 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [needs2FA, setNeeds2FA] = useState(false);
   const [showPinChangeDialog, setShowPinChangeDialog] = useState(false);
-  // Password/PIN recovery disabled - 2FA sufficient
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const [isDirector, setIsDirector] = useState(false);
   const checkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -310,23 +309,7 @@ export default function Login() {
         }}
       />
 
-      <PinRecoveryDialog
-        open={showPinRecoveryDialog}
-        onClose={() => setShowPinRecoveryDialog(false)}
-        onSuccess={() => {
-          setShowPinRecoveryDialog(false);
-          // Optionally navigate to login or show success message
-        }}
-      />
-
-      <PasswordRecoveryDialog
-        open={showPasswordRecoveryDialog}
-        onClose={() => setShowPasswordRecoveryDialog(false)}
-        onSuccess={() => {
-          setShowPasswordRecoveryDialog(false);
-          // Optionally navigate to login or show success message
-        }}
-      />
+      {/* Password/PIN recovery dialogs removed - 2FA sufficient */}
     </Box>
   );
 }
