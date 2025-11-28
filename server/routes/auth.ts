@@ -145,13 +145,14 @@ router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
     if (!isValid) {
       if (process.env.NODE_ENV !== 'production') {
         console.log('❌ Invalid credentials for user:', { 
-        id: user.id, 
-        name: user.name, 
-        role: user.role,
-        hasPassword: !!user.password,
-        hasPinHash: !!user.pin_hash,
-        pinHashLength: user.pin_hash ? user.pin_hash.length : 0
-      });
+          id: user.id, 
+          name: user.name, 
+          role: user.role,
+          hasPassword: !!user.password,
+          hasPinHash: !!user.pin_hash,
+          pinHashLength: user.pin_hash ? user.pin_hash.length : 0
+        });
+      }
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
