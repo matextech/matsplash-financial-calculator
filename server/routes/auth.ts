@@ -53,7 +53,8 @@ router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
 
     // Check if user is active - handle different data types from SQLite
     const isActive = user.is_active === 1 || user.is_active === true || user.is_active === '1';
-    console.log('✅ Checking user active status:', { 
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✅ Checking user active status:', { 
       id: user.id, 
       name: user.name, 
       is_active: user.is_active, 
@@ -93,9 +94,11 @@ router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
       }
     } else {
       // Other roles use PIN
-      console.log('🔑 Verifying PIN for role:', user.role);
-      console.log('🔑 PIN hash exists:', !!user.pin_hash);
-      console.log('🔑 PIN hash length:', user.pin_hash ? user.pin_hash.length : 0);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🔑 Verifying PIN for role:', user.role);
+        console.log('🔑 PIN hash exists:', !!user.pin_hash);
+        console.log('🔑 PIN hash length:', user.pin_hash ? user.pin_hash.length : 0);
+      }
       
       // Safety check: If PIN hash is missing, automatically set it to default '1234' (DEVELOPMENT ONLY)
       // In production, users must contact administrator to set their PIN
