@@ -484,13 +484,15 @@ router.post('/verify-2fa', rateLimiter(10, 15 * 60 * 1000), async (req, res) => 
     // Check if user is active - handle different data types from SQLite
     const isActive = user.is_active === 1 || user.is_active === true || user.is_active === '1';
     if (process.env.NODE_ENV !== 'production') {
+      if (process.env.NODE_ENV !== 'production') {
       console.log('Checking user active status in verify-2fa:', { 
-      id: user.id, 
-      name: user.name, 
-      is_active: user.is_active, 
-      is_active_type: typeof user.is_active,
-      isActive_result: isActive 
-    });
+        id: user.id, 
+        name: user.name, 
+        is_active: user.is_active, 
+        is_active_type: typeof user.is_active,
+        isActive_result: isActive 
+      });
+    }
     
     if (!isActive) {
       console.log('User is inactive in verify-2fa:', { id: user.id, name: user.name, is_active: user.is_active, is_active_type: typeof user.is_active });
@@ -690,7 +692,9 @@ router.post('/verify-2fa-authenticated', async (req, res) => {
         });
       }
 
-      console.log('✅ 2FA verified for authenticated user:', { userId: user.id, name: user.name });
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('✅ 2FA verified for authenticated user:', { userId: user.id, name: user.name });
+      }
 
       return res.json({
         success: true,
@@ -759,7 +763,9 @@ router.post('/verify-director-password', async (req, res) => {
       isValid = director.password === password;
     }
 
-    console.log('🔐 Password verification:', { identifier, isValid, timestamp: new Date().toISOString() });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔐 Password verification:', { identifier, isValid, timestamp: new Date().toISOString() });
+    }
 
     return res.json({
       success: true,
@@ -837,7 +843,9 @@ router.post('/request-password-recovery', async (req, res) => {
       });
     }
 
-    console.log('🔐 Password recovery requested:', { identifier, ipAddress, timestamp: new Date().toISOString() });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔐 Password recovery requested:', { identifier, ipAddress, timestamp: new Date().toISOString() });
+    }
 
     // Find director by email or phone (must be director)
     const director = await db('users')
@@ -947,7 +955,9 @@ router.post('/request-password-recovery', async (req, res) => {
       user_agent: req.headers['user-agent'] || 'unknown'
     });
 
-    console.log('✅ Password recovery token generated for director:', { id: director.id, name: director.name });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✅ Password recovery token generated for director:', { id: director.id, name: director.name });
+    }
 
     // In production, send token via email/SMS
     if (process.env.NODE_ENV === 'production') {
@@ -1058,7 +1068,9 @@ router.post('/verify-password-recovery', async (req, res) => {
       user_agent: req.headers['user-agent'] || 'unknown'
     });
 
-    console.log('✅ Password reset successful via recovery token for director:', { id: director.id, name: director.name });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✅ Password reset successful via recovery token for director:', { id: director.id, name: director.name });
+    }
 
     res.json({
       success: true,
@@ -1097,7 +1109,9 @@ router.post('/verify-password-recovery', async (req, res) => {
       });
     }
 
-    console.log('🔐 PIN recovery requested:', { identifier, targetUserIdentifier, ipAddress, timestamp: new Date().toISOString() });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔐 PIN recovery requested:', { identifier, targetUserIdentifier, ipAddress, timestamp: new Date().toISOString() });
+    }
 
     // Find director by email or phone (must be director)
     const director = await db('users')
