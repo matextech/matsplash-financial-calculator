@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+// App component
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Dashboard from './components/Dashboard';

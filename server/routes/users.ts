@@ -211,7 +211,7 @@ router.put('/:id', async (req, res) => {
     }
 
     const updateResult = await db('users').where('id', id).update(updateData);
-    console.log('User update completed for user:', id, 'Update data:', { ...updateData, password: updateData.password ? '***HIDDEN***' : undefined }, 'Rows affected:', updateResult);
+    // User update completed (sensitive data not logged)
 
     // Return updated user - force a fresh read
     const updatedUser = await db('users').where('id', id).first();

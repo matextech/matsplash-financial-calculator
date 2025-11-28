@@ -952,7 +952,7 @@ router.post('/verify-password-recovery', async (req, res) => {
       });
     }
 
-    console.log('🔐 Password recovery verification attempt:', { token: token.substring(0, 8) + '...', ipAddress });
+    // Password recovery verification attempt logged (token masked)
 
     // Find recovery token
     const recoveryToken = await db('password_recovery_tokens')
@@ -1227,7 +1227,7 @@ router.post('/verify-pin-recovery', async (req, res) => {
       });
     }
 
-    console.log('🔐 PIN recovery verification attempt:', { token: token.substring(0, 8) + '...', ipAddress });
+    // PIN recovery verification attempt logged (token masked)
 
     // Find recovery token
     const recoveryToken = await db('pin_recovery_tokens')

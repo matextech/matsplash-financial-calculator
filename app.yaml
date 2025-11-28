@@ -37,11 +37,7 @@ handlers:
     static_files: dist/index.html
     upload: dist/index.html
 
-# CRITICAL PRODUCTION NOTE:
-# SQLite on App Engine /tmp is EPHEMERAL - data will be lost on instance restart
-# Options:
-# 1. Use Cloud SQL (PostgreSQL/MySQL) - adds cost but persistent
-# 2. Use Cloud Storage to store SQLite file - requires file sync on startup/shutdown
-# 3. Use Firestore (NoSQL) - different data model
-# Recommended: Cloud SQL for production data persistence
+# Database Persistence:
+# Cloud Storage sync is implemented - database automatically syncs on startup/shutdown
+# See server/services/cloudStorage.ts for implementation details
 

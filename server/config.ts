@@ -7,8 +7,8 @@ export const config = {
   // Frontend URL
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5179',
   
-  // JWT Secret
-  jwtSecret: process.env.JWT_SECRET || 'matsplash-financial-secret-key-2024',
+  // JWT Secret - MUST be set via environment variable in production
+  jwtSecret: process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'matsplash-financial-secret-key-2024'),
   
   // Database Configuration
   database: {

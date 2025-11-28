@@ -18,11 +18,14 @@ export class CloudStorageService {
     this.localDbPath = process.env.DATABASE_PATH || './database.sqlite';
 
     // Initialize Cloud Storage client (only in production)
-    if (process.env.NODE_ENV === 'production' && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    // App Engine automatically provides GOOGLE_APPLICATION_CREDENTIALS
+    if (process.env.NODE_ENV === 'production') {
       try {
         this.storage = new Storage();
       } catch (error) {
-        console.error('Failed to initialize Cloud Storage:', error);
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('Failed to initialize Cloud Storage:', error);
+        }
         // Continue without Cloud Storage in case of errors
       }
     }

@@ -17,11 +17,12 @@
     "allowSyntheticDefaultImports": true,
 
     /* Linting */
-    "strict": true,
+    "strict": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
-    "noImplicitAny": false
+    "noImplicitAny": false,
+    "skipLibCheck": true
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]

@@ -37,3 +37,8 @@ coverage
 # Production
 release
 
+# Database files
+database.sqlite
+*.sqlite
+*.db
+
