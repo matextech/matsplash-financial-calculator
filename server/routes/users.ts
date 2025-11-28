@@ -326,54 +326,54 @@ router.delete('/:id', async (req, res) => {
 // Clean receptionist and storekeeper data
 // Clean data endpoint disabled - not available in production
 // router.post('/clean-data', async (req, res) => {
-  try {
-    const { dataType } = req.body; // 'receptionist', 'storekeeper', or 'all'
-
-    if (!dataType || !['receptionist', 'storekeeper', 'all'].includes(dataType)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid data type. Must be "receptionist", "storekeeper", or "all"'
-      });
-    }
-
-    let deletedCount = 0;
-
-    if (dataType === 'receptionist' || dataType === 'all') {
-      // Delete all receptionist sales
-      const receptionistCount = await db('receptionist_sales').count('* as count').first();
-      await db('receptionist_sales').delete();
-      deletedCount += parseInt(receptionistCount?.count || '0');
-      console.log('✅ Cleaned receptionist sales:', receptionistCount?.count || 0);
-    }
-
-    if (dataType === 'storekeeper' || dataType === 'all') {
-      // Delete all storekeeper entries
-      const storekeeperCount = await db('storekeeper_entries').count('* as count').first();
-      await db('storekeeper_entries').delete();
-      deletedCount += parseInt(storekeeperCount?.count || '0');
-      console.log('✅ Cleaned storekeeper entries:', storekeeperCount?.count || 0);
-    }
-
-    if (dataType === 'all') {
-      // Also clean settlements related to receptionist sales
-      await db('settlements').delete();
-      await db('settlement_payments').delete();
-      console.log('✅ Cleaned settlements and settlement payments');
-    }
-
-    res.json({
-      success: true,
-      message: `Data cleaned successfully. Deleted ${deletedCount} records.`,
-      deletedCount
-    });
-  } catch (error) {
-    console.error('Error cleaning data:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error'
-    });
-  }
-});
+//   try {
+//     const { dataType } = req.body; // 'receptionist', 'storekeeper', or 'all'
+//
+//     if (!dataType || !['receptionist', 'storekeeper', 'all'].includes(dataType)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Invalid data type. Must be "receptionist", "storekeeper", or "all"'
+//       });
+//     }
+//
+//     let deletedCount = 0;
+//
+//     if (dataType === 'receptionist' || dataType === 'all') {
+//       // Delete all receptionist sales
+//       const receptionistCount = await db('receptionist_sales').count('* as count').first();
+//       await db('receptionist_sales').delete();
+//       deletedCount += parseInt(receptionistCount?.count || '0');
+//       console.log('✅ Cleaned receptionist sales:', receptionistCount?.count || 0);
+//     }
+//
+//     if (dataType === 'storekeeper' || dataType === 'all') {
+//       // Delete all storekeeper entries
+//       const storekeeperCount = await db('storekeeper_entries').count('* as count').first();
+//       await db('storekeeper_entries').delete();
+//       deletedCount += parseInt(storekeeperCount?.count || '0');
+//       console.log('✅ Cleaned storekeeper entries:', storekeeperCount?.count || 0);
+//     }
+//
+//     if (dataType === 'all') {
+//       // Also clean settlements related to receptionist sales
+//       await db('settlements').delete();
+//       await db('settlement_payments').delete();
+//       console.log('✅ Cleaned settlements and settlement payments');
+//     }
+//
+//     res.json({
+//       success: true,
+//       message: `Data cleaned successfully. Deleted ${deletedCount} records.`,
+//       deletedCount
+//     });
+//   } catch (error) {
+//     console.error('Error cleaning data:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Internal server error'
+//     });
+//   }
+// });
 
 // Clean all data except settings and users
 // Clean all data endpoint disabled - not available in production

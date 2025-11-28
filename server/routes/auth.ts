@@ -44,25 +44,27 @@ router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
 
     if (process.env.NODE_ENV !== 'production') {
       console.log('👤 User found:', { 
-      id: user.id, 
-      name: user.name, 
-      role: user.role,
-      email: user.email,
-      phone: user.phone,
-      is_active: user.is_active,
-      is_active_type: typeof user.is_active
-    });
+        id: user.id, 
+        name: user.name, 
+        role: user.role,
+        email: user.email,
+        phone: user.phone,
+        is_active: user.is_active,
+        is_active_type: typeof user.is_active
+      });
+    }
 
     // Check if user is active - handle different data types from SQLite
     const isActive = user.is_active === 1 || user.is_active === true || user.is_active === '1';
     if (process.env.NODE_ENV !== 'production') {
       console.log('✅ Checking user active status:', { 
-      id: user.id, 
-      name: user.name, 
-      is_active: user.is_active, 
-      is_active_type: typeof user.is_active,
-      isActive_result: isActive 
-    });
+        id: user.id, 
+        name: user.name, 
+        is_active: user.is_active, 
+        is_active_type: typeof user.is_active,
+        isActive_result: isActive 
+      });
+    }
     
     if (!isActive) {
       if (process.env.NODE_ENV !== 'production') {
