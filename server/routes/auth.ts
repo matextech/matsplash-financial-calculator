@@ -33,7 +33,9 @@ router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
       .first();
 
     if (!user) {
-      console.log('❌ User not found:', identifier);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('❌ User not found:', identifier);
+      }
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
@@ -494,7 +496,9 @@ router.post('/verify-2fa', rateLimiter(10, 15 * 60 * 1000), async (req, res) => 
     }
     
     if (!isActive) {
-      console.log('User is inactive in verify-2fa:', { id: user.id, name: user.name, is_active: user.is_active, is_active_type: typeof user.is_active });
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('User is inactive in verify-2fa:', { id: user.id, name: user.name, is_active: user.is_active, is_active_type: typeof user.is_active });
+      }
       return res.status(401).json({
         success: false,
         message: 'Account is disabled. Please contact administrator.'
