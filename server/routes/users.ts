@@ -378,7 +378,7 @@ router.delete('/:id', async (req, res) => {
 // Clean all data except settings and users
 // Clean all data endpoint disabled - not available in production
 // router.post('/clean-all-data', async (req, res) => {
-  try {
+//   try {
     const results: any = {};
 
     // Clean sales
