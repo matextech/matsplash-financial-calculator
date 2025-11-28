@@ -78,10 +78,15 @@ router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
     // Verify password/PIN
     let isValid = false;
     if (user.role === 'director') {
-      // Director uses password
-      console.log('🔑 Verifying director password (plain text comparison)');
-      isValid = user.password === passwordOrPin; // In production, use bcrypt.compare
-      console.log('🔑 Password match result:', isValid);
+      // Director uses password - check if it's hashed or plain text
+      // If password starts with $2a$ or $2b$, it's bcrypt hashed
+      if (user.password && (user.password.startsWith('$2a$') || user.password.startsWith('$2b$'))) {
+        // Password is hashed, use bcrypt.compare
+        isValid = await bcrypt.compare(passwordOrPin, user.password);
+      } else {
+        // Password is plain text (legacy or development), compare directly
+        isValid = user.password === passwordOrPin;
+      }
     } else {
       // Other roles use PIN
       console.log('🔑 Verifying PIN for role:', user.role);
@@ -711,8 +716,15 @@ router.post('/verify-director-password', async (req, res) => {
       });
     }
 
-    // Verify password (directors use plain text password in current implementation)
-    const isValid = director.password === password;
+    // Verify password - check if it's hashed or plain text
+    let isValid: boolean;
+    if (director.password && (director.password.startsWith('$2a$') || director.password.startsWith('$2b$'))) {
+      // Password is hashed, use bcrypt.compare
+      isValid = await bcrypt.compare(password, director.password);
+    } else {
+      // Password is plain text (legacy or development), compare directly
+      isValid = director.password === password;
+    }
 
     console.log('🔐 Password verification:', { identifier, isValid, timestamp: new Date().toISOString() });
 
