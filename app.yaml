@@ -2,6 +2,8 @@ runtime: nodejs20
 
 env: standard
 
+# Region: africa-south1 (Johannesburg) - optimal for Nigeria users
+# Note: App Engine Standard requires region to be set during initial deployment
 instance_class: F1  # Lowest cost instance (free tier eligible)
 
 automatic_scaling:
@@ -13,12 +15,12 @@ env_variables:
   NODE_ENV: production
   PORT: 8080
   DATABASE_PATH: /tmp/database.sqlite  # Local path - synced with Cloud Storage
-  GCS_BUCKET_NAME: '${GCS_BUCKET_NAME}'  # Set in GCP Console -> Cloud Storage bucket name
+  GCS_BUCKET_NAME: 'matsplash-fin-db-host-dev-378703'  # Cloud Storage bucket in africa-south1
   DB_FILE_NAME: 'database.sqlite'  # Database file name in Cloud Storage
-  JWT_SECRET: '${JWT_SECRET}'  # Set in GCP Console -> Secret Manager
+  JWT_SECRET: 'Hs34gmCQl6xYrMSAiOtczpRywUVoILJE'  # Generated secure secret
   FRONTEND_URL: 'https://www.matsplash.com'
   CORS_ORIGIN: 'https://www.matsplash.com'
-  VITE_LOGIN_SECRET_PATH: '${LOGIN_SECRET_PATH}'  # Set in GCP Console -> Secret Manager
+  VITE_LOGIN_SECRET_PATH: 'matsplash-fin-2jg1wCHqcMOEhlBr'  # Generated secure login path
   # Note: App Engine automatically provides GOOGLE_APPLICATION_CREDENTIALS
 
 handlers:
@@ -30,7 +32,7 @@ handlers:
   - url: /(.*\.(js|css|ico|png|jpg|svg|woff|woff2|ttf|eot))
     static_files: dist/\1
     upload: dist/(.*\.(js|css|ico|png|jpg|svg|woff|woff2|ttf|eot))
-    expiration: 1y
+    expiration: 365d
 
   # Serve index.html for all other routes (SPA routing)
   - url: /.*
