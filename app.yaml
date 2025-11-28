@@ -2,7 +2,7 @@ runtime: nodejs20
 
 env: standard
 
-# Region: africa-south1 (Johannesburg) - optimal for Nigeria users
+# Region: europe-west (Belgium) - App Engine and Cloud Storage in same region to minimize network costs
 # Note: App Engine Standard requires region to be set during initial deployment
 instance_class: F1  # Lowest cost instance (free tier eligible)
 
@@ -15,7 +15,7 @@ env_variables:
   NODE_ENV: production
   PORT: 8080
   DATABASE_PATH: /tmp/database.sqlite  # Local path - synced with Cloud Storage
-  GCS_BUCKET_NAME: 'matsplash-fin-db-host-dev-378703'  # Cloud Storage bucket in africa-south1
+  GCS_BUCKET_NAME: 'matsplash-fin-db-host-dev-378703'  # Cloud Storage bucket in EU (europe-west region)
   DB_FILE_NAME: 'database.sqlite'  # Database file name in Cloud Storage
   JWT_SECRET: 'Hs34gmCQl6xYrMSAiOtczpRywUVoILJE'  # Generated secure secret
   FRONTEND_URL: 'https://www.matsplash.com'
