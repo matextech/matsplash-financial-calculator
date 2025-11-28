@@ -44,9 +44,9 @@ export default function Settings() {
   const loadSettings = async () => {
     try {
       setLoading(true);
-      const data = await apiService.getSettings();
+      const data: any = await apiService.getSettings();
       // apiService returns { success: true, data: {...} } or direct object
-      const settingsData = data.data || data;
+      const settingsData = (data as any)?.data || data;
       setSettings(settingsData);
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -58,8 +58,8 @@ export default function Settings() {
 
   const loadBagPrices = async () => {
     try {
-      const prices = await apiService.getBagPrices(true); // Include inactive
-      const pricesArray = Array.isArray(prices) ? prices : (prices?.data || []);
+      const prices: any = await apiService.getBagPrices(true); // Include inactive
+      const pricesArray = Array.isArray(prices) ? prices : ((prices as any)?.data || []);
       setBagPrices(pricesArray);
     } catch (error) {
       console.error('Error loading bag prices:', error);
