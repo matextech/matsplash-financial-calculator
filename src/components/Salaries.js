@@ -1,0 +1,676 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+import { useEffect, useState } from 'react';
+import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Typography, Paper, Grid, Card, CardContent, IconButton, Chip, InputAdornment, Tooltip, ToggleButton, ToggleButtonGroup, MenuItem, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Alert, } from '@mui/material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, AccountBalance as SalaryIcon, Person as PersonIcon, ChevronLeft, ChevronRight, CheckCircle as CheckCircleIcon, Pending as PendingIcon, CalendarToday as CalendarIcon, } from '@mui/icons-material';
+import { apiService } from '../services/apiService';
+import { FinancialCalculator } from '../services/financialCalculator';
+import { format, startOfDay, endOfDay, isSameDay, isToday, addDays, subDays, endOfMonth } from 'date-fns';
+export default function Salaries() {
+    const [payments, setPayments] = useState([]);
+    const [employees, setEmployees] = useState([]);
+    const [selectedDate, setSelectedDate] = useState(new Date());
+    const [viewMode, setViewMode] = useState('cycles');
+    const [dateRange, setDateRange] = useState({
+        start: new Date(),
+        end: new Date(),
+    });
+    const [filterEmployee, setFilterEmployee] = useState('all');
+    const [filterPeriod, setFilterPeriod] = useState('all');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [open, setOpen] = useState(false);
+    const [editingPayment, setEditingPayment] = useState(null);
+    const [paymentCycles, setPaymentCycles] = useState([]);
+    const [selectedCycle, setSelectedCycle] = useState(null);
+    const [formData, setFormData] = useState({
+        employeeId: '',
+        period: 'first_half',
+        periodStart: new Date(),
+        periodEnd: new Date(),
+        fixedAmount: '',
+        commissionAmount: '',
+        totalBags: '',
+        totalAmount: '',
+        paidDate: new Date(),
+        notes: '',
+    });
+    useEffect(() => {
+        loadPayments();
+        loadEmployees();
+    }, []);
+    // Reload payments when switching to day/range view
+    useEffect(() => {
+        if (viewMode === 'day' || viewMode === 'range') {
+            loadPayments();
+            // Reset selected cycle when leaving cycles view
+            setSelectedCycle(null);
+        }
+    }, [viewMode]);
+    useEffect(() => {
+        if (viewMode === 'cycles') {
+            loadPaymentCycles();
+        }
+    }, [viewMode, employees, payments]);
+    // Listen for salary payment updates
+    useEffect(() => {
+        const handleSalaryUpdate = () => {
+            // Salary payment updated, refreshing cycles
+            if (viewMode === 'cycles') {
+                loadPaymentCycles();
+            }
+            loadPayments();
+        };
+        window.addEventListener('salaryPaymentUpdated', handleSalaryUpdate);
+        return () => {
+            window.removeEventListener('salaryPaymentUpdated', handleSalaryUpdate);
+        };
+    }, [viewMode]);
+    // Determine current cycle based on today's date
+    useEffect(() => {
+        if (viewMode === 'cycles' && paymentCycles.length > 0 && !selectedCycle) {
+            const today = new Date();
+            const currentDay = today.getDate();
+            const currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            // If we're past the 15th, we're in the second period of current month
+            // If we're before the 15th, we're in the first period of current month
+            let defaultCycle = null;
+            if (currentDay <= 15) {
+                // First period (1st-15th, paid on 18th)
+                defaultCycle = { period: 'first', month: currentMonth };
+            }
+            else {
+                // Second period (16th-end, paid on 5th of next month)
+                defaultCycle = { period: 'second', month: currentMonth };
+            }
+            // Check if this cycle exists in paymentCycles
+            const cycleExists = paymentCycles.some(cycle => {
+                const cycleMonth = new Date(cycle.workStart.getFullYear(), cycle.workStart.getMonth(), 1);
+                return cycle.period === defaultCycle?.period &&
+                    cycleMonth.getTime() === defaultCycle.month.getTime();
+            });
+            if (cycleExists && defaultCycle) {
+                setSelectedCycle(defaultCycle);
+            }
+            else if (paymentCycles.length > 0) {
+                // Fallback to first available cycle
+                const firstCycle = paymentCycles[0];
+                const firstCycleMonth = new Date(firstCycle.workStart.getFullYear(), firstCycle.workStart.getMonth(), 1);
+                setSelectedCycle({ period: firstCycle.period, month: firstCycleMonth });
+            }
+        }
+    }, [viewMode, paymentCycles]);
+    const loadPayments = async () => {
+        try {
+            const data = await apiService.getSalaryPayments();
+            // apiService returns array directly
+            const paymentsList = Array.isArray(data) ? data : [];
+            setPayments(paymentsList);
+            return paymentsList;
+        }
+        catch (error) {
+            console.error('Error loading salary payments:', error);
+            setPayments([]);
+            return [];
+        }
+    };
+    const loadEmployees = async () => {
+        try {
+            const data = await apiService.getEmployees();
+            // apiService returns { success: true, data: [...] } or direct array
+            const employeesList = Array.isArray(data) ? data : (data.data || []);
+            // Normalize employee data - handle both snake_case and camelCase
+            const normalizedEmployees = employeesList.map(emp => ({
+                ...emp,
+                salaryType: emp.salaryType || emp.salary_type,
+                commissionRate: emp.commissionRate !== undefined ? emp.commissionRate : (emp.commission_rate !== undefined ? emp.commission_rate : null),
+                fixedSalary: emp.fixedSalary !== undefined ? emp.fixedSalary : (emp.fixed_salary !== undefined ? emp.fixed_salary : null),
+                role: emp.role,
+                id: emp.id,
+                name: emp.name,
+                email: emp.email,
+                phone: emp.phone,
+                createdAt: emp.createdAt || emp.created_at,
+                updatedAt: emp.updatedAt || emp.updated_at,
+            }));
+            setEmployees(normalizedEmployees);
+        }
+        catch (error) {
+            console.error('Error loading employees:', error);
+            setEmployees([]);
+        }
+    };
+    const getPaymentCycles = (month) => {
+        const year = month.getFullYear();
+        const monthIndex = month.getMonth();
+        // Period 1: 1st-15th, paid on 18th
+        const period1Start = new Date(year, monthIndex, 1);
+        const period1End = new Date(year, monthIndex, 15);
+        const period1PayDate = new Date(year, monthIndex, 18);
+        // Period 2: 16th-end, paid on 5th of next month
+        const period2Start = new Date(year, monthIndex, 16);
+        const period2End = endOfMonth(month);
+        const period2PayDate = new Date(year, monthIndex + 1, 5);
+        return {
+            first: {
+                period: 'first',
+                workStart: period1Start,
+                workEnd: period1End,
+                payDate: period1PayDate,
+                employees: [],
+            },
+            second: {
+                period: 'second',
+                workStart: period2Start,
+                workEnd: period2End,
+                payDate: period2PayDate,
+                employees: [],
+            },
+        };
+    };
+    const loadPaymentCycles = async () => {
+        const today = new Date();
+        const currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const previousMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+        // Get cycles for previous, current, and next month (to see all available cycles)
+        const months = [previousMonth, currentMonth, nextMonth];
+        const cycles = [];
+        for (const month of months) {
+            const { first, second } = getPaymentCycles(month);
+            // Load employee data for each period
+            for (const cycle of [first, second]) {
+                const cycleEmployees = [];
+                for (const employee of employees) {
+                    if (!employee.id)
+                        continue;
+                    // Include all employees with fixed or commission salaries
+                    if (employee.salaryType !== 'commission' && employee.salaryType !== 'both' && employee.salaryType !== 'fixed')
+                        continue;
+                    // Get commission based on employee role
+                    // Drivers: from sales, Packers: from packer entries
+                    let commissionInfo;
+                    // Use startOfDay for both start and end to avoid timezone issues
+                    // The API query uses <= comparison, so we want the date to be the last day, not end of day
+                    const queryStart = startOfDay(cycle.workStart);
+                    const queryEnd = startOfDay(cycle.workEnd); // Use startOfDay to get the date without time
+                    if (employee.role === 'Packers' || employee.role === 'Packer') {
+                        // Packers get commission from packer entries
+                        commissionInfo = await FinancialCalculator.calculateCommissionFromPackerEntries(employee.id, queryStart, queryEnd);
+                    }
+                    else if (employee.role === 'Driver' || employee.role === 'Drivers') {
+                        // Drivers get commission from sales
+                        commissionInfo = await FinancialCalculator.calculateCommissionFromSales(employee.id, queryStart, queryEnd);
+                    }
+                    else {
+                        // For other roles or employees without a specific role, try sales first
+                        // This handles cases where role might not be set but employee is a driver
+                        commissionInfo = await FinancialCalculator.calculateCommissionFromSales(employee.id, startOfDay(cycle.workStart), endOfDay(cycle.workEnd));
+                    }
+                    // Calculate fixed salary for the period (if applicable)
+                    let fixedAmount = 0;
+                    if (employee.salaryType === 'fixed' || employee.salaryType === 'both') {
+                        if (employee.fixedSalary) {
+                            // For payment cycles, calculate exactly half of monthly salary
+                            // Period 1 (1st-15th) and Period 2 (16th-end) each get exactly half
+                            fixedAmount = employee.fixedSalary / 2;
+                        }
+                    }
+                    const totalAmount = fixedAmount + commissionInfo.commission;
+                    // Check if payment already exists for this period
+                    // Compare dates by day only (ignore time)
+                    const existingPayment = payments.find(p => {
+                        // Normalize employee IDs for comparison (handle both string and number)
+                        const paymentEmpId = typeof p.employeeId === 'string' ? parseInt(p.employeeId) : p.employeeId;
+                        const employeeIdNum = typeof employee.id === 'string' ? parseInt(employee.id) : employee.id;
+                        if (paymentEmpId !== employeeIdNum)
+                            return false;
+                        if (!p.periodStart || !p.periodEnd)
+                            return false;
+                        // Normalize dates - handle both Date objects and strings
+                        let pStart;
+                        let pEnd;
+                        if (p.periodStart instanceof Date) {
+                            pStart = p.periodStart;
+                        }
+                        else if (typeof p.periodStart === 'string') {
+                            // Handle ISO string or date-only string (YYYY-MM-DD)
+                            pStart = new Date(p.periodStart.includes('T') ? p.periodStart : p.periodStart + 'T00:00:00');
+                        }
+                        else {
+                            pStart = new Date(p.periodStart);
+                        }
+                        if (p.periodEnd instanceof Date) {
+                            pEnd = p.periodEnd;
+                        }
+                        else if (typeof p.periodEnd === 'string') {
+                            // Handle ISO string or date-only string (YYYY-MM-DD)
+                            pEnd = new Date(p.periodEnd.includes('T') ? p.periodEnd : p.periodEnd + 'T00:00:00');
+                        }
+                        else {
+                            pEnd = new Date(p.periodEnd);
+                        }
+                        // Compare dates - normalize both to date strings to avoid timezone issues
+                        // This handles cases where dates come from DB as strings vs Date objects
+                        const cycleStartStr = format(startOfDay(cycle.workStart), 'yyyy-MM-dd');
+                        const cycleEndStr = format(startOfDay(cycle.workEnd), 'yyyy-MM-dd');
+                        const paymentStartStr = format(startOfDay(pStart), 'yyyy-MM-dd');
+                        const paymentEndStr = format(startOfDay(pEnd), 'yyyy-MM-dd');
+                        // Compare as strings to avoid any timezone or time component issues
+                        const datesMatch = paymentStartStr === cycleStartStr && paymentEndStr === cycleEndStr;
+                        return datesMatch;
+                    });
+                    // Include employee if they have:
+                    // 1. Fixed salary (always include fixed-salary employees)
+                    // 2. Commission/bags (for commission-based employees)
+                    // 3. Existing payment (already paid)
+                    const shouldInclude = fixedAmount > 0 ||
+                        commissionInfo.totalBags > 0 ||
+                        commissionInfo.commission > 0 ||
+                        existingPayment;
+                    if (shouldInclude) {
+                        const isPaid = !!existingPayment;
+                        cycleEmployees.push({
+                            employee,
+                            totalBags: commissionInfo.totalBags,
+                            commission: commissionInfo.commission,
+                            fixedAmount,
+                            totalAmount,
+                            sales: commissionInfo.sales || [],
+                            isPaid,
+                            paymentId: existingPayment?.id,
+                        });
+                        // Payment status determined
+                    }
+                }
+                cycle.employees = cycleEmployees;
+                cycles.push(cycle);
+            }
+        }
+        setPaymentCycles(cycles);
+    };
+    const getPaymentsForDate = (date) => {
+        let filtered = payments.filter(payment => {
+            const paidDate = payment.paidDate instanceof Date ? payment.paidDate : new Date(payment.paidDate);
+            return isSameDay(paidDate, date);
+        });
+        if (filterEmployee !== 'all') {
+            filtered = filtered.filter(p => p.employeeId.toString() === filterEmployee);
+        }
+        if (filterPeriod !== 'all') {
+            filtered = filtered.filter(p => p.period === filterPeriod);
+        }
+        if (searchTerm) {
+            const search = searchTerm.toLowerCase();
+            filtered = filtered.filter(p => p.employeeName.toLowerCase().includes(search) ||
+                p.totalAmount.toString().includes(search) ||
+                (p.notes && p.notes.toLowerCase().includes(search)));
+        }
+        return filtered;
+    };
+    const getPaymentsForRange = (start, end) => {
+        const startDay = startOfDay(start);
+        const endDay = endOfDay(end);
+        let filtered = payments.filter(payment => {
+            const paidDate = payment.paidDate instanceof Date ? payment.paidDate : new Date(payment.paidDate);
+            return paidDate >= startDay && paidDate <= endDay;
+        });
+        if (filterEmployee !== 'all') {
+            filtered = filtered.filter(p => p.employeeId.toString() === filterEmployee);
+        }
+        if (filterPeriod !== 'all') {
+            filtered = filtered.filter(p => p.period === filterPeriod);
+        }
+        if (searchTerm) {
+            const search = searchTerm.toLowerCase();
+            filtered = filtered.filter(p => p.employeeName.toLowerCase().includes(search) ||
+                p.totalAmount.toString().includes(search) ||
+                (p.notes && p.notes.toLowerCase().includes(search)));
+        }
+        return filtered;
+    };
+    const currentPayments = viewMode === 'day'
+        ? getPaymentsForDate(selectedDate)
+        : viewMode === 'range'
+            ? getPaymentsForRange(dateRange.start, dateRange.end)
+            : [];
+    const totalSalaries = currentPayments.reduce((sum, p) => sum + p.totalAmount, 0);
+    const totalFixed = currentPayments.reduce((sum, p) => sum + (p.fixedAmount || 0), 0);
+    const totalCommission = currentPayments.reduce((sum, p) => sum + (p.commissionAmount || 0), 0);
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('en-NG', {
+            style: 'currency',
+            currency: 'NGN',
+            minimumFractionDigits: 0,
+        }).format(amount);
+    };
+    const formatDateForInput = (date) => {
+        const d = typeof date === 'string' ? new Date(date) : date;
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+    const parseDateFromInput = (dateString) => {
+        const [year, month, day] = dateString.split('-').map(Number);
+        return new Date(year, month - 1, day);
+    };
+    const handleDateChange = (direction) => {
+        if (direction === 'today') {
+            setSelectedDate(new Date());
+        }
+        else if (direction === 'prev') {
+            setSelectedDate(prev => subDays(prev, 1));
+        }
+        else {
+            setSelectedDate(prev => addDays(prev, 1));
+        }
+    };
+    const handleCreatePaymentFromCycle = (cycleData, employeeData) => {
+        const employee = employeeData.employee;
+        setFormData({
+            employeeId: employee.id?.toString() || '',
+            period: cycleData.period === 'first' ? 'first_half' : 'second_half',
+            periodStart: cycleData.workStart,
+            periodEnd: cycleData.workEnd,
+            fixedAmount: employeeData.fixedAmount.toFixed(2),
+            commissionAmount: employeeData.commission.toFixed(2),
+            totalBags: employeeData.totalBags.toString(),
+            totalAmount: employeeData.totalAmount.toFixed(2),
+            paidDate: cycleData.payDate,
+            notes: `Payment for ${format(cycleData.workStart, 'MMM d')} - ${format(cycleData.workEnd, 'MMM d, yyyy')} (${cycleData.period === 'first' ? '1st-15th, paid on 18th' : '16th-end, paid on 5th'})`,
+        });
+        setOpen(true);
+    };
+    const handleOpen = (payment, date) => {
+        if (payment) {
+            setEditingPayment(payment);
+            const periodStartDate = payment.periodStart instanceof Date ? payment.periodStart : new Date(payment.periodStart);
+            const periodEndDate = payment.periodEnd instanceof Date ? payment.periodEnd : new Date(payment.periodEnd);
+            const paidDate = payment.paidDate instanceof Date ? payment.paidDate : new Date(payment.paidDate);
+            setFormData({
+                employeeId: payment.employeeId.toString(),
+                period: payment.period,
+                periodStart: periodStartDate,
+                periodEnd: periodEndDate,
+                fixedAmount: payment.fixedAmount?.toString() || '',
+                commissionAmount: payment.commissionAmount?.toString() || '',
+                totalBags: payment.totalBags?.toString() || '',
+                totalAmount: payment.totalAmount.toString(),
+                paidDate: paidDate,
+                notes: payment.notes || '',
+            });
+        }
+        else {
+            setEditingPayment(null);
+            const today = new Date();
+            setFormData({
+                employeeId: '',
+                period: 'first_half',
+                periodStart: today,
+                periodEnd: today,
+                fixedAmount: '',
+                commissionAmount: '',
+                totalBags: '',
+                totalAmount: '',
+                paidDate: date || today,
+                notes: '',
+            });
+        }
+        setOpen(true);
+    };
+    const handleClose = () => {
+        setOpen(false);
+        setEditingPayment(null);
+    };
+    const handleEmployeeChange = async (employeeId) => {
+        const employee = employees.find(e => e.id?.toString() === employeeId);
+        if (!employee)
+            return;
+        const totalBags = formData.totalBags ? parseInt(formData.totalBags) : 0;
+        const calculatedSalary = FinancialCalculator.calculateEmployeeSalary(employee, totalBags, formData.period);
+        let fixedAmount = 0;
+        let commissionAmount = 0;
+        if (employee.salaryType === 'fixed' || employee.salaryType === 'both') {
+            if (employee.fixedSalary) {
+                // For payment cycles, use exactly half
+                if (formData.period === 'first_half' || formData.period === 'second_half') {
+                    fixedAmount = employee.fixedSalary / 2;
+                }
+                else {
+                    const divisor = formData.period === 'daily' ? 30 : formData.period === 'weekly' ? 4 : 1;
+                    fixedAmount = employee.fixedSalary / divisor;
+                }
+            }
+        }
+        if (employee.salaryType === 'commission' || employee.salaryType === 'both') {
+            if (employee.commissionRate && totalBags > 0) {
+                commissionAmount = totalBags * employee.commissionRate;
+            }
+        }
+        setFormData({
+            ...formData,
+            employeeId,
+            fixedAmount: fixedAmount.toFixed(2),
+            commissionAmount: commissionAmount.toFixed(2),
+            totalAmount: calculatedSalary.toFixed(2),
+        });
+    };
+    const handleSubmit = async () => {
+        try {
+            const employee = employees.find(e => e.id?.toString() === formData.employeeId);
+            if (!employee) {
+                alert('Please select an employee');
+                return;
+            }
+            // Ensure dates are properly formatted
+            const formatDate = (date) => {
+                if (date instanceof Date) {
+                    return date.toISOString().split('T')[0];
+                }
+                return typeof date === 'string' ? date : new Date(date).toISOString().split('T')[0];
+            };
+            const paymentData = {
+                employeeId: parseInt(formData.employeeId),
+                employeeName: employee.name,
+                period: formData.period,
+                periodStart: formatDate(formData.periodStart),
+                periodEnd: formatDate(formData.periodEnd),
+                fixedAmount: formData.fixedAmount ? parseFloat(formData.fixedAmount) : undefined,
+                commissionAmount: formData.commissionAmount ? parseFloat(formData.commissionAmount) : undefined,
+                totalBags: formData.totalBags ? parseInt(formData.totalBags) : undefined,
+                totalAmount: parseFloat(formData.totalAmount),
+                paidDate: formatDate(formData.paidDate),
+                notes: formData.notes?.trim() || undefined,
+            };
+            if (editingPayment?.id) {
+                await apiService.updateSalaryPayment(editingPayment.id, paymentData);
+                handleClose();
+                setTimeout(() => {
+                    loadPayments();
+                    if (viewMode === 'cycles')
+                        loadPaymentCycles();
+                }, 100);
+                // Dispatch event to refresh dashboard
+                window.dispatchEvent(new Event('expensesUpdated'));
+            }
+            else {
+                try {
+                    const result = await apiService.createSalaryPayment(paymentData);
+                    // Payment created successfully
+                    handleClose();
+                    // Force reload payments first, then reload cycles
+                    const updatedPayments = await loadPayments();
+                    // Update payments state immediately to ensure it's available for cycle matching
+                    if (updatedPayments && updatedPayments.length >= 0) {
+                        setPayments(updatedPayments);
+                    }
+                    // Small delay to ensure state is updated and React has processed it
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    // Reload payment cycles if in cycles view - this will use the updated payments
+                    if (viewMode === 'cycles') {
+                        await loadPaymentCycles();
+                    }
+                    // Dispatch event to refresh dashboard
+                    window.dispatchEvent(new Event('expensesUpdated'));
+                    // Also dispatch a specific salary update event
+                    window.dispatchEvent(new CustomEvent('salaryPaymentUpdated', {
+                        detail: { payment: result }
+                    }));
+                }
+                catch (createError) {
+                    // If it's a duplicate error, the payment might have been created successfully
+                    // Check if the payment exists and refresh the UI
+                    if (createError.message?.includes('already exists')) {
+                        // Payment already exists, refreshing data
+                        await loadPayments();
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        if (viewMode === 'cycles') {
+                            await loadPaymentCycles();
+                        }
+                        handleClose();
+                        window.dispatchEvent(new Event('expensesUpdated'));
+                        // Show a success message instead of error
+                        alert('Payment already recorded for this period.');
+                        return;
+                    }
+                    throw createError; // Re-throw if it's a different error
+                }
+            }
+        }
+        catch (error) {
+            console.error('Error saving payment:', error);
+            const errorMessage = error?.message || 'Error saving payment. Please try again.';
+            alert(errorMessage);
+        }
+    };
+    const handleDelete = async (id) => {
+        if (window.confirm('Are you sure you want to delete this salary payment?')) {
+            try {
+                await apiService.deleteSalaryPayment(id);
+                loadPayments();
+                if (viewMode === 'cycles')
+                    loadPaymentCycles();
+            }
+            catch (error) {
+                console.error('Error deleting payment:', error);
+                alert('Error deleting payment. Please try again.');
+            }
+        }
+    };
+    return (_jsxs(Box, { children: [_jsxs(Box, { sx: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }, children: [_jsx(Typography, { variant: "h4", children: "Salary Payments" }), _jsx(Button, { variant: "contained", startIcon: _jsx(AddIcon, {}), onClick: () => handleOpen(), size: "large", children: "Record Payment" })] }), _jsx(Paper, { sx: { p: 2, mb: 3 }, children: _jsx(Box, { sx: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }, children: _jsxs(ToggleButtonGroup, { value: viewMode, exclusive: true, onChange: (_, newMode) => newMode && setViewMode(newMode), size: "small", children: [_jsxs(ToggleButton, { value: "cycles", children: [_jsx(CalendarIcon, { sx: { mr: 1 } }), "Payment Cycles"] }), _jsx(ToggleButton, { value: "day", children: "Day View" }), _jsx(ToggleButton, { value: "range", children: "Range View" })] }) }) }), viewMode === 'cycles' && (_jsxs(Box, { children: [_jsx(Alert, { severity: "info", sx: { mb: 3 }, children: _jsxs(Typography, { variant: "body2", children: [_jsx("strong", { children: "Payment Schedule:" }), " Work done between 1st-15th is paid on the 18th. Work done between 16th-end is paid on the 5th of the following month."] }) }), _jsx(Paper, { sx: { p: 2, mb: 3 }, children: _jsxs(Box, { sx: { display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }, children: [_jsx(Typography, { variant: "body1", fontWeight: "medium", children: "Select Payment Cycle:" }), _jsx(TextField, { select: true, value: selectedCycle ? `${selectedCycle.period}-${selectedCycle.month.getTime()}` : '', onChange: (e) => {
+                                        const [period, monthTime] = e.target.value.split('-');
+                                        const month = new Date(parseInt(monthTime));
+                                        setSelectedCycle({ period: period, month });
+                                    }, sx: { minWidth: 300 }, size: "small", children: paymentCycles.map((cycle, idx) => {
+                                        const cycleMonth = new Date(cycle.workStart.getFullYear(), cycle.workStart.getMonth(), 1);
+                                        const value = `${cycle.period}-${cycleMonth.getTime()}`;
+                                        const label = `${cycle.period === 'first' ? 'Period 1' : 'Period 2'}: ${format(cycle.workStart, 'MMM d')} - ${format(cycle.workEnd, 'MMM d, yyyy')} (Pay: ${format(cycle.payDate, 'MMM d, yyyy')})`;
+                                        return (_jsx(MenuItem, { value: value, children: label }, idx));
+                                    }) })] }) }), selectedCycle && paymentCycles.filter(cycle => {
+                        const cycleMonth = new Date(cycle.workStart.getFullYear(), cycle.workStart.getMonth(), 1);
+                        return cycle.period === selectedCycle.period &&
+                            cycleMonth.getTime() === selectedCycle.month.getTime();
+                    }).map((cycle, idx) => {
+                        const isPastDue = cycle.payDate < new Date() && cycle.employees.some(e => !e.isPaid);
+                        const pendingCount = cycle.employees.filter(e => !e.isPaid).length;
+                        const totalPending = cycle.employees.filter(e => !e.isPaid).reduce((sum, e) => sum + e.totalAmount, 0);
+                        return (_jsx(Card, { sx: { mb: 3 }, children: _jsxs(CardContent, { children: [_jsxs(Box, { sx: { display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 2 }, children: [_jsxs(Box, { children: [_jsxs(Typography, { variant: "h6", gutterBottom: true, children: [cycle.period === 'first' ? 'Period 1' : 'Period 2', ": ", format(cycle.workStart, 'MMM d'), " - ", format(cycle.workEnd, 'MMM d, yyyy')] }), _jsxs(Typography, { variant: "body2", color: "text.secondary", children: ["Work Period: ", format(cycle.workStart, 'MMM d, yyyy'), " to ", format(cycle.workEnd, 'MMM d, yyyy')] }), _jsxs(Typography, { variant: "body2", color: "text.secondary", children: ["Payment Due: ", format(cycle.payDate, 'MMM d, yyyy')] })] }), _jsxs(Box, { sx: { textAlign: 'right' }, children: [isPastDue && (_jsx(Chip, { label: "Past Due", color: "error", size: "small", sx: { mb: 1, display: 'block' } })), _jsx(Chip, { label: `${pendingCount} Pending`, color: pendingCount > 0 ? 'warning' : 'success', size: "small", icon: pendingCount > 0 ? _jsx(PendingIcon, {}) : _jsx(CheckCircleIcon, {}) }), _jsx(Typography, { variant: "h6", color: "primary", sx: { mt: 1 }, children: formatCurrency(totalPending) }), _jsx(Typography, { variant: "caption", color: "text.secondary", children: "Total Pending" })] })] }), cycle.employees.length === 0 ? (_jsx(Typography, { variant: "body2", color: "text.secondary", sx: { py: 2, textAlign: 'center' }, children: "No employees with sales or fixed salaries for this period" })) : (_jsx(TableContainer, { children: _jsxs(Table, { size: "small", children: [_jsx(TableHead, { children: _jsxs(TableRow, { children: [_jsx(TableCell, { children: "Employee" }), _jsx(TableCell, { children: "Role" }), _jsx(TableCell, { align: "right", children: "Bags Sold" }), _jsx(TableCell, { align: "right", children: "Fixed Salary" }), _jsx(TableCell, { align: "right", children: "Commission" }), _jsx(TableCell, { align: "right", children: "Total Amount" }), _jsx(TableCell, { children: "Status" }), _jsx(TableCell, { children: "Action" })] }) }), _jsx(TableBody, { children: cycle.employees.map((empData) => (_jsxs(TableRow, { hover: true, children: [_jsx(TableCell, { children: _jsxs(Box, { children: [_jsx(Typography, { variant: "body2", fontWeight: "medium", children: empData.employee.name }), _jsx(Typography, { variant: "caption", color: "text.secondary", children: empData.employee.email })] }) }), _jsx(TableCell, { children: _jsx(Chip, { label: empData.employee.role || 'General', size: "small", color: empData.employee.role === 'Driver'
+                                                                        ? 'secondary'
+                                                                        : empData.employee.role === 'Packers'
+                                                                            ? 'info'
+                                                                            : 'default' }) }), _jsx(TableCell, { align: "right", children: empData.totalBags.toLocaleString() }), _jsx(TableCell, { align: "right", children: empData.fixedAmount > 0 ? formatCurrency(empData.fixedAmount) : '-' }), _jsx(TableCell, { align: "right", children: empData.commission > 0 ? formatCurrency(empData.commission) : '-' }), _jsx(TableCell, { align: "right", children: _jsx(Typography, { variant: "body2", fontWeight: "bold", color: "success.main", children: formatCurrency(empData.totalAmount) }) }), _jsx(TableCell, { children: empData.isPaid ? (_jsx(Chip, { label: "Paid", color: "success", size: "small", icon: _jsx(CheckCircleIcon, {}) })) : (_jsx(Chip, { label: "Pending", color: "warning", size: "small", icon: _jsx(PendingIcon, {}) })) }), _jsx(TableCell, { children: empData.isPaid ? (_jsx(Tooltip, { title: "View Payment", children: _jsx(IconButton, { size: "small", onClick: () => {
+                                                                            const payment = payments.find(p => p.id === empData.paymentId);
+                                                                            if (payment)
+                                                                                handleOpen(payment);
+                                                                        }, children: _jsx(EditIcon, { fontSize: "small" }) }) })) : (_jsx(Button, { variant: "contained", size: "small", startIcon: _jsx(AddIcon, {}), onClick: () => handleCreatePaymentFromCycle(cycle, empData), children: "Create Payment" })) })] }, empData.employee.id))) })] }) }))] }) }, idx));
+                    }), selectedCycle && paymentCycles.filter(cycle => {
+                        const cycleMonth = new Date(cycle.workStart.getFullYear(), cycle.workStart.getMonth(), 1);
+                        return cycle.period === selectedCycle.period &&
+                            cycleMonth.getTime() === selectedCycle.month.getTime();
+                    }).length === 0 && (_jsxs(Paper, { sx: { p: 4, textAlign: 'center' }, children: [_jsx(Typography, { variant: "h6", color: "text.secondary", gutterBottom: true, children: "No cycle selected" }), _jsx(Typography, { variant: "body2", color: "text.secondary", children: "Please select a payment cycle from the dropdown above" })] }))] })), viewMode === 'day' && (_jsxs(_Fragment, { children: [_jsx(Paper, { sx: { p: 2, mb: 3 }, children: _jsx(Box, { sx: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }, children: _jsxs(Box, { sx: { display: 'flex', alignItems: 'center', gap: 1 }, children: [_jsx(IconButton, { onClick: () => handleDateChange('prev'), children: _jsx(ChevronLeft, {}) }), _jsx(TextField, { type: "date", value: formatDateForInput(selectedDate), onChange: (e) => setSelectedDate(parseDateFromInput(e.target.value)), InputLabelProps: { shrink: true }, sx: { minWidth: 200 } }), _jsx(IconButton, { onClick: () => handleDateChange('next'), children: _jsx(ChevronRight, {}) }), !isToday(selectedDate) && (_jsx(Button, { variant: "outlined", size: "small", onClick: () => handleDateChange('today'), children: "Today" }))] }) }) }), _jsx(Paper, { sx: { p: 2, mb: 3 }, children: _jsxs(Grid, { container: true, spacing: 2, alignItems: "center", children: [_jsx(Grid, { item: true, xs: 12, sm: 6, md: 3, children: _jsx(TextField, { label: "Search Payments", fullWidth: true, size: "small", value: searchTerm, onChange: (e) => setSearchTerm(e.target.value), placeholder: "Employee name, amount...", InputProps: {
+                                            startAdornment: (_jsx(InputAdornment, { position: "start", children: _jsx(SalaryIcon, { fontSize: "small" }) })),
+                                        } }) }), _jsx(Grid, { item: true, xs: 12, sm: 6, md: 3, children: _jsxs(TextField, { label: "Filter by Employee", fullWidth: true, select: true, size: "small", value: filterEmployee, onChange: (e) => setFilterEmployee(e.target.value), children: [_jsx(MenuItem, { value: "all", children: "All Employees" }), employees.map((emp) => (_jsx(MenuItem, { value: emp.id?.toString(), children: emp.name }, emp.id)))] }) }), _jsx(Grid, { item: true, xs: 12, sm: 6, md: 3, children: _jsxs(TextField, { label: "Filter by Period", fullWidth: true, select: true, size: "small", value: filterPeriod, onChange: (e) => setFilterPeriod(e.target.value), children: [_jsx(MenuItem, { value: "all", children: "All Periods" }), _jsx(MenuItem, { value: "first_half", children: "First Half (1st-15th)" }), _jsx(MenuItem, { value: "second_half", children: "Second Half (16th-end)" }), _jsx(MenuItem, { value: "daily", children: "Daily" }), _jsx(MenuItem, { value: "weekly", children: "Weekly" }), _jsx(MenuItem, { value: "monthly", children: "Monthly" })] }) }), (searchTerm || filterEmployee !== 'all' || filterPeriod !== 'all') && (_jsx(Grid, { item: true, xs: 12, sm: 6, md: 3, children: _jsx(Button, { variant: "outlined", onClick: () => {
+                                            setSearchTerm('');
+                                            setFilterEmployee('all');
+                                            setFilterPeriod('all');
+                                        }, fullWidth: true, children: "Clear Filters" }) }))] }) }), _jsxs(Grid, { container: true, spacing: 2, sx: { mb: 3 }, children: [_jsx(Grid, { item: true, xs: 12, sm: 6, md: 4, children: _jsx(Card, { sx: { backgroundColor: 'primary.light', color: 'primary.contrastText' }, children: _jsxs(CardContent, { children: [_jsx(Typography, { variant: "h6", gutterBottom: true, children: "Total Salaries" }), _jsx(Typography, { variant: "h4", children: formatCurrency(totalSalaries) }), _jsxs(Typography, { variant: "body2", children: [currentPayments.length, " payment", currentPayments.length !== 1 ? 's' : ''] })] }) }) }), _jsx(Grid, { item: true, xs: 12, sm: 6, md: 4, children: _jsx(Card, { sx: { backgroundColor: 'info.light', color: 'info.contrastText' }, children: _jsxs(CardContent, { children: [_jsx(Typography, { variant: "h6", gutterBottom: true, children: "Fixed Salaries" }), _jsx(Typography, { variant: "h4", children: formatCurrency(totalFixed) }), _jsx(Typography, { variant: "body2", children: "Fixed salary payments" })] }) }) }), _jsx(Grid, { item: true, xs: 12, sm: 6, md: 4, children: _jsx(Card, { sx: { backgroundColor: 'success.light', color: 'success.contrastText' }, children: _jsxs(CardContent, { children: [_jsx(Typography, { variant: "h6", gutterBottom: true, children: "Commissions" }), _jsx(Typography, { variant: "h4", children: formatCurrency(totalCommission) }), _jsx(Typography, { variant: "body2", children: "Commission payments" })] }) }) })] }), currentPayments.length === 0 ? (_jsxs(Paper, { sx: { p: 4, textAlign: 'center' }, children: [_jsx(Typography, { variant: "h6", color: "text.secondary", gutterBottom: true, children: "No payments found" }), _jsxs(Typography, { variant: "body2", color: "text.secondary", children: ["No payments recorded for ", format(selectedDate, 'MMM d, yyyy')] })] })) : (_jsx(Grid, { container: true, spacing: 2, children: currentPayments.map((payment) => (_jsx(Grid, { item: true, xs: 12, md: 6, children: _jsx(Card, { children: _jsxs(CardContent, { children: [_jsxs(Box, { sx: { display: 'flex', alignItems: 'center', mb: 2 }, children: [_jsx(PersonIcon, { sx: { mr: 1, color: 'primary.main' } }), _jsx(Typography, { variant: "h6", sx: { flexGrow: 1 }, children: payment.employeeName }), _jsx(Chip, { label: payment.period, size: "small", color: "primary" })] }), _jsxs(Box, { sx: { mb: 2 }, children: [_jsxs(Box, { sx: { display: 'flex', justifyContent: 'space-between', mb: 1 }, children: [_jsx(Typography, { variant: "body2", color: "text.secondary", children: "Period" }), _jsxs(Typography, { variant: "body2", children: [format(new Date(payment.periodStart), 'MMM d'), " - ", format(new Date(payment.periodEnd), 'MMM d, yyyy')] })] }), payment.fixedAmount && (_jsxs(Box, { sx: { display: 'flex', justifyContent: 'space-between', mb: 1 }, children: [_jsx(Typography, { variant: "body2", color: "text.secondary", children: "Fixed Salary" }), _jsx(Typography, { variant: "body2", children: formatCurrency(payment.fixedAmount) })] })), payment.commissionAmount && (_jsxs(Box, { sx: { display: 'flex', justifyContent: 'space-between', mb: 1 }, children: [_jsxs(Typography, { variant: "body2", color: "text.secondary", children: ["Commission (", payment.totalBags, " bags)"] }), _jsx(Typography, { variant: "body2", children: formatCurrency(payment.commissionAmount) })] })), _jsxs(Box, { sx: { display: 'flex', justifyContent: 'space-between', mt: 2, pt: 1, borderTop: 1, borderColor: 'divider' }, children: [_jsx(Typography, { variant: "body1", fontWeight: "bold", children: "Total Amount" }), _jsx(Typography, { variant: "h6", color: "success.main", fontWeight: "bold", children: formatCurrency(payment.totalAmount) })] }), _jsx(Box, { sx: { display: 'flex', justifyContent: 'space-between', mt: 1 }, children: _jsxs(Typography, { variant: "caption", color: "text.secondary", children: ["Paid: ", format(new Date(payment.paidDate), 'MMM d, yyyy')] }) }), payment.notes && (_jsx(Typography, { variant: "caption", color: "text.secondary", display: "block", sx: { mt: 1 }, children: payment.notes }))] }), _jsxs(Box, { sx: { display: 'flex', gap: 1, justifyContent: 'flex-end' }, children: [_jsx(Tooltip, { title: "Edit", children: _jsx(IconButton, { size: "small", onClick: () => handleOpen(payment), children: _jsx(EditIcon, { fontSize: "small" }) }) }), _jsx(Tooltip, { title: "Delete", children: _jsx(IconButton, { size: "small", onClick: () => payment.id && handleDelete(payment.id), color: "error", children: _jsx(DeleteIcon, { fontSize: "small" }) }) })] })] }) }) }, payment.id))) }))] })), viewMode === 'range' && (_jsxs(_Fragment, { children: [_jsx(Paper, { sx: { p: 2, mb: 3 }, children: _jsxs(Box, { sx: { display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }, children: [_jsx(TextField, { label: "Start Date", type: "date", value: formatDateForInput(dateRange.start), onChange: (e) => setDateRange({ ...dateRange, start: parseDateFromInput(e.target.value) }), InputLabelProps: { shrink: true } }), _jsx(TextField, { label: "End Date", type: "date", value: formatDateForInput(dateRange.end), onChange: (e) => setDateRange({ ...dateRange, end: parseDateFromInput(e.target.value) }), InputLabelProps: { shrink: true } })] }) }), _jsx(Paper, { sx: { p: 2, mb: 3 }, children: _jsxs(Grid, { container: true, spacing: 2, alignItems: "center", children: [_jsx(Grid, { item: true, xs: 12, sm: 6, md: 3, children: _jsx(TextField, { label: "Search Payments", fullWidth: true, size: "small", value: searchTerm, onChange: (e) => setSearchTerm(e.target.value), placeholder: "Employee name, amount...", InputProps: {
+                                            startAdornment: (_jsx(InputAdornment, { position: "start", children: _jsx(SalaryIcon, { fontSize: "small" }) })),
+                                        } }) }), _jsx(Grid, { item: true, xs: 12, sm: 6, md: 3, children: _jsxs(TextField, { label: "Filter by Employee", fullWidth: true, select: true, size: "small", value: filterEmployee, onChange: (e) => setFilterEmployee(e.target.value), children: [_jsx(MenuItem, { value: "all", children: "All Employees" }), employees.map((emp) => (_jsx(MenuItem, { value: emp.id?.toString(), children: emp.name }, emp.id)))] }) }), _jsx(Grid, { item: true, xs: 12, sm: 6, md: 3, children: _jsxs(TextField, { label: "Filter by Period", fullWidth: true, select: true, size: "small", value: filterPeriod, onChange: (e) => setFilterPeriod(e.target.value), children: [_jsx(MenuItem, { value: "all", children: "All Periods" }), _jsx(MenuItem, { value: "first_half", children: "First Half (1st-15th)" }), _jsx(MenuItem, { value: "second_half", children: "Second Half (16th-end)" }), _jsx(MenuItem, { value: "daily", children: "Daily" }), _jsx(MenuItem, { value: "weekly", children: "Weekly" }), _jsx(MenuItem, { value: "monthly", children: "Monthly" })] }) }), (searchTerm || filterEmployee !== 'all' || filterPeriod !== 'all') && (_jsx(Grid, { item: true, xs: 12, sm: 6, md: 3, children: _jsx(Button, { variant: "outlined", onClick: () => {
+                                            setSearchTerm('');
+                                            setFilterEmployee('all');
+                                            setFilterPeriod('all');
+                                        }, fullWidth: true, children: "Clear Filters" }) }))] }) }), _jsxs(Grid, { container: true, spacing: 2, sx: { mb: 3 }, children: [_jsx(Grid, { item: true, xs: 12, sm: 6, md: 4, children: _jsx(Card, { sx: { backgroundColor: 'primary.light', color: 'primary.contrastText' }, children: _jsxs(CardContent, { children: [_jsx(Typography, { variant: "h6", gutterBottom: true, children: "Total Salaries" }), _jsx(Typography, { variant: "h4", children: formatCurrency(totalSalaries) }), _jsxs(Typography, { variant: "body2", children: [currentPayments.length, " payment", currentPayments.length !== 1 ? 's' : ''] })] }) }) }), _jsx(Grid, { item: true, xs: 12, sm: 6, md: 4, children: _jsx(Card, { sx: { backgroundColor: 'info.light', color: 'info.contrastText' }, children: _jsxs(CardContent, { children: [_jsx(Typography, { variant: "h6", gutterBottom: true, children: "Fixed Salaries" }), _jsx(Typography, { variant: "h4", children: formatCurrency(totalFixed) }), _jsx(Typography, { variant: "body2", children: "Fixed salary payments" })] }) }) }), _jsx(Grid, { item: true, xs: 12, sm: 6, md: 4, children: _jsx(Card, { sx: { backgroundColor: 'success.light', color: 'success.contrastText' }, children: _jsxs(CardContent, { children: [_jsx(Typography, { variant: "h6", gutterBottom: true, children: "Commissions" }), _jsx(Typography, { variant: "h4", children: formatCurrency(totalCommission) }), _jsx(Typography, { variant: "body2", children: "Commission payments" })] }) }) })] }), currentPayments.length === 0 ? (_jsxs(Paper, { sx: { p: 4, textAlign: 'center' }, children: [_jsx(Typography, { variant: "h6", color: "text.secondary", gutterBottom: true, children: "No payments found" }), _jsx(Typography, { variant: "body2", color: "text.secondary", children: "No payments recorded in the selected date range" })] })) : (_jsx(Grid, { container: true, spacing: 2, children: currentPayments.map((payment) => (_jsx(Grid, { item: true, xs: 12, md: 6, children: _jsx(Card, { children: _jsxs(CardContent, { children: [_jsxs(Box, { sx: { display: 'flex', alignItems: 'center', mb: 2 }, children: [_jsx(PersonIcon, { sx: { mr: 1, color: 'primary.main' } }), _jsx(Typography, { variant: "h6", sx: { flexGrow: 1 }, children: payment.employeeName }), _jsx(Chip, { label: payment.period, size: "small", color: "primary" })] }), _jsxs(Box, { sx: { mb: 2 }, children: [_jsxs(Box, { sx: { display: 'flex', justifyContent: 'space-between', mb: 1 }, children: [_jsx(Typography, { variant: "body2", color: "text.secondary", children: "Period" }), _jsxs(Typography, { variant: "body2", children: [format(new Date(payment.periodStart), 'MMM d'), " - ", format(new Date(payment.periodEnd), 'MMM d, yyyy')] })] }), payment.fixedAmount && (_jsxs(Box, { sx: { display: 'flex', justifyContent: 'space-between', mb: 1 }, children: [_jsx(Typography, { variant: "body2", color: "text.secondary", children: "Fixed Salary" }), _jsx(Typography, { variant: "body2", children: formatCurrency(payment.fixedAmount) })] })), payment.commissionAmount && (_jsxs(Box, { sx: { display: 'flex', justifyContent: 'space-between', mb: 1 }, children: [_jsxs(Typography, { variant: "body2", color: "text.secondary", children: ["Commission (", payment.totalBags, " bags)"] }), _jsx(Typography, { variant: "body2", children: formatCurrency(payment.commissionAmount) })] })), _jsxs(Box, { sx: { display: 'flex', justifyContent: 'space-between', mt: 2, pt: 1, borderTop: 1, borderColor: 'divider' }, children: [_jsx(Typography, { variant: "body1", fontWeight: "bold", children: "Total Amount" }), _jsx(Typography, { variant: "h6", color: "success.main", fontWeight: "bold", children: formatCurrency(payment.totalAmount) })] }), _jsx(Box, { sx: { display: 'flex', justifyContent: 'space-between', mt: 1 }, children: _jsxs(Typography, { variant: "caption", color: "text.secondary", children: ["Paid: ", format(new Date(payment.paidDate), 'MMM d, yyyy')] }) }), payment.notes && (_jsx(Typography, { variant: "caption", color: "text.secondary", display: "block", sx: { mt: 1 }, children: payment.notes }))] }), _jsxs(Box, { sx: { display: 'flex', gap: 1, justifyContent: 'flex-end' }, children: [_jsx(Tooltip, { title: "Edit", children: _jsx(IconButton, { size: "small", onClick: () => handleOpen(payment), children: _jsx(EditIcon, { fontSize: "small" }) }) }), _jsx(Tooltip, { title: "Delete", children: _jsx(IconButton, { size: "small", onClick: () => payment.id && handleDelete(payment.id), color: "error", children: _jsx(DeleteIcon, { fontSize: "small" }) }) })] })] }) }) }, payment.id))) }))] })), _jsxs(Dialog, { open: open, onClose: handleClose, maxWidth: "md", fullWidth: true, children: [_jsx(DialogTitle, { children: editingPayment ? 'Edit Salary Payment' : 'Record Salary Payment' }), _jsx(DialogContent, { children: _jsxs(Box, { sx: { display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }, children: [_jsxs(TextField, { label: "Employee", fullWidth: true, select: true, value: formData.employeeId, onChange: (e) => handleEmployeeChange(e.target.value), required: true, children: [_jsx(MenuItem, { value: "", children: "Select Employee" }), employees.map((emp) => (_jsxs(MenuItem, { value: emp.id?.toString(), children: [emp.name, " (", emp.salaryType === 'fixed' ? 'Fixed' : emp.salaryType === 'commission' ? 'Commission' : 'Both', ")"] }, emp.id)))] }), _jsxs(TextField, { label: "Period", fullWidth: true, select: true, value: formData.period, onChange: (e) => {
+                                        const newPeriod = e.target.value;
+                                        const employee = employees.find(e => e.id?.toString() === formData.employeeId);
+                                        if (employee) {
+                                            handleEmployeeChange(formData.employeeId);
+                                        }
+                                        setFormData({ ...formData, period: newPeriod });
+                                    }, required: true, children: [_jsx(MenuItem, { value: "first_half", children: "First Half (1st-15th, paid on 18th)" }), _jsx(MenuItem, { value: "second_half", children: "Second Half (16th-end, paid on 5th)" }), _jsx(MenuItem, { value: "daily", children: "Daily" }), _jsx(MenuItem, { value: "weekly", children: "Weekly" }), _jsx(MenuItem, { value: "monthly", children: "Monthly" })] }), _jsx(TextField, { label: "Period Start", type: "date", fullWidth: true, value: formatDateForInput(formData.periodStart), onChange: (e) => {
+                                        const newStart = parseDateFromInput(e.target.value);
+                                        setFormData({ ...formData, periodStart: newStart });
+                                    }, InputLabelProps: { shrink: true }, required: true }), _jsx(TextField, { label: "Period End", type: "date", fullWidth: true, value: formatDateForInput(formData.periodEnd), onChange: (e) => {
+                                        const newEnd = parseDateFromInput(e.target.value);
+                                        setFormData({ ...formData, periodEnd: newEnd });
+                                    }, InputLabelProps: { shrink: true }, required: true }), (employees.find(e => e.id?.toString() === formData.employeeId)?.salaryType === 'commission' ||
+                                    employees.find(e => e.id?.toString() === formData.employeeId)?.salaryType === 'both') && (_jsx(TextField, { label: "Total Bags Sold (for commission)", fullWidth: true, type: "number", value: formData.totalBags, onChange: (e) => {
+                                        const bags = e.target.value;
+                                        const employee = employees.find(e => e.id?.toString() === formData.employeeId);
+                                        if (employee) {
+                                            const totalBags = parseInt(bags) || 0;
+                                            const calculatedSalary = FinancialCalculator.calculateEmployeeSalary(employee, totalBags, formData.period);
+                                            let fixedAmount = 0;
+                                            let commissionAmount = 0;
+                                            if (employee.salaryType === 'fixed' || employee.salaryType === 'both') {
+                                                if (employee.fixedSalary) {
+                                                    // For payment cycles, use exactly half
+                                                    if (formData.period === 'first_half' || formData.period === 'second_half') {
+                                                        fixedAmount = employee.fixedSalary / 2;
+                                                    }
+                                                    else {
+                                                        const divisor = formData.period === 'daily' ? 30 : formData.period === 'weekly' ? 4 : 1;
+                                                        fixedAmount = employee.fixedSalary / divisor;
+                                                    }
+                                                }
+                                            }
+                                            if (employee.salaryType === 'commission' || employee.salaryType === 'both') {
+                                                if (employee.commissionRate && totalBags > 0) {
+                                                    commissionAmount = totalBags * employee.commissionRate;
+                                                }
+                                            }
+                                            setFormData({
+                                                ...formData,
+                                                totalBags: bags,
+                                                fixedAmount: fixedAmount.toFixed(2),
+                                                commissionAmount: commissionAmount.toFixed(2),
+                                                totalAmount: calculatedSalary.toFixed(2),
+                                            });
+                                        }
+                                        else {
+                                            setFormData({ ...formData, totalBags: bags });
+                                        }
+                                    }, inputProps: { min: 0 } })), (employees.find(e => e.id?.toString() === formData.employeeId)?.salaryType === 'fixed' ||
+                                    employees.find(e => e.id?.toString() === formData.employeeId)?.salaryType === 'both') && (_jsx(TextField, { label: "Fixed Amount (\u20A6)", fullWidth: true, type: "number", value: formData.fixedAmount, onChange: (e) => {
+                                        const fixed = parseFloat(e.target.value) || 0;
+                                        const commission = parseFloat(formData.commissionAmount) || 0;
+                                        setFormData({
+                                            ...formData,
+                                            fixedAmount: e.target.value,
+                                            totalAmount: (fixed + commission).toFixed(2),
+                                        });
+                                    }, InputProps: {
+                                        startAdornment: _jsx(InputAdornment, { position: "start", children: "\u20A6" }),
+                                    } })), (employees.find(e => e.id?.toString() === formData.employeeId)?.salaryType === 'commission' ||
+                                    employees.find(e => e.id?.toString() === formData.employeeId)?.salaryType === 'both') && (_jsx(TextField, { label: "Commission Amount (\u20A6)", fullWidth: true, type: "number", value: formData.commissionAmount, onChange: (e) => {
+                                        const fixed = parseFloat(formData.fixedAmount) || 0;
+                                        const commission = parseFloat(e.target.value) || 0;
+                                        setFormData({
+                                            ...formData,
+                                            commissionAmount: e.target.value,
+                                            totalAmount: (fixed + commission).toFixed(2),
+                                        });
+                                    }, InputProps: {
+                                        startAdornment: _jsx(InputAdornment, { position: "start", children: "\u20A6" }),
+                                    } })), _jsx(TextField, { label: "Total Amount (\u20A6)", fullWidth: true, type: "number", value: formData.totalAmount, onChange: (e) => setFormData({ ...formData, totalAmount: e.target.value }), required: true, InputProps: {
+                                        startAdornment: _jsx(InputAdornment, { position: "start", children: "\u20A6" }),
+                                    } }), _jsx(TextField, { label: "Paid Date", type: "date", fullWidth: true, value: formatDateForInput(formData.paidDate), onChange: (e) => setFormData({ ...formData, paidDate: parseDateFromInput(e.target.value) }), InputLabelProps: { shrink: true }, required: true }), _jsx(TextField, { label: "Notes", fullWidth: true, multiline: true, rows: 2, value: formData.notes, onChange: (e) => setFormData({ ...formData, notes: e.target.value }), placeholder: "Additional notes about this payment" })] }) }), _jsxs(DialogActions, { sx: { p: 2 }, children: [_jsx(Button, { onClick: handleClose, children: "Cancel" }), _jsxs(Button, { onClick: handleSubmit, variant: "contained", size: "large", children: [editingPayment ? 'Update' : 'Record', " Payment"] })] })] })] }));
+}
