@@ -15,8 +15,7 @@ import { authService } from '../../services/authService';
 import { apiService } from '../../services/apiService';
 import { useNavigate, useParams } from 'react-router-dom';
 import PinChangeDialog from './PinChangeDialog';
-import PinRecoveryDialog from './PinRecoveryDialog';
-import PasswordRecoveryDialog from './PasswordRecoveryDialog';
+// Password/PIN recovery disabled - 2FA sufficient
 
 export default function Login() {
   const navigate = useNavigate();
@@ -39,8 +38,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [needs2FA, setNeeds2FA] = useState(false);
   const [showPinChangeDialog, setShowPinChangeDialog] = useState(false);
-  const [showPinRecoveryDialog, setShowPinRecoveryDialog] = useState(false);
-  const [showPasswordRecoveryDialog, setShowPasswordRecoveryDialog] = useState(false);
+  // Password/PIN recovery disabled - 2FA sufficient
   const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const [isDirector, setIsDirector] = useState(false);
   const checkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);

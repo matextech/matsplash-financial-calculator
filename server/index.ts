@@ -58,7 +58,7 @@ try {
   app.use('/api/auth', authRoutes);
   console.log('✅ Auth routes registered at /api/auth');
   // Log available auth routes for debugging
-  console.log('📋 Available auth routes: /login, /change-pin, /verify, /enable-2fa, /disable-2fa, /verify-2fa, /request-pin-recovery, /verify-pin-recovery, /logout');
+  console.log('📋 Available auth routes: /login, /change-pin, /verify, /enable-2fa, /disable-2fa, /verify-2fa, /logout');
 } catch (error) {
   console.error('❌ Error registering auth routes:', error);
 }
