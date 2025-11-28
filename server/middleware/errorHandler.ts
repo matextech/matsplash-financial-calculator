@@ -23,7 +23,7 @@ export const errorHandler = (
   }
 
   // Return sanitized error to client
-  const statusCode = (err as any).statusCode || 500;
+  const statusCode = (err as Error & { statusCode?: number }).statusCode || 500;
   const message = process.env.NODE_ENV === 'production'
     ? 'An error occurred. Please try again later.'
     : err.message;
