@@ -1107,9 +1107,18 @@ router.post('/verify-password-recovery', async (req, res) => {
       });
     }
 
-    // Verify director's password
-    if (director.password !== password) {
-      console.log('❌ PIN recovery attempted with incorrect password:', identifier);
+    // Verify director's password - check if it's hashed or plain text
+    let passwordValid: boolean;
+    if (director.password && (director.password.startsWith('$2a$') || director.password.startsWith('$2b$'))) {
+      passwordValid = await bcrypt.compare(password, director.password);
+    } else {
+      passwordValid = director.password === password;
+    }
+    
+    if (!passwordValid) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('❌ PIN recovery attempted with incorrect password:', identifier);
+      }
       return res.status(401).json({
         success: false,
         message: 'Invalid password'
