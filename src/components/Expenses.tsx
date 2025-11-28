@@ -76,15 +76,19 @@ export default function Expenses() {
       const data = await apiService.getExpenses();
       // apiService returns array directly
       const expensesList = Array.isArray(data) ? data : [];
-      console.log('Expenses loaded:', expensesList.length, 'expenses');
-      console.log('Expenses by type:', {
-        fuel: expensesList.filter(e => e.type === 'fuel' || (e as any).type === 'generator_fuel').length,
-        driver_fuel: expensesList.filter(e => e.type === 'driver_fuel' || (e as any).type === 'driver_payment').length,
-        other: expensesList.filter(e => e.type === 'other').length,
-      });
+      if (import.meta.env?.DEV) {
+        console.log('Expenses loaded:', expensesList.length, 'expenses');
+        console.log('Expenses by type:', {
+          fuel: expensesList.filter(e => e.type === 'fuel' || (e as any).type === 'generator_fuel').length,
+          driver_fuel: expensesList.filter(e => e.type === 'driver_fuel' || (e as any).type === 'driver_payment').length,
+          other: expensesList.filter(e => e.type === 'other').length,
+        });
+      }
       setExpenses(expensesList);
     } catch (error) {
-      console.error('Error loading expenses:', error);
+      if (import.meta.env?.DEV) {
+        console.error('Error loading expenses:', error);
+      }
       setExpenses([]);
     }
   };
@@ -186,11 +190,13 @@ export default function Expenses() {
           : { amount: '', description: '', reference: '' },
       });
       
-      console.log('Form data set:', {
-        fuel: expenseType === 'fuel' || (expenseType as any) === 'generator_fuel' ? expense.amount : 'empty',
-        driverFuel: expenseType === 'driver_fuel' || (expenseType as any) === 'driver_payment' ? expense.amount : 'empty',
-        other: expenseType === 'other' ? expense.amount : 'empty',
-      });
+      if (import.meta.env?.DEV) {
+        console.log('Form data set:', {
+          fuel: expenseType === 'fuel' || (expenseType as any) === 'generator_fuel' ? expense.amount : 'empty',
+          driverFuel: expenseType === 'driver_fuel' || (expenseType as any) === 'driver_payment' ? expense.amount : 'empty',
+          other: expenseType === 'other' ? expense.amount : 'empty',
+        });
+      }
     } else {
       setEditingExpense(null);
       setFormData({
@@ -246,16 +252,18 @@ export default function Expenses() {
           reference = formData.other.reference?.trim() || '';
         }
 
-        console.log('Editing expense:', {
-          originalId: editingExpense.id,
-          originalType: editingExpense.type,
-          fuelAmount,
-          driverAmount,
-          otherAmount,
-          selectedType: expenseType,
-          amount,
-          description
-        });
+        if (import.meta.env?.DEV) {
+          console.log('Editing expense:', {
+            originalId: editingExpense.id,
+            originalType: editingExpense.type,
+            fuelAmount,
+            driverAmount,
+            otherAmount,
+            selectedType: expenseType,
+            amount,
+            description
+          });
+        }
 
         if (expenseType && amount !== null) {
           const updateData = {
@@ -265,7 +273,9 @@ export default function Expenses() {
             date: formData.date,
             reference: reference || undefined,
           };
-          console.log('Updating expense with:', updateData);
+          if (import.meta.env?.DEV) {
+            console.log('Updating expense with:', updateData);
+          }
           try {
             await apiService.updateExpense(editingExpense.id, updateData);
             handleClose();
@@ -275,7 +285,9 @@ export default function Expenses() {
             // Dispatch event to refresh dashboard
             window.dispatchEvent(new Event('expensesUpdated'));
           } catch (error: any) {
-            console.error('Error updating expense:', error);
+            if (import.meta.env?.DEV) {
+              console.error('Error updating expense:', error);
+            }
             const errorMessage = error?.message || 'Error updating expense. Please try again.';
             alert(errorMessage);
           }
@@ -328,23 +340,31 @@ export default function Expenses() {
           return;
         }
 
-        console.log('Saving expenses:', expensesToSave);
+        if (import.meta.env?.DEV) {
+          console.log('Saving expenses:', expensesToSave);
+        }
         
         // Save all expenses sequentially
         for (const expense of expensesToSave) {
           try {
             const result = await apiService.createExpense(expense);
             const id = result.id || (result as any).data?.id;
-            console.log('Expense saved with ID:', id, expense);
+            if (import.meta.env?.DEV) {
+              console.log('Expense saved with ID:', id, expense);
+            }
           } catch (error: any) {
-            console.error('Error saving individual expense:', expense, error);
+            if (import.meta.env?.DEV) {
+              console.error('Error saving individual expense:', expense, error);
+            }
             const errorMessage = error?.message || 'Error saving expense. Please try again.';
             alert(errorMessage);
             throw error;
           }
         }
 
-        console.log('All expenses saved successfully');
+        if (import.meta.env?.DEV) {
+          console.log('All expenses saved successfully');
+        }
       }
 
       handleClose();
@@ -355,7 +375,9 @@ export default function Expenses() {
         window.dispatchEvent(new CustomEvent('expensesUpdated'));
       }, 100);
     } catch (error: any) {
-      console.error('Error saving expenses:', error);
+      if (import.meta.env?.DEV) {
+        console.error('Error saving expenses:', error);
+      }
       const errorMessage = error?.message || 'Error saving expenses. Please try again.';
       alert(errorMessage);
     }
@@ -369,7 +391,9 @@ export default function Expenses() {
         // Trigger a custom event to notify Dashboard to refresh
         window.dispatchEvent(new CustomEvent('expensesUpdated'));
       } catch (error) {
-        console.error('Error deleting expense:', error);
+        if (import.meta.env?.DEV) {
+          console.error('Error deleting expense:', error);
+        }
         alert('Error deleting expense. Please try again.');
       }
     }
