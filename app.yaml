@@ -18,8 +18,8 @@ env_variables:
   GCS_BUCKET_NAME: 'matsplash-fin-db-host-dev-378703'  # Cloud Storage bucket in EU (europe-west region)
   DB_FILE_NAME: 'database.sqlite'  # Database file name in Cloud Storage
   JWT_SECRET: 'Hs34gmCQl6xYrMSAiOtczpRywUVoILJE'  # Generated secure secret
-  FRONTEND_URL: 'https://www.matsplash.com'
-  CORS_ORIGIN: 'https://www.matsplash.com'
+  FRONTEND_URL: 'https://app.matsplash.com'  # Subdomain for financial app
+  CORS_ORIGIN: 'https://app.matsplash.com'  # Subdomain for financial app
   VITE_LOGIN_SECRET_PATH: 'matsplash-fin-2jg1wCHqcMOEhlBr'  # Generated secure login path
   # Note: App Engine automatically provides GOOGLE_APPLICATION_CREDENTIALS
 
