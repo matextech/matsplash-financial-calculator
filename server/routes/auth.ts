@@ -1362,7 +1362,9 @@ router.post('/verify-password-recovery', async (req, res) => {
       user_agent: req.headers['user-agent'] || 'unknown'
     });
 
-    console.log('✅ PIN reset successful via recovery token for user:', { id: user.id, name: user.name, role: user.role });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✅ PIN reset successful via recovery token for user:', { id: user.id, name: user.name, role: user.role });
+    }
 
     res.json({
       success: true,
