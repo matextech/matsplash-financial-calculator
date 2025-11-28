@@ -264,7 +264,19 @@ export default function Login() {
             </Button>
           </form>
 
-          {/* Password/PIN recovery disabled - 2FA sufficient */}
+          {/* Show password recovery for directors only */}
+          {isDirector && (
+            <Box sx={{ textAlign: 'center', mt: 2 }}>
+              <Button
+                variant="text"
+                size="small"
+                onClick={() => setShowPasswordRecoveryDialog(true)}
+                sx={{ textTransform: 'none' }}
+              >
+                Forgot Password?
+              </Button>
+            </Box>
+          )}
         </CardContent>
       </Card>
 
@@ -286,7 +298,15 @@ export default function Login() {
         }}
       />
 
-      {/* Password/PIN recovery dialogs removed - 2FA sufficient */}
+      <PasswordRecoveryDialog
+        open={showPasswordRecoveryDialog}
+        onClose={() => setShowPasswordRecoveryDialog(false)}
+        onSuccess={() => {
+          setShowPasswordRecoveryDialog(false);
+          // Show success message and allow user to login with new password
+          alert('Password reset successfully! You can now login with your new password.');
+        }}
+      />
     </Box>
   );
 }
