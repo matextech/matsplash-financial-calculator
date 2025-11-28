@@ -772,14 +772,8 @@ router.post('/check-director', async (req, res) => {
   }
 });
 
-// Password Recovery - DISABLED (2FA is sufficient, no external services needed)
-// Password recovery disabled - 2FA sufficient
-// router.post('/request-password-recovery', async (req, res) => {
-  return res.status(403).json({
-    success: false,
-    message: 'Password recovery is disabled. Please use 2FA authentication.'
-  });
-});
+// Password Recovery - Request recovery token (for directors only, requires 2FA)
+router.post('/request-password-recovery', async (req, res) => {
   try {
     const { identifier, twoFactorCode } = req.body;
     const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
@@ -932,8 +926,8 @@ router.post('/check-director', async (req, res) => {
   }
 });
 
-// Password recovery disabled - 2FA sufficient
-// router.post('/verify-password-recovery', async (req, res) => {
+// Password Recovery - Verify token and reset password
+router.post('/verify-password-recovery', async (req, res) => {
   try {
     const { token, newPassword } = req.body;
     const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
