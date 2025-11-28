@@ -484,7 +484,6 @@ router.post('/verify-2fa', rateLimiter(10, 15 * 60 * 1000), async (req, res) => 
     // Check if user is active - handle different data types from SQLite
     const isActive = user.is_active === 1 || user.is_active === true || user.is_active === '1';
     if (process.env.NODE_ENV !== 'production') {
-      if (process.env.NODE_ENV !== 'production') {
       console.log('Checking user active status in verify-2fa:', { 
         id: user.id, 
         name: user.name, 
@@ -1240,10 +1239,12 @@ router.post('/verify-password-recovery', async (req, res) => {
       user_agent: req.headers['user-agent'] || 'unknown'
     });
 
-    console.log('✅ PIN recovery token generated:', { 
-      director: { id: director.id, name: director.name },
-      targetUser: { id: targetUser.id, name: targetUser.name, role: targetUser.role }
-    });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✅ PIN recovery token generated:', { 
+        director: { id: director.id, name: director.name },
+        targetUser: { id: targetUser.id, name: targetUser.name, role: targetUser.role }
+      });
+    }
 
     // In production, you would send this token via email/SMS
     // For now, return it (in production, only log it and send via email)
