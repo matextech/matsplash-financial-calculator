@@ -105,12 +105,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // Serve index.html for all non-API routes (SPA routing)
-app.get('*', (req, res, next) => {
-  // Skip API routes
-  if (req.path.startsWith('/api/')) {
-    return next();
-  }
-  
+app.get(/^(?!\/api).*/, (req, res, next) => {
   // Serve index.html for SPA routing in production
   if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(__dirname, '../dist/index.html'));
