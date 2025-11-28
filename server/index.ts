@@ -81,7 +81,9 @@ app.use('/api/expenses', expensesRoutes);
 app.use('/api/material-purchases', materialPurchasesRoutes);
 app.use('/api/salary-payments', salaryPaymentsRoutes);
 app.use('/api/packer-entries', packerEntriesRoutes);
-console.log('✅ All routes registered, including /api/audit-logs');
+if (process.env.NODE_ENV !== 'production') {
+  console.log('✅ All routes registered, including /api/audit-logs');
+}
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -107,9 +109,7 @@ app.use(errorHandler);
 app.listen(PORT, () => {
   if (process.env.NODE_ENV !== 'production') {
     console.log(`🚀 Server running on port ${PORT}`);
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
-    }
+    console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
     console.log(`🌐 Frontend URL: ${config.frontendUrl}`);
   }
   
@@ -128,7 +128,9 @@ app.listen(PORT, () => {
         console.log('✅ Database initialized successfully');
       }
     } catch (error: any) {
-      console.error('❌ Database initialization error:', error);
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('❌ Database initialization error:', error);
+      }
       // Don't exit - server can still run for health checks
     }
   })();

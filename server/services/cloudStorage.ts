@@ -55,15 +55,21 @@ export class CloudStorageService {
         }
 
         await file.download({ destination: this.localDbPath });
-        console.log(`✅ Database downloaded from Cloud Storage: ${this.bucketName}/${this.dbFileName}`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`✅ Database downloaded from Cloud Storage: ${this.bucketName}/${this.dbFileName}`);
+        }
         return true;
       } else {
         // File doesn't exist yet - will be created on first run
-        console.log(`ℹ️ Database file not found in Cloud Storage. Will create new database.`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`ℹ️ Database file not found in Cloud Storage. Will create new database.`);
+        }
         return true;
       }
     } catch (error: any) {
-      console.error('❌ Error downloading database from Cloud Storage:', error.message);
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('❌ Error downloading database from Cloud Storage:', error.message);
+      }
       // Continue with local database if download fails
       return false;
     }
@@ -80,7 +86,9 @@ export class CloudStorageService {
     try {
       // Check if local database file exists
       if (!fs.existsSync(this.localDbPath)) {
-        console.log('ℹ️ Local database file does not exist. Skipping upload.');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('ℹ️ Local database file does not exist. Skipping upload.');
+        }
         return true;
       }
 
@@ -95,10 +103,14 @@ export class CloudStorageService {
         }
       });
 
-      console.log(`✅ Database uploaded to Cloud Storage: ${this.bucketName}/${this.dbFileName}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`✅ Database uploaded to Cloud Storage: ${this.bucketName}/${this.dbFileName}`);
+      }
       return true;
     } catch (error: any) {
-      console.error('❌ Error uploading database to Cloud Storage:', error.message);
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('❌ Error uploading database to Cloud Storage:', error.message);
+      }
       return false;
     }
   }
