@@ -40,7 +40,8 @@ router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
       });
     }
 
-    console.log('👤 User found:', { 
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('👤 User found:', { 
       id: user.id, 
       name: user.name, 
       role: user.role,
@@ -61,7 +62,8 @@ router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
     });
     
     if (!isActive) {
-      console.log('🚫 User is inactive - blocking login:', { 
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🚫 User is inactive - blocking login:', { 
         id: user.id, 
         name: user.name, 
         is_active: user.is_active, 
@@ -73,7 +75,9 @@ router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
       });
     }
 
-    console.log('✅ User is active, proceeding with credential verification');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✅ User is active, proceeding with credential verification');
+    }
 
     // Verify password/PIN
     let isValid = false;
@@ -100,29 +104,40 @@ router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
         const defaultPinHash = await bcrypt.hash('1234', 10);
         await db('users').where('id', user.id).update({ pin_hash: defaultPinHash });
         user.pin_hash = defaultPinHash; // Update local user object
-        console.log('✅ Default PIN hash set for user:', user.id);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('✅ Default PIN hash set for user:', user.id);
+        }
       } else if (!user.pin_hash) {
         // Production: PIN must be set by administrator
-        console.log('❌ PIN hash is missing for user in PRODUCTION:', { id: user.id, name: user.name, role: user.role });
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('❌ PIN hash is missing for user in PRODUCTION:', { id: user.id, name: user.name, role: user.role });
+        }
         return res.status(401).json({
           success: false,
           message: 'PIN not set. Please contact administrator.'
         });
       }
       
-      console.log('🔑 Testing provided PIN:', passwordOrPin);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🔑 Testing provided PIN:', passwordOrPin);
+      }
       isValid = await bcrypt.compare(passwordOrPin, user.pin_hash);
-      console.log('🔑 PIN verification result:', isValid);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🔑 PIN verification result:', isValid);
+      }
       
       // If verification failed, also test with default PIN '1234' for debugging
       if (!isValid) {
         const testDefaultPin = await bcrypt.compare('1234', user.pin_hash);
-        console.log('🔑 Testing default PIN (1234) for comparison:', testDefaultPin);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('🔑 Testing default PIN (1234) for comparison:', testDefaultPin);
+        }
       }
     }
 
     if (!isValid) {
-      console.log('❌ Invalid credentials for user:', { 
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('❌ Invalid credentials for user:', { 
         id: user.id, 
         name: user.name, 
         role: user.role,
@@ -136,7 +151,9 @@ router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
       });
     }
 
-    console.log('✅ Credentials valid for user:', { id: user.id, name: user.name, role: user.role });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('✅ Credentials valid for user:', { id: user.id, name: user.name, role: user.role });
+    }
 
     // Check if 2FA is enabled and if code is provided
     const twoFactorEnabled = user.two_factor_enabled === 1 || user.two_factor_enabled === true;
