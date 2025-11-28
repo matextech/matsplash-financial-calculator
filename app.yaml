@@ -15,11 +15,11 @@ env_variables:
   NODE_ENV: production
   PORT: 8080
   DATABASE_PATH: /tmp/database.sqlite  # Local path - synced with Cloud Storage
-  GCS_BUCKET_NAME: 'matsplash-fin-db-host-dev-378703'  # Cloud Storage bucket in EU (europe-west region)
+  GCS_BUCKET_NAME: 'matsplash-financial-db'  # Cloud Storage bucket in EU (europe-west region) - secure name without project ID
   DB_FILE_NAME: 'database.sqlite'  # Database file name in Cloud Storage
   JWT_SECRET: 'Hs34gmCQl6xYrMSAiOtczpRywUVoILJE'  # Generated secure secret
-  FRONTEND_URL: 'https://app.matsplash.com'  # Subdomain for financial app
-  CORS_ORIGIN: 'https://app.matsplash.com'  # Subdomain for financial app
+  FRONTEND_URL: 'https://www.matsplash.com'  # Main domain - WordPress will be on Cloud Run
+  CORS_ORIGIN: 'https://www.matsplash.com'  # Main domain
   VITE_LOGIN_SECRET_PATH: 'matsplash-fin-2jg1wCHqcMOEhlBr'  # Generated secure login path
   # Note: App Engine automatically provides GOOGLE_APPLICATION_CREDENTIALS
 
