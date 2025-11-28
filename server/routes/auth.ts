@@ -634,7 +634,7 @@ router.post('/verify-2fa-authenticated', async (req, res) => {
     const token = authHeader.substring(7);
     let decoded: { userId: number; role: string };
     try {
-      decoded = jwt.verify(token, config.jwtSecret);
+      decoded = jwt.verify(token, config.jwtSecret) as { userId: number; role: string };
     } catch (error) {
       return res.status(401).json({
         success: false,
