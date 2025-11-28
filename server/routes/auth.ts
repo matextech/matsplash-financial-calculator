@@ -508,7 +508,14 @@ router.post('/verify-2fa', rateLimiter(10, 15 * 60 * 1000), async (req, res) => 
     // Verify password/PIN
     let isValid = false;
     if (user.role === 'director') {
-      isValid = user.password === passwordOrPin;
+      // Director uses password - check if it's hashed or plain text
+      if (user.password && (user.password.startsWith('$2a$') || user.password.startsWith('$2b$'))) {
+        // Password is hashed, use bcrypt.compare
+        isValid = await bcrypt.compare(passwordOrPin, user.password);
+      } else {
+        // Password is plain text (legacy or development), compare directly
+        isValid = user.password === passwordOrPin;
+      }
     } else {
       if (!user.pin_hash) {
         return res.status(401).json({
