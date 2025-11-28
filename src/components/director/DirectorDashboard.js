@@ -160,7 +160,8 @@ export default function DirectorDashboard({ hideHeader = false }) {
                 // Load bag prices independently so it doesn't fail if material prices fails
                 try {
                     const token = localStorage.getItem('authToken');
-                    const bagPricesResponse = await fetch('http://localhost:3001/api/bag-prices?includeInactive=true', {
+                    const apiBase = import.meta.env?.VITE_API_BASE_URL || '/api';
+                    const bagPricesResponse = await fetch(`${apiBase}/bag-prices?includeInactive=true`, {
                         headers: {
                             'Authorization': `Bearer ${token}`,
                             'Content-Type': 'application/json',

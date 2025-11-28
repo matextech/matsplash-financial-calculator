@@ -324,7 +324,8 @@ router.delete('/:id', async (req, res) => {
 });
 
 // Clean receptionist and storekeeper data
-router.post('/clean-data', async (req, res) => {
+// Clean data endpoint disabled - not available in production
+// router.post('/clean-data', async (req, res) => {
   try {
     const { dataType } = req.body; // 'receptionist', 'storekeeper', or 'all'
 
@@ -375,7 +376,8 @@ router.post('/clean-data', async (req, res) => {
 });
 
 // Clean all data except settings and users
-router.post('/clean-all-data', async (req, res) => {
+// Clean all data endpoint disabled - not available in production
+// router.post('/clean-all-data', async (req, res) => {
   try {
     const results: any = {};
 

@@ -628,7 +628,7 @@ async function initializeDefaultUsers(): Promise<void> {
       name: 'Director',
       email: 'director@matsplash.com',
       phone: '08000000000',
-      password: 'admin123', // In production, hash this
+      password: process.env.NODE_ENV === 'production' ? '' : 'admin123', // In production, must be set via environment
       role: 'director',
       two_factor_enabled: 0, // SQLite uses 0/1
       is_active: 1 // SQLite uses 0/1

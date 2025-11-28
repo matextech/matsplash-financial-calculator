@@ -1034,8 +1034,8 @@ router.post('/check-director', async (req, res) => {
   }
 });
 
-// PIN Recovery - Request recovery token (for managers, receptionists, storekeepers - NOT directors)
-router.post('/request-pin-recovery', async (req, res) => {
+// PIN Recovery - DISABLED (2FA is sufficient, no external services needed)
+// router.post('/request-pin-recovery', async (req, res) => {
   try {
     const { identifier, password, targetUserIdentifier } = req.body; 
     // identifier: Director's email/phone (for verification)
@@ -1207,8 +1207,8 @@ router.post('/request-pin-recovery', async (req, res) => {
   }
 });
 
-// PIN Recovery - Verify token and reset PIN
-router.post('/verify-pin-recovery', async (req, res) => {
+// PIN Recovery - DISABLED (2FA is sufficient)
+// router.post('/verify-pin-recovery', async (req, res) => {
   try {
     const { token, newPin } = req.body;
     const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';

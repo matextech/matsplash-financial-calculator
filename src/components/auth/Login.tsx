@@ -263,31 +263,7 @@ export default function Login() {
             </Button>
           </form>
 
-          {/* Show password recovery for directors, PIN recovery for others */}
-          {isDirector && (
-            <Box sx={{ textAlign: 'center', mt: 2 }}>
-              <Button
-                variant="text"
-                size="small"
-                onClick={() => setShowPasswordRecoveryDialog(true)}
-                sx={{ textTransform: 'none' }}
-              >
-                Forgot Password?
-              </Button>
-            </Box>
-          )}
-          {!isDirector && identifier.length >= 3 && (
-            <Box sx={{ textAlign: 'center', mt: 2 }}>
-              <Button
-                variant="text"
-                size="small"
-                onClick={() => setShowPinRecoveryDialog(true)}
-                sx={{ textTransform: 'none' }}
-              >
-                Forgot PIN?
-              </Button>
-            </Box>
-          )}
+          {/* Password/PIN recovery disabled - 2FA sufficient */}
         </CardContent>
       </Card>
 

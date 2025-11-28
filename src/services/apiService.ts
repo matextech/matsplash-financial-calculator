@@ -300,39 +300,7 @@ class ApiService {
     });
   }
 
-  async cleanData(dataType: 'receptionist' | 'storekeeper' | 'all') {
-    return this.request<{ success: boolean; message: string; deletedCount: number }>('/users/clean-data', {
-      method: 'POST',
-      body: JSON.stringify({ dataType }),
-    });
-  }
-
-  async cleanAllData() {
-    return this.request<{ 
-      success: boolean; 
-      message: string; 
-      results: {
-        sales: number;
-        expenses: number;
-        materialPurchases: number;
-        salaryPayments: number;
-        employees: number;
-        receptionistSales: number;
-        storekeeperEntries: number;
-        settlements: number;
-        settlementPayments: number;
-        auditLogs: number;
-        notifications: number;
-        pinRecoveryTokens: number;
-        passwordRecoveryTokens: number;
-        materialPrices: number;
-        bagPrices: number;
-      };
-      totalDeleted: number;
-    }>('/users/clean-all-data', {
-      method: 'POST',
-    });
-  }
+  // Clean data methods removed - not available in production for security
 
   // Employee endpoints
   async getEmployees() {
