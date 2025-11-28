@@ -28,10 +28,12 @@ export async function initializeDefaultDirector(): Promise<void> {
           isActive: true,
         });
         
-        console.log('Default director account created:');
-        console.log('Email: director@matsplash.com');
-        console.log('Password: admin123');
-        console.log('Please change the password after first login!');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('Default director account created:');
+          console.log('Email: director@matsplash.com');
+          console.log('Password: [REDACTED]');
+          console.log('Please change the password after first login!');
+        }
       } catch (addUserError) {
         console.error('Error adding default director user:', addUserError);
         // Don't throw - allow app to continue
