@@ -1102,7 +1102,7 @@ router.post('/verify-password-recovery', async (req, res) => {
 
 // PIN Recovery - DISABLED (2FA is sufficient, no external services needed)
 // router.post('/request-pin-recovery', async (req, res) => {
-  try {
+//   try {
     const { identifier, password, targetUserIdentifier } = req.body; 
     // identifier: Director's email/phone (for verification)
     // password: Director's password (required for security)
