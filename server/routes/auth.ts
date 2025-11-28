@@ -985,11 +985,12 @@ router.post('/verify-password-recovery', async (req, res) => {
       });
     }
 
-    // Update director password (plain text for now - in production, hash it)
+    // Update director password (hash with bcrypt)
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
     await db('users')
       .where('id', director.id)
       .update({
-        password: newPassword, // In production, hash this with bcrypt
+        password: hashedPassword,
         updated_at: new Date().toISOString()
       });
 
