@@ -105,7 +105,9 @@ app.use(errorHandler);
 app.listen(PORT, () => {
   if (process.env.NODE_ENV !== 'production') {
     console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+    }
     console.log(`🌐 Frontend URL: ${config.frontendUrl}`);
   }
   

@@ -1,5 +1,6 @@
 // API Service - Replaces IndexedDB calls with HTTP requests
-const API_BASE_URL = (import.meta.env?.VITE_API_BASE_URL as string) || 'http://localhost:3001/api';
+// In production, API is served from the same domain
+const API_BASE_URL = (import.meta.env?.VITE_API_BASE_URL as string) || '/api';
 
 class ApiService {
   private getAuthToken(): string | null {
