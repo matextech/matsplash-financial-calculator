@@ -418,8 +418,8 @@ router.post('/disable-2fa', async (req, res) => {
   }
 });
 
-// Verify 2FA code endpoint (for login with 2FA)
-router.post('/verify-2fa', async (req, res) => {
+// Verify 2FA code endpoint (for login with 2FA) - with rate limiting
+router.post('/verify-2fa', rateLimiter(10, 15 * 60 * 1000), async (req, res) => {
   try {
     const { identifier, passwordOrPin, code } = req.body;
 
