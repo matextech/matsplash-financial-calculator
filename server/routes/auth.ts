@@ -226,7 +226,9 @@ router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
         updated_at: new Date().toISOString()
       });
 
-    console.log('Login successful for:', user.name, 'PIN reset required:', pinResetRequired);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Login successful for:', user.name, 'PIN reset required:', pinResetRequired);
+    }
 
     res.json({
       success: true,
@@ -285,7 +287,9 @@ router.post('/change-pin', async (req, res) => {
         updated_at: new Date().toISOString()
       });
 
-    console.log('PIN changed successfully for user:', userId);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('PIN changed successfully for user:', userId);
+    }
 
     res.json({
       success: true,
@@ -350,9 +354,13 @@ router.get('/verify', async (req, res) => {
 });
 
 // Enable 2FA endpoint
-console.log('🔐 Registering /enable-2fa route');
+if (process.env.NODE_ENV !== 'production') {
+  console.log('🔐 Registering /enable-2fa route');
+}
 router.post('/enable-2fa', async (req, res) => {
-  console.log('🔐 Enable 2FA endpoint called');
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('🔐 Enable 2FA endpoint called');
+  }
   try {
     const { userId, secret } = req.body;
 
@@ -381,7 +389,9 @@ router.post('/enable-2fa', async (req, res) => {
         updated_at: new Date().toISOString()
       });
 
-    console.log('2FA enabled for user:', userId);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('2FA enabled for user:', userId);
+    }
 
     res.json({
       success: true,
@@ -427,7 +437,9 @@ router.post('/disable-2fa', async (req, res) => {
         updated_at: new Date().toISOString()
       });
 
-    console.log('2FA disabled for user:', userId);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('2FA disabled for user:', userId);
+    }
 
     res.json({
       success: true,
@@ -471,7 +483,8 @@ router.post('/verify-2fa', rateLimiter(10, 15 * 60 * 1000), async (req, res) => 
 
     // Check if user is active - handle different data types from SQLite
     const isActive = user.is_active === 1 || user.is_active === true || user.is_active === '1';
-    console.log('Checking user active status in verify-2fa:', { 
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Checking user active status in verify-2fa:', { 
       id: user.id, 
       name: user.name, 
       is_active: user.is_active, 
