@@ -32,7 +32,7 @@ router.get('/', async (req, res) => {
   try {
     const employees = await db('employees').select('*').orderBy('name');
     const transformed = employees.map(transformEmployee);
-    console.log('📋 Employees route - Transformed sample:', transformed.length > 0 ? JSON.stringify(transformed[0], null, 2) : 'No employees');
+    // Employees fetched successfully
     res.json({
       success: true,
       data: transformed

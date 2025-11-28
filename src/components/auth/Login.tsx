@@ -13,13 +13,24 @@ import {
 import { Visibility, VisibilityOff, Phone, Email, Lock } from '@mui/icons-material';
 import { authService } from '../../services/authService';
 import { apiService } from '../../services/apiService';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import PinChangeDialog from './PinChangeDialog';
 import PinRecoveryDialog from './PinRecoveryDialog';
 import PasswordRecoveryDialog from './PasswordRecoveryDialog';
 
 export default function Login() {
   const navigate = useNavigate();
+  const { secretPath } = useParams<{ secretPath?: string }>();
+  
+  // Check if secret path is correct (environment variable or hardcoded for production)
+  const validSecretPath = (import.meta.env?.VITE_LOGIN_SECRET_PATH as string) || 'matsplash-fin-2024-secure';
+  
+  useEffect(() => {
+    // If no secret path or wrong secret path, redirect to 404
+    if (!secretPath || secretPath !== validSecretPath) {
+      navigate('/404', { replace: true });
+    }
+  }, [secretPath, validSecretPath, navigate]);
   const [identifier, setIdentifier] = useState('');
   const [passwordOrPin, setPasswordOrPin] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('');

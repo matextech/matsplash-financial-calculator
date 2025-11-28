@@ -18,12 +18,6 @@ export class FinancialCalculator {
     endDate: Date
   ): Promise<FinancialReport> {
     // Get all data for the period from API
-    console.log('📊 FinancialCalculator - Fetching data for period:', JSON.stringify({
-      period,
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0]
-    }, null, 2));
-
     let sales, expenses, materialPurchases, salaryPayments;
     try {
       [sales, expenses, materialPurchases, salaryPayments] = await Promise.all([
@@ -33,26 +27,11 @@ export class FinancialCalculator {
         apiService.getSalaryPayments(startDate, endDate)
       ]);
     } catch (error) {
-      console.error('FinancialCalculator - Error fetching data:', error);
+      if (import.meta.env?.DEV) {
+        console.error('FinancialCalculator - Error fetching data:', error);
+      }
       throw error;
     }
-
-    console.log('📊 FinancialCalculator - Raw API responses:', JSON.stringify({
-      sales: Array.isArray(sales) ? sales.length : typeof sales,
-      expenses: Array.isArray(expenses) ? expenses.length : typeof expenses,
-      materialPurchases: Array.isArray(materialPurchases) ? materialPurchases.length : typeof materialPurchases,
-      salaryPayments: Array.isArray(salaryPayments) ? salaryPayments.length : typeof salaryPayments,
-      salesSample: Array.isArray(sales) && sales.length > 0 ? sales[0] : null,
-      expensesSample: Array.isArray(expenses) && expenses.length > 0 ? expenses[0] : null
-    }, null, 2));
-
-    console.log('📊 FinancialCalculator - Data loaded:', JSON.stringify({
-      salesCount: sales?.length || 0,
-      expensesCount: expenses?.length || 0,
-      materialPurchasesCount: materialPurchases?.length || 0,
-      salaryPaymentsCount: salaryPayments?.length || 0,
-      dateRange: { start: startDate.toISOString().split('T')[0], end: endDate.toISOString().split('T')[0] }
-    }, null, 2));
 
     // Ensure we have arrays (handle potential undefined/null)
     const safeSales = Array.isArray(sales) ? sales : [];
@@ -66,11 +45,6 @@ export class FinancialCalculator {
       return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
     }, 0);
     
-    console.log('📊 FinancialCalculator - Revenue calculation:', JSON.stringify({
-      salesCount: safeSales.length,
-      totalRevenue,
-      sampleSale: safeSales.length > 0 ? safeSales[0] : null
-    }, null, 2));
 
     // Calculate expenses - ensure ALL expenses are captured
     // Filter for fuel expenses (generator fuel)
@@ -121,36 +95,6 @@ export class FinancialCalculator {
         return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
       }, 0);
 
-    // Log comprehensive expense breakdown for debugging
-    console.log('📊 FinancialCalculator - Expense breakdown:', JSON.stringify({
-      totalExpensesCount: safeExpenses.length,
-      fuelExpensesCount: safeExpenses.filter(e => {
-        const type = e.type || (e as any).type;
-        return type === 'fuel' || type === 'generator_fuel';
-      }).length,
-      driverFuelExpensesCount: safeExpenses.filter(e => {
-        const type = e.type || (e as any).type;
-        return type === 'driver_fuel' || type === 'driver_payment';
-      }).length,
-      otherExpensesCount: safeExpenses.filter(e => {
-        const type = e.type || (e as any).type;
-        return type === 'other';
-      }).length,
-      uncategorizedExpensesCount: safeExpenses.filter(e => {
-        const type = e.type || (e as any).type;
-        return type !== 'fuel' && 
-               type !== 'generator_fuel' && 
-               type !== 'driver_fuel' && 
-               type !== 'driver_payment' && 
-               type !== 'other';
-      }).length,
-      fuelCosts,
-      driverPayments,
-      otherExpenses,
-      uncategorizedExpenses,
-      totalExpensesAmount: fuelCosts + driverPayments + otherExpenses + uncategorizedExpenses,
-      dateRange: { start: startDate.toISOString().split('T')[0], end: endDate.toISOString().split('T')[0] }
-    }, null, 2));
 
     // Calculate actual material purchase costs for this period
     let materialCosts = 0;
@@ -162,11 +106,6 @@ export class FinancialCalculator {
         materialCosts += (typeof cost === 'number' ? cost : parseFloat(cost) || 0);
       }
     }
-    console.log('📊 FinancialCalculator - Material costs calculation:', JSON.stringify({
-      purchasesCount: safeMaterialPurchases.length,
-      materialCosts,
-      samplePurchase: safeMaterialPurchases.length > 0 ? safeMaterialPurchases[0] : null
-    }, null, 2));
 
     // Calculate total material cost per bag sold (for profit calculation)
     const totalBagsSold = safeSales.reduce((sum, sale) => sum + (sale.bagsSold || 0), 0);
@@ -180,9 +119,27 @@ export class FinancialCalculator {
     // Get settings for material costs from API
     let settings;
     try {
-      settings = await apiService.getSettings();
+      const settingsResponse = await apiService.getSettings();
+      // Handle both { success: true, data: {...} } and direct object responses
+      settings = settingsResponse?.data || settingsResponse || DEFAULT_SETTINGS;
+      
+      // Ensure we have valid numeric values, fallback to defaults if missing
+      if (!settings.sachetRollCost || settings.sachetRollCost === 0) {
+        settings.sachetRollCost = DEFAULT_SETTINGS.sachetRollCost;
+      }
+      if (!settings.sachetRollBagsPerRoll || settings.sachetRollBagsPerRoll === 0) {
+        settings.sachetRollBagsPerRoll = DEFAULT_SETTINGS.sachetRollBagsPerRoll;
+      }
+      if (!settings.packingNylonCost || settings.packingNylonCost === 0) {
+        settings.packingNylonCost = DEFAULT_SETTINGS.packingNylonCost;
+      }
+      if (!settings.packingNylonBagsPerPackage || settings.packingNylonBagsPerPackage === 0) {
+        settings.packingNylonBagsPerPackage = DEFAULT_SETTINGS.packingNylonBagsPerPackage;
+      }
     } catch (error) {
-      console.error('Error loading settings, using defaults:', error);
+      if (import.meta.env?.DEV) {
+        console.error('Error loading settings, using defaults');
+      }
       settings = DEFAULT_SETTINGS;
     }
 
@@ -202,7 +159,7 @@ export class FinancialCalculator {
     } catch (error) {
       // Silently fail - material prices are optional for calculations
       // Will fall back to default material costs from settings
-      console.warn('Material prices not available, using default costs:', error);
+      // Material prices not available, using default costs
     }
     
     // Calculate material cost per bag for each sale using selected prices or defaults
@@ -214,16 +171,24 @@ export class FinancialCalculator {
       // Use selected material price if available, otherwise use default from settings
       if (sale.sachetRollPriceId && materialPricesMap[sale.sachetRollPriceId]) {
         const selectedPrice = materialPricesMap[sale.sachetRollPriceId];
-        sachetCostPerBag = selectedPrice.cost / selectedPrice.bagsPerUnit;
+        const cost = selectedPrice.cost || 0;
+        const bagsPerUnit = selectedPrice.bagsPerUnit || 1;
+        sachetCostPerBag = bagsPerUnit > 0 ? cost / bagsPerUnit : 0;
       } else {
-        sachetCostPerBag = settings.sachetRollCost / settings.sachetRollBagsPerRoll;
+        const cost = settings.sachetRollCost || DEFAULT_SETTINGS.sachetRollCost;
+        const bagsPerRoll = settings.sachetRollBagsPerRoll || DEFAULT_SETTINGS.sachetRollBagsPerRoll;
+        sachetCostPerBag = bagsPerRoll > 0 ? cost / bagsPerRoll : 0;
       }
       
       if (sale.packingNylonPriceId && materialPricesMap[sale.packingNylonPriceId]) {
         const selectedPrice = materialPricesMap[sale.packingNylonPriceId];
-        nylonCostPerBag = selectedPrice.cost / selectedPrice.bagsPerUnit;
+        const cost = selectedPrice.cost || 0;
+        const bagsPerUnit = selectedPrice.bagsPerUnit || 1;
+        nylonCostPerBag = bagsPerUnit > 0 ? cost / bagsPerUnit : 0;
       } else {
-        nylonCostPerBag = settings.packingNylonCost / settings.packingNylonBagsPerPackage;
+        const cost = settings.packingNylonCost || DEFAULT_SETTINGS.packingNylonCost;
+        const bagsPerPackage = settings.packingNylonBagsPerPackage || DEFAULT_SETTINGS.packingNylonBagsPerPackage;
+        nylonCostPerBag = bagsPerPackage > 0 ? cost / bagsPerPackage : 0;
       }
       
       totalMaterialCostAllocated += (sale.bagsSold || 0) * (sachetCostPerBag + nylonCostPerBag);
@@ -235,11 +200,6 @@ export class FinancialCalculator {
       return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
     }, 0);
     
-    console.log('📊 FinancialCalculator - Salaries calculation:', JSON.stringify({
-      paymentsCount: safeSalaryPayments.length,
-      totalSalaries,
-      samplePayment: safeSalaryPayments.length > 0 ? safeSalaryPayments[0] : null
-    }, null, 2));
 
     // Calculate total expenses
     // Include ALL expense categories:
@@ -255,22 +215,6 @@ export class FinancialCalculator {
     const profit = totalRevenue - totalExpenses;
     const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
 
-    console.log('📊 FinancialCalculator - Final Report Summary:', JSON.stringify({
-      period,
-      dateRange: { start: startDate.toISOString().split('T')[0], end: endDate.toISOString().split('T')[0] },
-      totalRevenue,
-      totalExpenses,
-      breakdown: {
-        fuelCosts,
-        driverPayments,
-        otherExpenses,
-        uncategorizedExpenses,
-        materialCosts,
-        totalSalaries
-      },
-      profit,
-      profitMargin: `${profitMargin.toFixed(2)}%`
-    }, null, 2));
 
     return {
       period,

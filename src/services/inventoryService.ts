@@ -37,11 +37,14 @@ export class InventoryService {
       const safePurchases = Array.isArray(purchases) ? purchases : [];
       const safeSales = Array.isArray(sales) ? sales : [];
       
-      const effectiveSettings = settings || DEFAULT_SETTINGS;
+      // Handle settings response - unwrap if needed (API returns { success: true, data: {...} } or direct object)
+      const settingsData = settings?.data || settings || DEFAULT_SETTINGS;
+      const effectiveSettings = settingsData || DEFAULT_SETTINGS;
+      
       // Use threshold from settings if not provided, default to 4000
       const effectiveThreshold = restockThreshold !== undefined 
         ? restockThreshold 
-        : (effectiveSettings.inventoryLowThreshold || 4000);
+        : (effectiveSettings.inventoryLowThreshold || DEFAULT_SETTINGS.inventoryLowThreshold || 4000);
 
       // Calculate total capacity from purchases
       let totalSachetRolls = 0;

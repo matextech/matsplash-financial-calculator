@@ -8,12 +8,11 @@ import { config } from '../config';
 
 const router = express.Router();
 
-// Log all registered routes for debugging
-console.log('🔐 Auth routes module loaded');
-console.log('📋 PIN Recovery routes: /request-pin-recovery, /verify-pin-recovery');
+// Import rate limiter
+import { rateLimiter } from '../middleware/rateLimiter';
 
-// Login endpoint
-router.post('/login', async (req, res) => {
+// Login endpoint - with rate limiting
+router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
   try {
     const { identifier, passwordOrPin } = req.body;
 
@@ -24,7 +23,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    console.log('🔐 Login attempt:', { identifier, timestamp: new Date().toISOString() });
+    // Login attempt logged (no sensitive data)
 
     // Find user by email or phone (check active status separately for better error messages)
     const user = await db('users')
@@ -773,8 +772,13 @@ router.post('/check-director', async (req, res) => {
   }
 });
 
-// Password Recovery - Request recovery token (Director only - requires 2FA)
+// Password Recovery - DISABLED (2FA is sufficient, no external services needed)
 router.post('/request-password-recovery', async (req, res) => {
+  return res.status(403).json({
+    success: false,
+    message: 'Password recovery is disabled. Please use 2FA authentication.'
+  });
+});
   try {
     const { identifier, twoFactorCode } = req.body;
     const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';

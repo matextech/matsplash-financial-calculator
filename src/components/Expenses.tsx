@@ -133,15 +133,7 @@ export default function Expenses() {
 
   const totalExpenses = totalByType.fuel + totalByType.driverFuel + totalByType.other;
   
-  // Debug: Log expenses on load
-  useEffect(() => {
-    console.log('All expenses loaded:', expenses.length);
-    console.log('Expenses by type:', {
-      fuel: expenses.filter(e => e.type === 'fuel' || (e as any).type === 'generator_fuel').length,
-      driverFuel: expenses.filter(e => e.type === 'driver_fuel' || (e as any).type === 'driver_payment').length,
-      other: expenses.filter(e => e.type === 'other').length,
-    });
-  }, [expenses]);
+  // Expenses loaded - no logging needed in production
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-NG', {
@@ -180,12 +172,6 @@ export default function Expenses() {
       const expenseDate = expense.date instanceof Date ? expense.date : new Date(expense.date);
       const expenseType = expense.type || (expense as any).type;
       
-      console.log('Opening expense for editing:', {
-        id: expense.id,
-        type: expenseType,
-        amount: expense.amount,
-        description: expense.description
-      });
       
       setFormData({
         date: expenseDate,
@@ -282,7 +268,6 @@ export default function Expenses() {
           console.log('Updating expense with:', updateData);
           try {
             await apiService.updateExpense(editingExpense.id, updateData);
-            console.log('Expense updated successfully');
             handleClose();
             setTimeout(() => {
               loadExpenses();
@@ -312,7 +297,6 @@ export default function Expenses() {
             date: formData.date,
             reference: formData.fuel.reference?.trim() || undefined,
           });
-          console.log('Adding generator fuel expense:', { amount: fuelAmount, description: formData.fuel.description });
         }
 
         // Save driver fuel if provided
@@ -325,7 +309,6 @@ export default function Expenses() {
             date: formData.date,
             reference: formData.driverFuel.reference?.trim() || undefined,
           });
-          console.log('Adding drivers fuel expense:', { amount: driverAmount, description: formData.driverFuel.description });
         }
 
         // Save other expense if provided
@@ -338,7 +321,6 @@ export default function Expenses() {
             date: formData.date,
             reference: formData.other.reference?.trim() || undefined,
           });
-          console.log('Adding other expense:', { amount: otherAmount, description: formData.other.description });
         }
 
         if (expensesToSave.length === 0) {

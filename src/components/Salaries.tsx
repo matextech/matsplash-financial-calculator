@@ -112,6 +112,22 @@ export default function Salaries() {
       loadPaymentCycles();
     }
   }, [viewMode, employees, payments]);
+  
+  // Listen for salary payment updates
+  useEffect(() => {
+    const handleSalaryUpdate = () => {
+      // Salary payment updated, refreshing cycles
+      if (viewMode === 'cycles') {
+        loadPaymentCycles();
+      }
+      loadPayments();
+    };
+    
+    window.addEventListener('salaryPaymentUpdated', handleSalaryUpdate);
+    return () => {
+      window.removeEventListener('salaryPaymentUpdated', handleSalaryUpdate);
+    };
+  }, [viewMode]);
 
   // Determine current cycle based on today's date
   useEffect(() => {
@@ -154,10 +170,13 @@ export default function Salaries() {
     try {
       const data = await apiService.getSalaryPayments();
       // apiService returns array directly
-      setPayments(Array.isArray(data) ? data : []);
+      const paymentsList = Array.isArray(data) ? data : [];
+      setPayments(paymentsList);
+      return paymentsList;
     } catch (error) {
       console.error('Error loading salary payments:', error);
       setPayments([]);
+      return [];
     }
   };
 
@@ -246,19 +265,24 @@ export default function Salaries() {
           // Get commission based on employee role
           // Drivers: from sales, Packers: from packer entries
           let commissionInfo;
+          // Use startOfDay for both start and end to avoid timezone issues
+          // The API query uses <= comparison, so we want the date to be the last day, not end of day
+          const queryStart = startOfDay(cycle.workStart);
+          const queryEnd = startOfDay(cycle.workEnd); // Use startOfDay to get the date without time
+          
           if (employee.role === 'Packers' || employee.role === 'Packer') {
             // Packers get commission from packer entries
             commissionInfo = await FinancialCalculator.calculateCommissionFromPackerEntries(
               employee.id,
-              startOfDay(cycle.workStart),
-              endOfDay(cycle.workEnd)
+              queryStart,
+              queryEnd
             );
           } else if (employee.role === 'Driver' || employee.role === 'Drivers') {
             // Drivers get commission from sales
             commissionInfo = await FinancialCalculator.calculateCommissionFromSales(
               employee.id,
-              startOfDay(cycle.workStart),
-              endOfDay(cycle.workEnd)
+              queryStart,
+              queryEnd
             );
           } else {
             // For other roles or employees without a specific role, try sales first
@@ -285,13 +309,46 @@ export default function Salaries() {
           // Check if payment already exists for this period
           // Compare dates by day only (ignore time)
           const existingPayment = payments.find(p => {
-            if (p.employeeId !== employee.id) return false;
-            const pStart = p.periodStart instanceof Date ? p.periodStart : new Date(p.periodStart);
-            const pEnd = p.periodEnd instanceof Date ? p.periodEnd : new Date(p.periodEnd);
-            const cycleStart = startOfDay(cycle.workStart);
-            const cycleEnd = startOfDay(cycle.workEnd);
-            return startOfDay(pStart).getTime() === cycleStart.getTime() &&
-                   startOfDay(pEnd).getTime() === cycleEnd.getTime();
+            // Normalize employee IDs for comparison (handle both string and number)
+            const paymentEmpId = typeof p.employeeId === 'string' ? parseInt(p.employeeId) : p.employeeId;
+            const employeeIdNum = typeof employee.id === 'string' ? parseInt(employee.id) : employee.id;
+            
+            if (paymentEmpId !== employeeIdNum) return false;
+            if (!p.periodStart || !p.periodEnd) return false;
+            
+            // Normalize dates - handle both Date objects and strings
+            let pStart: Date;
+            let pEnd: Date;
+            
+            if (p.periodStart instanceof Date) {
+              pStart = p.periodStart;
+            } else if (typeof p.periodStart === 'string') {
+              // Handle ISO string or date-only string (YYYY-MM-DD)
+              pStart = new Date(p.periodStart.includes('T') ? p.periodStart : p.periodStart + 'T00:00:00');
+            } else {
+              pStart = new Date(p.periodStart);
+            }
+            
+            if (p.periodEnd instanceof Date) {
+              pEnd = p.periodEnd;
+            } else if (typeof p.periodEnd === 'string') {
+              // Handle ISO string or date-only string (YYYY-MM-DD)
+              pEnd = new Date(p.periodEnd.includes('T') ? p.periodEnd : p.periodEnd + 'T00:00:00');
+            } else {
+              pEnd = new Date(p.periodEnd);
+            }
+            
+            // Compare dates - normalize both to date strings to avoid timezone issues
+            // This handles cases where dates come from DB as strings vs Date objects
+            const cycleStartStr = format(startOfDay(cycle.workStart), 'yyyy-MM-dd');
+            const cycleEndStr = format(startOfDay(cycle.workEnd), 'yyyy-MM-dd');
+            const paymentStartStr = format(startOfDay(pStart), 'yyyy-MM-dd');
+            const paymentEndStr = format(startOfDay(pEnd), 'yyyy-MM-dd');
+            
+            // Compare as strings to avoid any timezone or time component issues
+            const datesMatch = paymentStartStr === cycleStartStr && paymentEndStr === cycleEndStr;
+            
+            return datesMatch;
           });
           
           // Include employee if they have:
@@ -304,6 +361,7 @@ export default function Salaries() {
                                 existingPayment;
           
           if (shouldInclude) {
+            const isPaid = !!existingPayment;
             cycleEmployees.push({
               employee,
               totalBags: commissionInfo.totalBags,
@@ -311,9 +369,11 @@ export default function Salaries() {
               fixedAmount,
               totalAmount,
               sales: commissionInfo.sales || [],
-              isPaid: !!existingPayment,
+              isPaid,
               paymentId: existingPayment?.id,
             });
+            
+            // Payment status determined
           }
         }
         
@@ -560,14 +620,52 @@ export default function Salaries() {
         // Dispatch event to refresh dashboard
         window.dispatchEvent(new Event('expensesUpdated'));
       } else {
-        await apiService.createSalaryPayment(paymentData);
-        handleClose();
-        setTimeout(() => {
-          loadPayments();
-          if (viewMode === 'cycles') loadPaymentCycles();
-        }, 100);
-        // Dispatch event to refresh dashboard
-        window.dispatchEvent(new Event('expensesUpdated'));
+        try {
+          const result = await apiService.createSalaryPayment(paymentData);
+          // Payment created successfully
+          handleClose();
+          
+          // Force reload payments first, then reload cycles
+          const updatedPayments = await loadPayments();
+          
+          // Update payments state immediately to ensure it's available for cycle matching
+          if (updatedPayments && updatedPayments.length >= 0) {
+            setPayments(updatedPayments);
+          }
+          
+          // Small delay to ensure state is updated and React has processed it
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          // Reload payment cycles if in cycles view - this will use the updated payments
+          if (viewMode === 'cycles') {
+            await loadPaymentCycles();
+          }
+          
+          // Dispatch event to refresh dashboard
+          window.dispatchEvent(new Event('expensesUpdated'));
+          
+          // Also dispatch a specific salary update event
+          window.dispatchEvent(new CustomEvent('salaryPaymentUpdated', { 
+            detail: { payment: result } 
+          }));
+        } catch (createError: any) {
+          // If it's a duplicate error, the payment might have been created successfully
+          // Check if the payment exists and refresh the UI
+          if (createError.message?.includes('already exists')) {
+            // Payment already exists, refreshing data
+            await loadPayments();
+            await new Promise(resolve => setTimeout(resolve, 100));
+            if (viewMode === 'cycles') {
+              await loadPaymentCycles();
+            }
+            handleClose();
+            window.dispatchEvent(new Event('expensesUpdated'));
+            // Show a success message instead of error
+            alert('Payment already recorded for this period.');
+            return;
+          }
+          throw createError; // Re-throw if it's a different error
+        }
       }
     } catch (error: any) {
       console.error('Error saving payment:', error);

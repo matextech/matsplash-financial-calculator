@@ -59,7 +59,7 @@ A comprehensive financial management system for tracking earnings, expenses, sal
 - **Material-UI (MUI)** for modern UI components
 - **Vite** for fast development and building
 - **Express.js** backend API server
-- **SQLite** database for persistent data storage
+- **SQLite** database with Cloud Storage sync for persistent data storage
 - **Knex.js** SQL query builder
 - **Recharts** for data visualization
 - **Date-fns** for date manipulation
@@ -83,74 +83,63 @@ npm run dev
 
 4. Open your browser and navigate to `http://localhost:5179`
 
-## Usage
+## Production Deployment
 
-### Adding Employees
-1. Navigate to **Employees** from the sidebar
-2. Click **Add Employee**
-3. Fill in employee details:
-   - Name, Email, Phone
-   - Select salary type (Fixed, Commission, or Both)
-   - Enter fixed salary (if applicable)
-   - Enter commission rate percentage (if applicable)
+### Prerequisites
+- GCP Project with billing enabled
+- Google Cloud SDK installed (`gcloud` command)
 
-### Recording Sales
-1. Navigate to **Sales**
-2. Click **Record Sale**
-3. Select driver from employees or enter driver name
-4. Enter number of bags sold
-5. Enter price per bag
-6. Select date and add notes if needed
+### Quick Start
 
-### Adding Expenses
-1. Navigate to **Expenses**
-2. Click **Add Expense**
-3. Select expense type (Fuel, Driver Payment, Material, Other)
-4. Enter description and amount
-5. Select date and add reference if needed
+1. **Follow `GCP_SETUP.md`** for complete setup instructions:
+   - Create Cloud Storage bucket
+   - Set up service account permissions
+   - Configure environment variables
 
-### Recording Material Purchases
-1. Navigate to **Materials**
-2. Click **Add Purchase**
-3. Select material type (Sachet Roll or Packing Nylon)
-4. Enter quantity and cost
-5. Select purchase date
+2. **Build the application**:
+```bash
+npm run build
+```
 
-### Recording Salary Payments
-1. Navigate to **Salaries**
-2. Click **Record Payment**
-3. Select employee (salary will auto-calculate)
-4. Enter total bags sold (for commission employees)
-5. Review calculated amounts
-6. Select payment period and date
+3. **Deploy to GCP App Engine**:
+```bash
+gcloud app deploy app.yaml
+```
 
-### Viewing Reports
-1. Navigate to **Reports**
-2. Select period type (Daily, Weekly, Monthly, Quarterly, Yearly)
-3. Choose date range
-4. View comprehensive financial report with charts
+### Environment Variables
+
+Set these in `app.yaml` or via `gcloud`:
+- `GCS_BUCKET_NAME`: Cloud Storage bucket name (e.g., `matsplash-fin-db`)
+- `JWT_SECRET`: Strong random string for JWT signing
+- `LOGIN_SECRET_PATH`: Secret path for login URL (e.g., `matsplash-fin-2024-secure`)
+
+### Custom Login URL
+
+The application uses a custom login URL for security. Access the login page at:
+```
+https://www.matsplash.com/login/[YOUR_SECRET_PATH]
+```
+
+Regular `/login` will redirect to 404.
 
 ## Data Storage
 
-All data is stored in a SQLite database managed by the backend API server. This means:
-- Centralized data storage on the server
-- Data persistence across browser sessions
-- Secure authentication and authorization
-- Multi-user support with role-based access
-- Reliable data integrity with database constraints
+All data is stored in a SQLite database managed by the backend API server with automatic Cloud Storage synchronization:
 
-**Note**: The database file (`database.sqlite`) is stored in the `server` directory. Make sure to back up this file regularly for data safety.
+- **On Startup**: Downloads database from Cloud Storage
+- **During Runtime**: Database operates locally
+- **Every 5 Minutes**: Automatically uploads to Cloud Storage
+- **On Shutdown**: Uploads database before instance terminates
 
-## Cost Structure
+This ensures data persistence even when App Engine instances restart.
 
-### Material Costs
-- **Sachet Roll**: ₦31,000 per roll → ₦68.89 per bag (450 bags per roll)
-- **Packing Nylon**: ₦100,000 per package → ₦20 per bag (5000 bags per package)
-- **Total Material Cost per Bag**: ~₦88.89
+## Security Features
 
-### Typical Sales
-- Drivers can sell between 300-800 bags per day
-- Price per bag is configurable (default: ₦50)
+- **2FA Authentication**: Two-factor authentication for all users
+- **Rate Limiting**: Protection against brute force attacks
+- **Security Headers**: CSP, X-Frame-Options, X-XSS-Protection
+- **Error Sanitization**: No sensitive data in error messages
+- **Custom Login URL**: Hard-to-guess login path
 
 ## Development
 
@@ -164,7 +153,11 @@ npm run build
 npm run preview
 ```
 
+## Documentation
+
+- **GCP_SETUP.md**: Complete guide for GCP deployment setup
+- **DEPLOYMENT.md**: Deployment instructions and troubleshooting
+
 ## License
 
 Private project for MatSplash Factory
-

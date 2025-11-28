@@ -25,13 +25,11 @@ router.get('/', async (req, res) => {
       query = query.where('date', '>=', req.query.startDate);
     }
     if (req.query.endDate) {
-      query = query.where('date', '<=', req.query.endDate);
+      // Use < instead of <= since we're adding 1 day on the frontend to make it inclusive
+      query = query.where('date', '<', req.query.endDate);
     }
 
     const purchases = await query;
-    console.log(`Material Purchases API - Query params:`, { startDate: req.query.startDate, endDate: req.query.endDate });
-    console.log(`Material Purchases API - Found ${purchases.length} purchases`);
-    
     const transformedPurchases = purchases.map(transformMaterialPurchase);
     res.json(transformedPurchases);
   } catch (error) {

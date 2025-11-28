@@ -1,5 +1,5 @@
 // API Service - Replaces IndexedDB calls with HTTP requests
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = (import.meta.env?.VITE_API_BASE_URL as string) || 'http://localhost:3001/api';
 
 class ApiService {
   private getAuthToken(): string | null {
@@ -11,17 +11,15 @@ class ApiService {
     options: RequestInit = {}
   ): Promise<T> {
     const token = this.getAuthToken();
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...(options.headers as Record<string, string> || {}),
     };
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    console.log(`🔵 API Request: ${options.method || 'GET'} ${endpoint}`);
-    
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers,
@@ -29,31 +27,16 @@ class ApiService {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Request failed' }));
-      console.error(`❌ API Error for ${endpoint}:`, JSON.stringify({
-        status: response.status,
-        statusText: response.statusText,
-        error: error
-      }, null, 2));
+      // Only log error status, not sensitive data
+      if (import.meta.env?.DEV) {
+        console.error(`❌ API Error for ${endpoint}:`, response.status, response.statusText);
+      }
       throw new Error(error.message || `HTTP error! status: ${response.status}`);
     }
 
     const data = await response.json();
     // Handle both { success: true, data: [...] } and direct array responses
     const result = data.data || data;
-    
-    // Log for debugging (always log in development)
-    if (import.meta.env.DEV) {
-      const logData = {
-        endpoint,
-        method: options.method || 'GET',
-        status: response.status,
-        isArray: Array.isArray(result),
-        length: Array.isArray(result) ? result.length : 'N/A',
-        sample: Array.isArray(result) && result.length > 0 ? result[0] : null,
-        fullData: Array.isArray(result) && result.length <= 10 ? result : (Array.isArray(result) ? `[${result.length} items]` : result)
-      };
-      console.log(`✅ API Response for ${endpoint}:`, JSON.stringify(logData, null, 2));
-    }
     
     return result;
   }
@@ -503,8 +486,22 @@ class ApiService {
   // Sales endpoints
   async getSales(startDate?: Date, endDate?: Date) {
     const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
-    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    if (startDate) {
+      // Format date as YYYY-MM-DD to avoid timezone issues
+      const year = startDate.getFullYear();
+      const month = String(startDate.getMonth() + 1).padStart(2, '0');
+      const day = String(startDate.getDate()).padStart(2, '0');
+      params.append('startDate', `${year}-${month}-${day}`);
+    }
+    if (endDate) {
+      // Format end date and add 1 day to make range inclusive
+      const endDateObj = new Date(endDate);
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      const year = endDateObj.getFullYear();
+      const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(endDateObj.getDate()).padStart(2, '0');
+      params.append('endDate', `${year}-${month}-${day}`);
+    }
     
     const queryString = params.toString();
     return this.request<any[]>(`/sales${queryString ? '?' + queryString : ''}`);
@@ -535,8 +532,20 @@ class ApiService {
   // Expenses endpoints
   async getExpenses(startDate?: Date, endDate?: Date) {
     const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
-    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    if (startDate) {
+      const year = startDate.getFullYear();
+      const month = String(startDate.getMonth() + 1).padStart(2, '0');
+      const day = String(startDate.getDate()).padStart(2, '0');
+      params.append('startDate', `${year}-${month}-${day}`);
+    }
+    if (endDate) {
+      const endDateObj = new Date(endDate);
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      const year = endDateObj.getFullYear();
+      const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(endDateObj.getDate()).padStart(2, '0');
+      params.append('endDate', `${year}-${month}-${day}`);
+    }
     
     const queryString = params.toString();
     return this.request<any[]>(`/expenses${queryString ? '?' + queryString : ''}`);
@@ -567,8 +576,20 @@ class ApiService {
   // Material Purchases endpoints
   async getMaterialPurchases(startDate?: Date, endDate?: Date) {
     const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
-    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    if (startDate) {
+      const year = startDate.getFullYear();
+      const month = String(startDate.getMonth() + 1).padStart(2, '0');
+      const day = String(startDate.getDate()).padStart(2, '0');
+      params.append('startDate', `${year}-${month}-${day}`);
+    }
+    if (endDate) {
+      const endDateObj = new Date(endDate);
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      const year = endDateObj.getFullYear();
+      const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(endDateObj.getDate()).padStart(2, '0');
+      params.append('endDate', `${year}-${month}-${day}`);
+    }
     
     const queryString = params.toString();
     return this.request<any[]>(`/material-purchases${queryString ? '?' + queryString : ''}`);
@@ -599,8 +620,20 @@ class ApiService {
   // Salary Payments endpoints
   async getSalaryPayments(startDate?: Date, endDate?: Date) {
     const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate.toISOString().split('T')[0]);
-    if (endDate) params.append('endDate', endDate.toISOString().split('T')[0]);
+    if (startDate) {
+      const year = startDate.getFullYear();
+      const month = String(startDate.getMonth() + 1).padStart(2, '0');
+      const day = String(startDate.getDate()).padStart(2, '0');
+      params.append('startDate', `${year}-${month}-${day}`);
+    }
+    if (endDate) {
+      const endDateObj = new Date(endDate);
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      const year = endDateObj.getFullYear();
+      const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(endDateObj.getDate()).padStart(2, '0');
+      params.append('endDate', `${year}-${month}-${day}`);
+    }
     
     const queryString = params.toString();
     return this.request<any[]>(`/salary-payments${queryString ? '?' + queryString : ''}`);

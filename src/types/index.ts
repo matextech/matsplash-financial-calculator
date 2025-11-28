@@ -136,8 +136,8 @@ export const DEFAULT_SETTINGS: Settings = {
   packingNylonCost: 100000,
   packingNylonBagsPerPackage: 10000,
   bagPrices: [
-    { price: 250, label: 'Standard' },
-    { price: 270, label: 'Premium' },
+    { amount: 250, label: 'Standard', sortOrder: 1, isActive: true },
+    { amount: 270, label: 'Premium', sortOrder: 2, isActive: true },
   ],
   salesPrice1: 250, // Deprecated
   salesPrice2: 270, // Deprecated

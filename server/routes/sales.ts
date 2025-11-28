@@ -30,16 +30,12 @@ router.get('/', async (req, res) => {
       query = query.where('date', '>=', req.query.startDate);
     }
     if (req.query.endDate) {
-      query = query.where('date', '<=', req.query.endDate);
+      // Use < instead of <= since we're adding 1 day on the frontend to make it inclusive
+      query = query.where('date', '<', req.query.endDate);
     }
 
     const sales = await query;
-    console.log(`Sales API - Query params:`, { startDate: req.query.startDate, endDate: req.query.endDate });
-    console.log(`Sales API - Found ${sales.length} sales`);
-    
     const transformedSales = sales.map(transformSale);
-    console.log(`Sales API - Transformed ${transformedSales.length} sales`);
-    
     res.json(transformedSales);
   } catch (error) {
     console.error('Error fetching sales:', error);

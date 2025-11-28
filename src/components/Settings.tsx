@@ -132,6 +132,8 @@ export default function Settings() {
 
       await apiService.updateSettings(settings);
       setSnackbar({ open: true, message: 'Settings saved successfully!', severity: 'success' });
+      // Dispatch event to notify other components that settings have been updated
+      window.dispatchEvent(new Event('settingsUpdated'));
     } catch (error) {
       console.error('Error saving settings:', error);
       setSnackbar({ open: true, message: 'Error saving settings', severity: 'error' });

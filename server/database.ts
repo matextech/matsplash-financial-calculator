@@ -5,7 +5,9 @@ import { config } from './config';
 // Database configuration
 import path from 'path';
 const dbPath = path.resolve(process.cwd(), config.database.filename);
-console.log('Database path:', dbPath);
+if (process.env.NODE_ENV !== 'production') {
+  console.log('Database path:', dbPath);
+}
 
 const knexConfig: Knex.Config = {
   client: 'sqlite3',
@@ -23,13 +25,16 @@ export const db = knex(knexConfig);
 // Initialize database tables
 export default async function setupDatabase(): Promise<void> {
   try {
-    console.log('🔄 Checking database tables...');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔄 Checking database tables...');
+    }
     // Check if users table exists
     const hasUsersTable = await db.schema.hasTable('users');
-    console.log('Users table exists:', hasUsersTable);
     
     if (!hasUsersTable) {
-      console.log('Creating database tables...');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Creating database tables...');
+      }
       
       // Users table
       await db.schema.createTable('users', (table) => {
@@ -313,7 +318,9 @@ export default async function setupDatabase(): Promise<void> {
         table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE');
       });
       
-      console.log('Database tables created successfully');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Database tables created successfully');
+      }
     }
     
     // Check and add inventory_low_threshold column to settings table if it doesn't exist
@@ -322,19 +329,27 @@ export default async function setupDatabase(): Promise<void> {
       try {
         // Try to query the column - if it fails, the column doesn't exist
         await db('settings').select('inventory_low_threshold').limit(1);
-        console.log('✅ inventory_low_threshold column already exists');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('✅ inventory_low_threshold column already exists');
+        }
       } catch (error: any) {
         // Column doesn't exist, add it using raw SQL (SQLite limitation)
         if (error.message && error.message.includes('no such column')) {
-          console.log('📋 Adding inventory_low_threshold column to settings table...');
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('📋 Adding inventory_low_threshold column to settings table...');
+          }
           try {
             // SQLite doesn't support ALTER TABLE ADD COLUMN in Knex easily, use raw SQL
             await db.raw('ALTER TABLE settings ADD COLUMN inventory_low_threshold INTEGER DEFAULT 4000');
-            console.log('✅ inventory_low_threshold column added successfully');
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('✅ inventory_low_threshold column added successfully');
+            }
             
             // Update existing records with default value
             await db('settings').update({ inventory_low_threshold: 4000 });
-            console.log('✅ Updated existing settings with default inventory_low_threshold (4000)');
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('✅ Updated existing settings with default inventory_low_threshold (4000)');
+            }
           } catch (alterError: any) {
             console.error('❌ Error adding inventory_low_threshold column:', alterError);
             // Don't throw - allow app to continue with default value in code
@@ -361,13 +376,17 @@ export default async function setupDatabase(): Promise<void> {
         table.index('settlement_id');
         table.index('paid_at');
       });
-      console.log('settlement_payments table created successfully');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('settlement_payments table created successfully');
+      }
     }
     
     // Check and create pin_recovery_tokens table if it doesn't exist (for existing databases)
     const hasPinRecoveryTable = await db.schema.hasTable('pin_recovery_tokens');
     if (!hasPinRecoveryTable) {
-      console.log('Creating pin_recovery_tokens table...');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Creating pin_recovery_tokens table...');
+      }
       await db.schema.createTable('pin_recovery_tokens', (table) => {
         table.increments('id').primary();
         table.integer('user_id').notNullable();
@@ -383,13 +402,17 @@ export default async function setupDatabase(): Promise<void> {
         table.index('expires_at');
         table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE');
       });
-      console.log('pin_recovery_tokens table created successfully');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('pin_recovery_tokens table created successfully');
+      }
     }
     
     // Check and create password_recovery_tokens table if it doesn't exist (for existing databases)
     const hasPasswordRecoveryTable = await db.schema.hasTable('password_recovery_tokens');
     if (!hasPasswordRecoveryTable) {
-      console.log('Creating password_recovery_tokens table...');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Creating password_recovery_tokens table...');
+      }
       await db.schema.createTable('password_recovery_tokens', (table) => {
         table.increments('id').primary();
         table.integer('user_id').notNullable();
@@ -406,13 +429,17 @@ export default async function setupDatabase(): Promise<void> {
         table.index('expires_at');
         table.foreign('user_id').references('id').inTable('users').onDelete('CASCADE');
       });
-      console.log('password_recovery_tokens table created successfully');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('password_recovery_tokens table created successfully');
+      }
     }
     
     // Check and create audit_logs table if it doesn't exist (for existing databases)
     const hasAuditLogsTable = await db.schema.hasTable('audit_logs');
     if (!hasAuditLogsTable) {
-      console.log('Creating audit_logs table...');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Creating audit_logs table...');
+      }
       await db.schema.createTable('audit_logs', (table) => {
         table.increments('id').primary();
         table.string('entity_type').notNullable();
@@ -432,16 +459,22 @@ export default async function setupDatabase(): Promise<void> {
         table.index('changed_by');
         table.index('changed_at');
       });
-      console.log('audit_logs table created successfully');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('audit_logs table created successfully');
+      }
     } else {
       // Check if created_at column exists, add it if missing
       const hasCreatedAt = await db.schema.hasColumn('audit_logs', 'created_at');
       if (!hasCreatedAt) {
-        console.log('Adding created_at column to audit_logs table...');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('Adding created_at column to audit_logs table...');
+        }
         await db.schema.alterTable('audit_logs', (table) => {
           table.timestamp('created_at').defaultTo(db.fn.now());
         });
-        console.log('created_at column added to audit_logs successfully');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('created_at column added to audit_logs successfully');
+        }
       }
     }
     
@@ -450,20 +483,28 @@ export default async function setupDatabase(): Promise<void> {
     if (hasReceptionistSales) {
       const hasPriceBreakdown = await db.schema.hasColumn('receptionist_sales', 'price_breakdown');
       if (!hasPriceBreakdown) {
-        console.log('Adding price_breakdown column to receptionist_sales...');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('Adding price_breakdown column to receptionist_sales...');
+        }
         await db.schema.alterTable('receptionist_sales', (table) => {
           table.text('price_breakdown'); // JSON: [{ priceId: 1, amount: 250, bags: 100 }, ...]
         });
-        console.log('price_breakdown column added successfully');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('price_breakdown column added successfully');
+        }
       }
       
       const hasExpectedAmount = await db.schema.hasColumn('receptionist_sales', 'expected_amount');
       if (!hasExpectedAmount) {
-        console.log('Adding expected_amount column to receptionist_sales...');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('Adding expected_amount column to receptionist_sales...');
+        }
         await db.schema.alterTable('receptionist_sales', (table) => {
           table.decimal('expected_amount', 10, 2).defaultTo(0);
         });
-        console.log('expected_amount column added successfully');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('expected_amount column added successfully');
+        }
       }
     }
     
@@ -472,27 +513,37 @@ export default async function setupDatabase(): Promise<void> {
     if (hasSalesTable) {
       const hasSachetRollPriceId = await db.schema.hasColumn('sales', 'sachet_roll_price_id');
       if (!hasSachetRollPriceId) {
-        console.log('Adding sachet_roll_price_id column to sales...');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('Adding sachet_roll_price_id column to sales...');
+        }
         await db.schema.alterTable('sales', (table) => {
           table.integer('sachet_roll_price_id');
         });
-        console.log('sachet_roll_price_id column added successfully');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('sachet_roll_price_id column added successfully');
+        }
       }
       
       const hasPackingNylonPriceId = await db.schema.hasColumn('sales', 'packing_nylon_price_id');
       if (!hasPackingNylonPriceId) {
-        console.log('Adding packing_nylon_price_id column to sales...');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('Adding packing_nylon_price_id column to sales...');
+        }
         await db.schema.alterTable('sales', (table) => {
           table.integer('packing_nylon_price_id');
         });
-        console.log('packing_nylon_price_id column added successfully');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('packing_nylon_price_id column added successfully');
+        }
       }
     }
     
     // Check and create material_prices table if it doesn't exist (for existing databases)
     const hasMaterialPricesTable = await db.schema.hasTable('material_prices');
     if (!hasMaterialPricesTable) {
-      console.log('Creating material_prices table...');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Creating material_prices table...');
+      }
       await db.schema.createTable('material_prices', (table) => {
         table.increments('id').primary();
         table.string('type').notNullable(); // 'sachet_roll' or 'packing_nylon'
@@ -506,7 +557,9 @@ export default async function setupDatabase(): Promise<void> {
         table.index('type');
         table.index('is_active');
       });
-      console.log('material_prices table created successfully');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('material_prices table created successfully');
+      }
       
       // Initialize default material prices
       const materialPricesCount = await db('material_prices').count('id as count').first();
@@ -515,14 +568,18 @@ export default async function setupDatabase(): Promise<void> {
           { type: 'sachet_roll', cost: 31000, bags_per_unit: 450, label: 'Standard Roll', sort_order: 1, is_active: 1 },
           { type: 'packing_nylon', cost: 100000, bags_per_unit: 10000, label: 'Standard Package', sort_order: 1, is_active: 1 }
         ]);
-        console.log('Default material prices initialized');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('Default material prices initialized');
+        }
       }
     }
     
       // Check and create packer_entries table if it doesn't exist (for existing databases)
       const hasPackerEntriesTable = await db.schema.hasTable('packer_entries');
       if (!hasPackerEntriesTable) {
-        console.log('Creating packer_entries table...');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('Creating packer_entries table...');
+        }
         await db.schema.createTable('packer_entries', (table) => {
           table.increments('id').primary();
           table.string('packer_name').notNullable();
@@ -536,7 +593,9 @@ export default async function setupDatabase(): Promise<void> {
           table.index('employee_id');
           table.index('packer_name');
         });
-        console.log('packer_entries table created successfully');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('packer_entries table created successfully');
+        }
       }
       
       // Initialize default users if they don't exist
@@ -553,11 +612,15 @@ async function initializeDefaultUsers(): Promise<void> {
     // Check if any users exist
     const userCount = await db('users').count('id as count').first();
     if (userCount && Number(userCount.count) > 0) {
-      console.log('Users already exist, skipping initialization');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Users already exist, skipping initialization');
+      }
       return;
     }
     
-    console.log('Initializing default users...');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Initializing default users...');
+    }
     
     // Director
     const directorPinHash = await bcrypt.hash('admin123', 10);
@@ -632,7 +695,9 @@ async function initializeDefaultUsers(): Promise<void> {
       ]);
     }
     
-    console.log('Default users, settings, and bag prices initialized');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Default users, settings, and bag prices initialized');
+    }
   } catch (error) {
     console.error('Error initializing default users:', error);
     // Don't throw - allow server to start even if initialization fails

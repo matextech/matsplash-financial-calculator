@@ -26,8 +26,12 @@ router.get('/', async (req, res) => {
       query = query.where('date', '>=', req.query.startDate);
     }
     if (req.query.endDate) {
+      // Use <= comparison with endDate to include the entire end date
+      // Since dates are stored as DATE type, this will include all entries on that date
       query = query.where('date', '<=', req.query.endDate);
     }
+    
+    // Fetching packer entries
 
     const entries = await query;
     const transformedEntries = entries.map(transformPackerEntry);

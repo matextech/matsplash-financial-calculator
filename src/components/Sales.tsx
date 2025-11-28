@@ -388,7 +388,6 @@ export default function Sales() {
             sachetRollPriceId: formData.sachetRollPriceId ? parseInt(String(formData.sachetRollPriceId)) : undefined,
             packingNylonPriceId: formData.packingNylonPriceId ? parseInt(String(formData.packingNylonPriceId)) : undefined,
           });
-          console.log(`Adding sale at ₦${price.amount}${price.label ? ` (${price.label})` : ''}:`, bagsCount, 'bags', isGeneralSale ? '(General/Factory sale)' : matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
         }
       }
 
@@ -410,7 +409,6 @@ export default function Sales() {
           sachetRollPriceId: formData.sachetRollPriceId ? parseInt(String(formData.sachetRollPriceId)) : undefined,
           packingNylonPriceId: formData.packingNylonPriceId ? parseInt(String(formData.packingNylonPriceId)) : undefined,
         });
-        console.log('Adding combined sale:', combinedBags, 'bags at ₦' + combinedPrice, isGeneralSale ? '(General/Factory sale)' : matchingEmployee ? `(linked to employee ${matchingEmployee.id})` : '(no employee match)');
       }
 
       if (salesToSave.length === 0) {
@@ -516,7 +514,6 @@ export default function Sales() {
         for (const saleData of salesToSave) {
           await apiService.createSale(saleData);
         }
-        console.log(`${salesToSave.length} sale(s) added successfully`);
         handleClose();
         setTimeout(() => {
           loadSales();

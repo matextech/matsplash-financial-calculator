@@ -31,12 +31,12 @@ router.get('/', async (req, res) => {
       query = query.where('payment_date', '>=', req.query.startDate);
     }
     if (req.query.endDate) {
-      query = query.where('payment_date', '<=', req.query.endDate);
+      // Use < instead of <= since we're adding 1 day on the frontend to make it inclusive
+      query = query.where('payment_date', '<', req.query.endDate);
     }
 
     const payments = await query;
-    console.log(`Salary Payments API - Query params:`, { startDate: req.query.startDate, endDate: req.query.endDate });
-    console.log(`Salary Payments API - Found ${payments.length} payments`);
+    // Fetching salary payments
     
     const transformedPayments = payments.map(transformSalaryPayment);
     res.json(transformedPayments);
@@ -54,18 +54,7 @@ router.post('/', async (req, res) => {
   try {
     const { employeeId, employeeName, fixedAmount, commissionAmount, totalAmount, period, periodStart, periodEnd, paidDate, notes, totalBags } = req.body;
 
-    console.log('📝 Creating salary payment with data:', {
-      employeeId,
-      employeeName,
-      fixedAmount,
-      commissionAmount,
-      totalAmount,
-      period,
-      periodStart,
-      periodEnd,
-      paidDate,
-      notes
-    });
+    // Creating salary payment
 
     // Validate required fields
     if (!employeeId || !employeeName || totalAmount === undefined || totalAmount === null || !period || !periodStart || !periodEnd || !paidDate) {
@@ -85,16 +74,22 @@ router.post('/', async (req, res) => {
       : null;
 
     // Check for duplicate payment for the same employee and period
+    // Normalize dates to ensure proper comparison (remove time component)
+    const normalizedPeriodStart = periodStart.split('T')[0];
+    const normalizedPeriodEnd = periodEnd.split('T')[0];
+    
     const existingPayment = await db('salary_payments')
-      .where('employee_id', employeeId)
-      .where('period_start', periodStart)
-      .where('period_end', periodEnd)
+      .where('employee_id', typeof employeeId === 'string' ? parseInt(employeeId) : employeeId)
+      .whereRaw("DATE(period_start) = DATE(?)", [normalizedPeriodStart])
+      .whereRaw("DATE(period_end) = DATE(?)", [normalizedPeriodEnd])
       .first();
 
     if (existingPayment) {
+      // Duplicate payment detected
       return res.status(409).json({
         success: false,
-        message: 'A salary payment for this employee and period already exists'
+        message: 'A salary payment for this employee and period already exists',
+        existingPaymentId: existingPayment.id
       });
     }
 
@@ -122,13 +117,7 @@ router.post('/', async (req, res) => {
       message: 'Salary payment created successfully'
     });
   } catch (error: any) {
-    console.error('Error creating salary payment:', error);
-    console.error('Error details:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack,
-      body: req.body
-    });
+    console.error('Error creating salary payment:', error.message);
     
     // Check for unique constraint violation
     if (error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.message?.includes('UNIQUE constraint')) {

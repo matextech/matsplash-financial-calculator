@@ -25,13 +25,11 @@ router.get('/', async (req, res) => {
       query = query.where('date', '>=', req.query.startDate);
     }
     if (req.query.endDate) {
-      query = query.where('date', '<=', req.query.endDate);
+      // Use < instead of <= since we're adding 1 day on the frontend to make it inclusive
+      query = query.where('date', '<', req.query.endDate);
     }
 
     const expenses = await query;
-    console.log(`Expenses API - Query params:`, { startDate: req.query.startDate, endDate: req.query.endDate });
-    console.log(`Expenses API - Found ${expenses.length} expenses`);
-    
     const transformedExpenses = expenses.map(transformExpense);
     res.json(transformedExpenses);
   } catch (error) {

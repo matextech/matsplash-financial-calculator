@@ -60,12 +60,30 @@ export default function Materials() {
   useEffect(() => {
     loadPurchases();
     loadSettings();
-    loadInventoryStatus();
+    
+    // Listen for settings updates to reload inventory with new threshold
+    const handleSettingsUpdated = () => {
+      loadSettings();
+    };
+    window.addEventListener('settingsUpdated', handleSettingsUpdated);
+    
+    return () => {
+      window.removeEventListener('settingsUpdated', handleSettingsUpdated);
+    };
   }, []);
+
+  // Reload inventory status when settings change
+  useEffect(() => {
+    if (settings.inventoryLowThreshold !== undefined) {
+      loadInventoryStatus();
+    }
+  }, [settings.inventoryLowThreshold]);
 
   const loadInventoryStatus = async () => {
     try {
-      const status = await InventoryService.getInventoryStatus(10000);
+      // Use threshold from settings, fallback to default if not available
+      const threshold = settings.inventoryLowThreshold || DEFAULT_SETTINGS.inventoryLowThreshold || 4000;
+      const status = await InventoryService.getInventoryStatus(threshold);
       setInventoryStatus(status);
     } catch (error) {
       console.error('Error loading inventory status:', error);
@@ -78,6 +96,10 @@ export default function Materials() {
       // apiService returns { success: true, data: {...} } or direct object
       const settingsData = data.data || data;
       setSettings(settingsData);
+      // Reload inventory status with the correct threshold from settings
+      const threshold = settingsData.inventoryLowThreshold || DEFAULT_SETTINGS.inventoryLowThreshold || 4000;
+      const status = await InventoryService.getInventoryStatus(threshold);
+      setInventoryStatus(status);
     } catch (error) {
       console.error('Error loading settings:', error);
       setSettings(DEFAULT_SETTINGS);

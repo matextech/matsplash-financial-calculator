@@ -62,15 +62,23 @@ export default function Dashboard() {
 
     // Listen for expense updates
     const handleExpensesUpdated = () => {
-      console.log('Expenses updated, refreshing dashboard...');
+      // Expenses updated, refreshing dashboard
       loadDashboardData();
     };
     window.addEventListener('expensesUpdated', handleExpensesUpdated);
+    
+    // Listen for salary payment updates
+    const handleSalaryPaymentUpdated = () => {
+      // Salary payment updated, refreshing dashboard
+      loadDashboardData();
+    };
+    window.addEventListener('salaryPaymentUpdated', handleSalaryPaymentUpdated);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('expensesUpdated', handleExpensesUpdated);
+      window.removeEventListener('salaryPaymentUpdated', handleSalaryPaymentUpdated);
     };
   }, []);
 
@@ -99,13 +107,7 @@ export default function Dashboard() {
         FinancialCalculator.generateReport('daily', yesterdayStart, yesterdayEnd)
       ]);
 
-      console.log('📊 Dashboard - Today Report:', JSON.stringify(todayData, null, 2));
-      console.log('📊 Dashboard - Expense Breakdown:', JSON.stringify({
-        fuelCosts: todayData.fuelCosts,
-        driverPayments: todayData.driverPayments,
-        materialCosts: todayData.materialCosts,
-        totalSalaries: todayData.totalSalaries
-      }, null, 2));
+      // Dashboard data loaded
 
       setTodayReport(todayData);
       setYesterdayReport(yesterdayData);
@@ -115,12 +117,7 @@ export default function Dashboard() {
         loadSalarySummary()
       ]);
       
-      console.log('✅ Dashboard data loaded successfully:', JSON.stringify({
-        todayRevenue: todayData.totalRevenue,
-        todayExpenses: todayData.totalExpenses,
-        todayProfit: todayData.profit,
-        hasData: todayData.totalRevenue > 0 || todayData.totalExpenses > 0
-      }, null, 2));
+      // Dashboard data loaded successfully
     } catch (error) {
       console.error('❌ Error loading dashboard data:', error);
       // Set empty report so UI can still render
@@ -149,7 +146,7 @@ export default function Dashboard() {
       try {
         const settings = await apiService.getSettings();
         threshold = settings?.inventoryLowThreshold || 4000;
-        console.log('📊 Inventory threshold loaded:', threshold);
+        // Inventory threshold loaded
       } catch (settingsError) {
         console.warn('⚠️ Could not load settings, using default threshold (4000):', settingsError);
         // Continue with default threshold
@@ -157,10 +154,7 @@ export default function Dashboard() {
       
       const status = await InventoryService.getInventoryStatus(threshold);
       setInventoryStatus(status);
-      console.log('✅ Inventory status loaded:', JSON.stringify({
-        totalRemainingBags: status.totalRemainingBags,
-        needsRestock: status.needsRestock
-      }, null, 2));
+      // Inventory status loaded
     } catch (error) {
       console.error('❌ Error loading inventory status:', error);
       // Don't set inventory status on error, so it just won't show
@@ -195,8 +189,7 @@ export default function Dashboard() {
         return normalized;
       });
       
-      console.log('📊 Dashboard - Normalized employees sample:', normalizedEmployees[0]);
-      console.log('📊 Dashboard - Employees with commission:', normalizedEmployees.filter(e => (e.salaryType === 'commission' || e.salaryType === 'both') && e.commissionRate));
+      // Processing commission summary
       
       const commissionPromises = normalizedEmployees
         .filter(emp => (emp.salaryType === 'commission' || emp.salaryType === 'both') && emp.commissionRate && emp.id)
@@ -250,17 +243,53 @@ export default function Dashboard() {
       
       // Get payments for current month
       const thisMonthPayments = paymentsList.filter(p => {
-        const paidDate = p.paidDate instanceof Date ? p.paidDate : new Date(p.paidDate);
+        if (!p.paidDate) return false;
+        const paidDate = p.paidDate instanceof Date 
+          ? p.paidDate 
+          : new Date(typeof p.paidDate === 'string' ? p.paidDate : p.paidDate);
+        // Check if date is valid
+        if (isNaN(paidDate.getTime())) return false;
         return paidDate >= startOfMonth && paidDate <= endOfMonth;
       });
       
+      // Processing salary summary
+      
+      // Normalize employee data - handle both snake_case and camelCase
+      const normalizedEmployees = employeesList.map(emp => {
+        const normalized = {
+          id: emp.id,
+          name: emp.name,
+          email: emp.email,
+          phone: emp.phone,
+          role: emp.role,
+          salaryType: emp.salaryType || emp.salary_type || 'commission',
+          commissionRate: emp.commissionRate !== undefined && emp.commissionRate !== null 
+            ? emp.commissionRate 
+            : (emp.commission_rate !== undefined && emp.commission_rate !== null ? emp.commission_rate : null),
+          fixedSalary: emp.fixedSalary !== undefined && emp.fixedSalary !== null
+            ? emp.fixedSalary
+            : (emp.fixed_salary !== undefined && emp.fixed_salary !== null ? emp.fixed_salary : undefined),
+        };
+        return normalized;
+      });
+      
       // Calculate pending payments (employees with fixed/commission salaries but no payment this month)
-      const employeesWithSalaries = employeesList.filter(
+      const employeesWithSalaries = normalizedEmployees.filter(
         emp => (emp.salaryType === 'fixed' || emp.salaryType === 'commission' || emp.salaryType === 'both') && emp.id
       );
       
-      const paidEmployeeIds = new Set(thisMonthPayments.map(p => p.employeeId));
-      const pendingCount = employeesWithSalaries.filter(emp => !paidEmployeeIds.has(emp.id!)).length;
+      // Normalize employee IDs for comparison (handle both number and string)
+      const paidEmployeeIds = new Set(
+        thisMonthPayments.map(p => {
+          const empId = p.employeeId;
+          return typeof empId === 'string' ? parseInt(empId) : empId;
+        })
+      );
+      
+      const pendingCount = employeesWithSalaries.filter(emp => {
+        const empId = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id;
+        return !paidEmployeeIds.has(empId);
+      }).length;
       
       // For pending amount, we'd need to calculate expected salaries, but for now show count
       const summary: SalarySummary = {

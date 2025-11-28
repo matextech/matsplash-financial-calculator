@@ -354,76 +354,7 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
     }
   };
 
-  const handleCleanData = async (dataType: 'receptionist' | 'storekeeper' | 'all') => {
-    const confirmMessage = dataType === 'all' 
-      ? 'Are you sure you want to delete ALL receptionist sales and storekeeper entries? This action cannot be undone!'
-      : dataType === 'receptionist'
-      ? 'Are you sure you want to delete ALL receptionist sales? This action cannot be undone!'
-      : 'Are you sure you want to delete ALL storekeeper entries? This action cannot be undone!';
-
-    if (!window.confirm(confirmMessage)) {
-      return;
-    }
-
-    try {
-      const result = await apiService.cleanData(dataType);
-      alert(`✅ Data cleaned successfully!\n\nDeleted ${result.deletedCount} records.`);
-      await loadData(); // Reload to refresh the view
-    } catch (error) {
-      console.error('Error cleaning data:', error);
-      alert(`Error cleaning data: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
-
-  const handleCleanAllData = async () => {
-    const confirmMessage = 
-      '⚠️ WARNING: This will delete ALL data except Settings and Users!\n\n' +
-      'This includes:\n' +
-      '• All Sales\n' +
-      '• All Expenses\n' +
-      '• All Commissions/Salary Payments\n' +
-      '• All Material Purchases\n' +
-      '• All Material Inventory/Prices\n' +
-      '• All Bag Prices\n' +
-      '• All Employees\n' +
-      '• All Receptionist Sales\n' +
-      '• All Storekeeper Entries\n' +
-      '• All Settlements\n' +
-      '• All Audit Logs\n' +
-      '• All Notifications\n' +
-      '• All Recovery Tokens\n\n' +
-      'ONLY Settings and User accounts will be preserved.\n\n' +
-      'This action CANNOT be undone!\n\n' +
-      'Are you absolutely sure you want to proceed?';
-
-    if (!window.confirm(confirmMessage)) {
-      return;
-    }
-
-    // Double confirmation
-    if (!window.confirm('FINAL CONFIRMATION: Delete ALL data? Type OK to confirm.')) {
-      return;
-    }
-
-    try {
-      const result = await apiService.cleanAllData();
-      const details = Object.entries(result.results)
-        .filter(([_, count]) => count > 0)
-        .map(([key, count]) => `  • ${key}: ${count}`)
-        .join('\n');
-
-      alert(
-        `✅ All data cleaned successfully!\n\n` +
-        `Total records deleted: ${result.totalDeleted}\n\n` +
-        `Breakdown:\n${details || '  (No data found to delete)'}\n\n` +
-        `Settings and Users have been preserved.`
-      );
-      await loadData(); // Reload to refresh the view
-    } catch (error) {
-      console.error('Error cleaning all data:', error);
-      alert(`Error cleaning all data: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
+  // Cleanup functions removed for production security
 
   const handleConfirmPasswordReset = async () => {
     if (!passwordResetUserId) return;
@@ -482,11 +413,9 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
       }
 
       // 2FA verified, now update the target director's password
-      console.log('Updating password for user:', passwordResetUserId, 'New password length:', passwordResetNewPassword.length);
       const updateResult = await apiService.updateUser(passwordResetUserId, {
         password: passwordResetNewPassword
       });
-      console.log('Password update result:', updateResult);
       
       console.log('✅ Password reset successful');
       
@@ -1499,15 +1428,6 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
             <Typography variant="h6">User Accounts</Typography>
             <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                variant="outlined"
-                color="error"
-                startIcon={<DeleteIcon />}
-                onClick={handleCleanAllData}
-                sx={{ fontWeight: 'bold' }}
-              >
-                Clean ALL Data
-              </Button>
               <Button
                 variant="contained"
                 startIcon={<PersonAddIcon />}

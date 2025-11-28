@@ -65,8 +65,9 @@ function App() {
       <CssBaseline />
       <BrowserRouter>
         <Routes>
-          {/* Public Routes */}
-          <Route path="/login" element={<Login />} />
+          {/* Public Routes - Custom login URL required */}
+          <Route path="/login/:secretPath?" element={<Login />} />
+          <Route path="/login" element={<Navigate to="/404" replace />} />
           
           {/* Protected Role-Based Routes */}
           <Route
