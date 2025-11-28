@@ -23,21 +23,12 @@ env_variables:
   VITE_LOGIN_SECRET_PATH: 'matsplash-fin-2jg1wCHqcMOEhlBr'  # Generated secure login path
   # Note: App Engine automatically provides GOOGLE_APPLICATION_CREDENTIALS
 
-handlers:
-  # API routes must come first (more specific)
-  - url: /api/.*
-    script: auto
-    
-  # Serve static files from dist folder
-  - url: /(.*\.(js|css|ico|png|jpg|svg|woff|woff2|ttf|eot))
-    static_files: dist/\1
-    upload: dist/(.*\.(js|css|ico|png|jpg|svg|woff|woff2|ttf|eot))
-    expiration: 365d
+entrypoint: npm start
 
-  # Serve index.html for all other routes (SPA routing)
+handlers:
+  # All routes go to the Node.js server (Express will handle static files and routing)
   - url: /.*
-    static_files: dist/index.html
-    upload: dist/index.html
+    script: auto
 
 # Database Persistence:
 # Cloud Storage sync is implemented - database automatically syncs on startup/shutdown
