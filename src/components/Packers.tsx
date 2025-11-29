@@ -39,12 +39,9 @@ import { format, startOfDay, endOfDay, isSameDay, isToday, addDays, subDays } fr
 export default function Packers() {
   const [entries, setEntries] = useState<PackerEntry[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [viewMode, setViewMode] = useState<'day' | 'range'>('day');
-  const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
-    start: new Date(),
-    end: new Date(),
-  });
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [filterPacker, setFilterPacker] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [open, setOpen] = useState(false);
@@ -60,14 +57,54 @@ export default function Packers() {
     notes: '',
   });
 
+  // Initialize date from backend default report date
   useEffect(() => {
-    loadEntries();
+    const initDate = async () => {
+      try {
+        const result = await apiService.getDefaultReportDate();
+        const dateStr = result?.date;
+        if (dateStr) {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const ref = new Date(year, (month ?? 1) - 1, day ?? 1);
+          setSelectedDate(ref);
+          setDateRange({ start: ref, end: ref });
+          setFormData(prev => ({ ...prev, date: ref }));
+        } else {
+          const today = new Date();
+          setSelectedDate(today);
+          setDateRange({ start: today, end: today });
+        }
+      } catch {
+        // Fallback to local date if API fails
+        const today = new Date();
+        setSelectedDate(today);
+        setDateRange({ start: today, end: today });
+      }
+    };
+    initDate();
+  }, []);
+
+  useEffect(() => {
     loadEmployees();
   }, []);
 
+  // Reload entries when selectedDate or dateRange changes
+  useEffect(() => {
+    if (!selectedDate && !dateRange) return;
+    loadEntries();
+  }, [selectedDate, dateRange]);
+
   const loadEntries = async () => {
     try {
-      const data = await apiService.getPackerEntries();
+      let data;
+      if (viewMode === 'day' && selectedDate) {
+        data = await apiService.getPackerEntries(selectedDate, selectedDate);
+      } else if (viewMode === 'range' && dateRange) {
+        data = await apiService.getPackerEntries(dateRange.start, dateRange.end);
+      } else {
+        // Fallback: load all if no date is set
+        data = await apiService.getPackerEntries();
+      }
       // Handle both array and object with data property
       const entriesList = Array.isArray(data) ? data : (data.data || []);
       console.log('Packer entries loaded:', entriesList.length, 'entries');
@@ -108,9 +145,11 @@ export default function Packers() {
     });
   };
 
-  const currentEntries = viewMode === 'day' 
+  const currentEntries = viewMode === 'day' && selectedDate
     ? getEntriesForDate(selectedDate)
-    : getEntriesForRange(dateRange.start, dateRange.end);
+    : viewMode === 'range' && dateRange
+    ? getEntriesForRange(dateRange.start, dateRange.end)
+    : [];
 
   // Filter by packer name
   let filteredEntries = currentEntries;
@@ -145,11 +184,32 @@ export default function Packers() {
 
   const handleDateChange = (direction: 'prev' | 'next' | 'today') => {
     if (direction === 'today') {
-      setSelectedDate(new Date());
-    } else if (direction === 'prev') {
-      setSelectedDate(prev => subDays(prev, 1));
-    } else {
-      setSelectedDate(prev => addDays(prev, 1));
+      // Fetch the default report date for "today"
+      apiService.getDefaultReportDate().then(result => {
+        const dateStr = result?.date;
+        if (dateStr) {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const ref = new Date(year, (month ?? 1) - 1, day ?? 1);
+          setSelectedDate(ref);
+          setDateRange({ start: ref, end: ref });
+        } else {
+          const today = new Date();
+          setSelectedDate(today);
+          setDateRange({ start: today, end: today });
+        }
+      }).catch(() => {
+        const today = new Date();
+        setSelectedDate(today);
+        setDateRange({ start: today, end: today });
+      });
+    } else if (direction === 'prev' && selectedDate) {
+      const newDate = subDays(selectedDate, 1);
+      setSelectedDate(newDate);
+      setDateRange({ start: newDate, end: newDate });
+    } else if (direction === 'next' && selectedDate) {
+      const newDate = addDays(selectedDate, 1);
+      setSelectedDate(newDate);
+      setDateRange({ start: newDate, end: newDate });
     }
   };
 
@@ -169,7 +229,7 @@ export default function Packers() {
       setFormData({
         packerName: '',
         packerEmail: '',
-        date: date || selectedDate,
+        date: date || selectedDate || new Date(),
         bagsPacked: '',
         notes: '',
       });
@@ -294,16 +354,16 @@ export default function Packers() {
             <ChevronLeft />
           </IconButton>
           <Button
-            variant={isToday(selectedDate) ? 'contained' : 'outlined'}
+            variant={selectedDate && isToday(selectedDate) ? 'contained' : 'outlined'}
             startIcon={<CalendarIcon />}
             onClick={() => handleDateChange('today')}
           >
-            {isToday(selectedDate) ? 'Today' : format(selectedDate, 'MMM d, yyyy')}
+            {selectedDate ? (isToday(selectedDate) ? 'Today' : format(selectedDate, 'MMM d, yyyy')) : 'Loading...'}
           </Button>
           <IconButton onClick={() => handleDateChange('next')}>
             <ChevronRight />
           </IconButton>
-          {!isToday(selectedDate) && (
+          {selectedDate && !isToday(selectedDate) && (
             <TextField
               type="date"
               size="small"

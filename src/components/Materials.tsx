@@ -38,12 +38,9 @@ export default function Materials() {
   const [purchases, setPurchases] = useState<MaterialPurchase[]>([]);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [inventoryStatus, setInventoryStatus] = useState<InventoryStatus | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [viewMode, setViewMode] = useState<'day' | 'range'>('day');
-  const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
-    start: new Date(),
-    end: new Date(),
-  });
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [open, setOpen] = useState(false);
@@ -57,8 +54,34 @@ export default function Materials() {
     notes: '',
   });
 
+  // Initialize date from backend default report date
   useEffect(() => {
-    loadPurchases();
+    const initDate = async () => {
+      try {
+        const result = await apiService.getDefaultReportDate();
+        const dateStr = result?.date;
+        if (dateStr) {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const ref = new Date(year, (month ?? 1) - 1, day ?? 1);
+          setSelectedDate(ref);
+          setDateRange({ start: ref, end: ref });
+          setFormData(prev => ({ ...prev, date: ref }));
+        } else {
+          const today = new Date();
+          setSelectedDate(today);
+          setDateRange({ start: today, end: today });
+        }
+      } catch {
+        // Fallback to local date if API fails
+        const today = new Date();
+        setSelectedDate(today);
+        setDateRange({ start: today, end: today });
+      }
+    };
+    initDate();
+  }, []);
+
+  useEffect(() => {
     loadSettings();
     
     // Listen for settings updates to reload inventory with new threshold
@@ -71,6 +94,17 @@ export default function Materials() {
       window.removeEventListener('settingsUpdated', handleSettingsUpdated);
     };
   }, []);
+
+  // Reload purchases when selectedDate or dateRange changes
+  useEffect(() => {
+    if (!selectedDate && !dateRange) return;
+    loadPurchases();
+  }, [selectedDate, dateRange]);
+
+  // Reload inventory status when purchases change (capacity calculation needs all data)
+  useEffect(() => {
+    loadInventoryStatus();
+  }, [purchases.length]);
 
   // Reload inventory status when settings change
   useEffect(() => {
@@ -108,7 +142,15 @@ export default function Materials() {
 
   const loadPurchases = async () => {
     try {
-      const data = await apiService.getMaterialPurchases();
+      let data;
+      if (viewMode === 'day' && selectedDate) {
+        data = await apiService.getMaterialPurchases(selectedDate, selectedDate);
+      } else if (viewMode === 'range' && dateRange) {
+        data = await apiService.getMaterialPurchases(dateRange.start, dateRange.end);
+      } else {
+        // Fallback: load all if no date is set
+        data = await apiService.getMaterialPurchases();
+      }
       // apiService returns array directly
       setPurchases(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -167,9 +209,11 @@ export default function Materials() {
     return filtered;
   };
 
-  const currentPurchases = viewMode === 'day' 
+  const currentPurchases = viewMode === 'day' && selectedDate
     ? getPurchasesForDate(selectedDate)
-    : getPurchasesForRange(dateRange.start, dateRange.end);
+    : viewMode === 'range' && dateRange
+    ? getPurchasesForRange(dateRange.start, dateRange.end)
+    : [];
 
   const groupedPurchases = {
     sachet_roll: currentPurchases.filter(p => p.type === 'sachet_roll'),
@@ -208,11 +252,32 @@ export default function Materials() {
 
   const handleDateChange = (direction: 'prev' | 'next' | 'today') => {
     if (direction === 'today') {
-      setSelectedDate(new Date());
-    } else if (direction === 'prev') {
-      setSelectedDate(prev => subDays(prev, 1));
-    } else {
-      setSelectedDate(prev => addDays(prev, 1));
+      // Fetch the default report date for "today"
+      apiService.getDefaultReportDate().then(result => {
+        const dateStr = result?.date;
+        if (dateStr) {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const ref = new Date(year, (month ?? 1) - 1, day ?? 1);
+          setSelectedDate(ref);
+          setDateRange({ start: ref, end: ref });
+        } else {
+          const today = new Date();
+          setSelectedDate(today);
+          setDateRange({ start: today, end: today });
+        }
+      }).catch(() => {
+        const today = new Date();
+        setSelectedDate(today);
+        setDateRange({ start: today, end: today });
+      });
+    } else if (direction === 'prev' && selectedDate) {
+      const newDate = subDays(selectedDate, 1);
+      setSelectedDate(newDate);
+      setDateRange({ start: newDate, end: newDate });
+    } else if (direction === 'next' && selectedDate) {
+      const newDate = addDays(selectedDate, 1);
+      setSelectedDate(newDate);
+      setDateRange({ start: newDate, end: newDate });
     }
   };
 
@@ -442,17 +507,19 @@ export default function Materials() {
               <IconButton onClick={() => handleDateChange('prev')}>
                 <ChevronLeft />
               </IconButton>
-              <TextField
-                type="date"
-                value={formatDateForInput(selectedDate)}
-                onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
-                InputLabelProps={{ shrink: true }}
-                sx={{ minWidth: 200 }}
-              />
+              {selectedDate && (
+                <TextField
+                  type="date"
+                  value={formatDateForInput(selectedDate)}
+                  onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ minWidth: 200 }}
+                />
+              )}
               <IconButton onClick={() => handleDateChange('next')}>
                 <ChevronRight />
               </IconButton>
-              {!isToday(selectedDate) && (
+              {selectedDate && !isToday(selectedDate) && (
                 <Button variant="outlined" size="small" onClick={() => handleDateChange('today')}>
                   Today
                 </Button>

@@ -42,12 +42,9 @@ export default function Sales() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [viewMode, setViewMode] = useState<'day' | 'range'>('day');
-  const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
-    start: new Date(),
-    end: new Date(),
-  });
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [filterDriver, setFilterDriver] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [open, setOpen] = useState(false);
@@ -69,13 +66,45 @@ export default function Sales() {
     packingNylonPriceId: '' as string | number,
   });
 
+  // Initialize date from backend default report date
   useEffect(() => {
-    loadSales();
+    const initDate = async () => {
+      try {
+        const result = await apiService.getDefaultReportDate();
+        const dateStr = result?.date;
+        if (dateStr) {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const ref = new Date(year, (month ?? 1) - 1, day ?? 1);
+          setSelectedDate(ref);
+          setDateRange({ start: ref, end: ref });
+          setFormData(prev => ({ ...prev, date: ref }));
+        } else {
+          const today = new Date();
+          setSelectedDate(today);
+          setDateRange({ start: today, end: today });
+        }
+      } catch {
+        // Fallback to local date if API fails
+        const today = new Date();
+        setSelectedDate(today);
+        setDateRange({ start: today, end: today });
+      }
+    };
+    initDate();
+  }, []);
+
+  useEffect(() => {
     loadEmployees();
     loadSettings();
     loadMaterialPrices();
     loadBagPrices();
   }, []);
+
+  // Reload sales when selectedDate or dateRange changes
+  useEffect(() => {
+    if (!selectedDate && !dateRange) return;
+    loadSales();
+  }, [selectedDate, dateRange]);
 
   const loadMaterialPrices = async () => {
     try {
@@ -129,7 +158,15 @@ export default function Sales() {
 
   const loadSales = async () => {
     try {
-      const data = await apiService.getSales();
+      let data;
+      if (viewMode === 'day' && selectedDate) {
+        data = await apiService.getSales(selectedDate, selectedDate);
+      } else if (viewMode === 'range' && dateRange) {
+        data = await apiService.getSales(dateRange.start, dateRange.end);
+      } else {
+        // Fallback: load all if no date is set
+        data = await apiService.getSales();
+      }
       // apiService returns array directly
       setSales(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -206,9 +243,11 @@ export default function Sales() {
     return filtered;
   };
 
-  const currentSales = viewMode === 'day' 
+  const currentSales = viewMode === 'day' && selectedDate
     ? getSalesForDate(selectedDate)
-    : getSalesForRange(dateRange.start, dateRange.end);
+    : viewMode === 'range' && dateRange
+    ? getSalesForRange(dateRange.start, dateRange.end)
+    : [];
 
   // Group sales by driver
   const salesByDriver = currentSales.reduce((acc, sale) => {
@@ -256,11 +295,32 @@ export default function Sales() {
 
   const handleDateChange = (direction: 'prev' | 'next' | 'today') => {
     if (direction === 'today') {
-      setSelectedDate(new Date());
-    } else if (direction === 'prev') {
-      setSelectedDate(prev => subDays(prev, 1));
-    } else {
-      setSelectedDate(prev => addDays(prev, 1));
+      // Fetch the default report date for "today"
+      apiService.getDefaultReportDate().then(result => {
+        const dateStr = result?.date;
+        if (dateStr) {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const ref = new Date(year, (month ?? 1) - 1, day ?? 1);
+          setSelectedDate(ref);
+          setDateRange({ start: ref, end: ref });
+        } else {
+          const today = new Date();
+          setSelectedDate(today);
+          setDateRange({ start: today, end: today });
+        }
+      }).catch(() => {
+        const today = new Date();
+        setSelectedDate(today);
+        setDateRange({ start: today, end: today });
+      });
+    } else if (direction === 'prev' && selectedDate) {
+      const newDate = subDays(selectedDate, 1);
+      setSelectedDate(newDate);
+      setDateRange({ start: newDate, end: newDate });
+    } else if (direction === 'next' && selectedDate) {
+      const newDate = addDays(selectedDate, 1);
+      setSelectedDate(newDate);
+      setDateRange({ start: newDate, end: newDate });
     }
   };
 
@@ -567,17 +627,19 @@ export default function Sales() {
               <IconButton onClick={() => handleDateChange('prev')}>
                 <ChevronLeft />
               </IconButton>
-              <TextField
-                type="date"
-                value={formatDateForInput(selectedDate)}
-                onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
-                InputLabelProps={{ shrink: true }}
-                sx={{ minWidth: 200 }}
-              />
+              {selectedDate && (
+                <TextField
+                  type="date"
+                  value={formatDateForInput(selectedDate)}
+                  onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ minWidth: 200 }}
+                />
+              )}
               <IconButton onClick={() => handleDateChange('next')}>
                 <ChevronRight />
               </IconButton>
-              {!isToday(selectedDate) && (
+              {selectedDate && !isToday(selectedDate) && (
                 <Button variant="outlined" size="small" onClick={() => handleDateChange('today')}>
                   Today
                 </Button>
