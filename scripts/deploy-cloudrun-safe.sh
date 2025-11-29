@@ -34,7 +34,7 @@ gcloud run deploy ${SERVICE_NAME} \
     --region=${REGION} \
     --platform=managed \
     --allow-unauthenticated \
-    --set-env-vars="NODE_ENV=production,GCS_BUCKET_NAME=${GCS_BUCKET},DB_FILE_NAME=${DB_FILE}" \
+    --set-env-vars="NODE_ENV=production,GCS_BUCKET_NAME=${GCS_BUCKET},DB_FILE_NAME=${DB_FILE},JWT_SECRET=matsplash-financial-calculator-jwt-secret-2024-production" \
     --memory=1Gi \
     --cpu=1 \
     --timeout=300 \
