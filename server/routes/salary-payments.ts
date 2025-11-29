@@ -12,6 +12,10 @@ function transformSalaryPayment(payment: any) {
     fixedAmount: payment.fixed_salary ? parseFloat(payment.fixed_salary) : undefined,
     commissionAmount: payment.commission ? parseFloat(payment.commission) : undefined,
     totalAmount: parseFloat(payment.total_amount) || 0,
+    paidAmount: payment.paid_amount ? parseFloat(payment.paid_amount) : parseFloat(payment.total_amount) || 0,
+    remainingAmount: payment.remaining_amount ? parseFloat(payment.remaining_amount) : 0,
+    isPartialPayment: payment.is_partial_payment === 1 || payment.is_partial_payment === true,
+    isFullyPaid: payment.is_fully_paid === 1 || payment.is_fully_paid === true,
     period: payment.period,
     periodStart: payment.period_start,
     periodEnd: payment.period_end,
@@ -70,7 +74,7 @@ router.get('/', async (req, res) => {
 // Create salary payment
 router.post('/', async (req, res) => {
   try {
-    const { employeeId, employeeName, fixedAmount, commissionAmount, totalAmount, period, periodStart, periodEnd, paidDate, notes, totalBags } = req.body;
+    const { employeeId, employeeName, fixedAmount, commissionAmount, totalAmount, paidAmount, isPartialPayment, period, periodStart, periodEnd, paidDate, notes, totalBags } = req.body;
 
     // Creating salary payment
 
@@ -111,14 +115,22 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Note: total_bags is not in the schema, so we don't insert it
-    // If needed in the future, add it to the database schema migration
+    // Calculate partial payment fields
+    const actualPaidAmount = paidAmount !== undefined ? parseFloat(paidAmount) : numTotalAmount;
+    const remainingAmount = numTotalAmount - actualPaidAmount;
+    const isPartial = isPartialPayment || remainingAmount > 0;
+    const isFullyPaid = remainingAmount <= 0;
+    
     const [id] = await db('salary_payments').insert({
       employee_id: typeof employeeId === 'string' ? parseInt(employeeId) : employeeId,
       employee_name: employeeName,
       fixed_salary: numFixedAmount,
       commission: numCommissionAmount,
       total_amount: numTotalAmount,
+      paid_amount: actualPaidAmount,
+      remaining_amount: remainingAmount,
+      is_partial_payment: isPartial ? 1 : 0,
+      is_fully_paid: isFullyPaid ? 1 : 0,
       period: period,
       period_start: periodStart,
       period_end: periodEnd,

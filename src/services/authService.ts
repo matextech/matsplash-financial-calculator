@@ -277,6 +277,8 @@ class AuthService {
             parsed.lastActivity = new Date(parsed.lastActivity);
           }
           this.currentSession = parsed;
+          // Set up security monitoring when session is restored
+          this.setupSecurityMonitoring();
         } catch (e) {
           localStorage.removeItem('authSession');
         }

@@ -270,14 +270,14 @@ export default function Salaries() {
           const queryStart = startOfDay(cycle.workStart);
           const queryEnd = startOfDay(cycle.workEnd); // Use startOfDay to get the date without time
           
-          if (employee.role === 'Packers' || employee.role === 'Packer') {
+          if (employee.role === 'Packers') {
             // Packers get commission from packer entries
             commissionInfo = await FinancialCalculator.calculateCommissionFromPackerEntries(
               employee.id,
               queryStart,
               queryEnd
             );
-          } else if (employee.role === 'Driver' || employee.role === 'Drivers') {
+          } else if (employee.role === 'Driver') {
             // Drivers get commission from sales
             commissionInfo = await FinancialCalculator.calculateCommissionFromSales(
               employee.id,
@@ -606,6 +606,10 @@ export default function Salaries() {
         commissionAmount: formData.commissionAmount ? parseFloat(formData.commissionAmount) : undefined,
         totalBags: formData.totalBags ? parseInt(formData.totalBags) : undefined,
         totalAmount: parseFloat(formData.totalAmount),
+        paidAmount: parseFloat(formData.totalAmount), // Default to full payment
+        remainingAmount: 0, // Default to no remaining amount
+        isPartialPayment: false, // Default to full payment
+        isFullyPaid: true, // Default to fully paid
         paidDate: formatDate(formData.paidDate) as any,
         notes: formData.notes?.trim() || undefined,
       };

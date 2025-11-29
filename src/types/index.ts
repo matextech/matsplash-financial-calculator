@@ -69,6 +69,10 @@ export interface SalaryPayment {
   commissionAmount?: number;
   totalBags?: number; // For commission calculation
   totalAmount: number;
+  paidAmount: number; // Amount actually paid (for partial payments)
+  remainingAmount?: number; // Remaining amount to be paid
+  isPartialPayment?: boolean; // True if this is a partial payment
+  isFullyPaid?: boolean; // True if salary is fully paid
   paidDate: Date;
   notes?: string;
   createdAt?: Date;

@@ -26,16 +26,27 @@ export class InventoryService {
    */
   static async getInventoryStatus(restockThreshold?: number): Promise<InventoryStatus> {
     try {
-      // Get all material purchases and sales from API
+      // Get all material purchases and sales from API (no date filter to get complete history)
       const [purchases, sales, settings] = await Promise.all([
-        apiService.getMaterialPurchases(),
-        apiService.getSales(),
+        apiService.getMaterialPurchases(), // All purchases
+        apiService.getSales(), // All sales to calculate total usage
         apiService.getSettings()
       ]);
 
       // Ensure we have arrays
       const safePurchases = Array.isArray(purchases) ? purchases : [];
       const safeSales = Array.isArray(sales) ? sales : [];
+      
+      // Debug logging
+      if (import.meta.env?.DEV) {
+        console.log('InventoryService - Raw data:', {
+          purchases: purchases,
+          sales: sales,
+          settings: settings,
+          safePurchasesCount: safePurchases.length,
+          safeSalesCount: safeSales.length
+        });
+      }
       
       // Handle settings response - unwrap if needed (API returns { success: true, data: {...} } or direct object)
       const settingsData = settings?.data || settings || DEFAULT_SETTINGS;

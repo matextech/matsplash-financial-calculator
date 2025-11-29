@@ -1204,8 +1204,7 @@ export default function ManagerDashboard() {
             <Typography variant="h6">
               Storekeeper Entries - {viewMode === 'month' && selectedMonth ? format(selectedMonth, 'MMMM yyyy') : 
                                       viewMode === 'day' && selectedDate ? format(selectedDate, 'MMM d, yyyy') :
-                                      dateRange ? `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}` : 'Loading...'} 
-                                      `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}`}
+                                      dateRange ? `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}` : 'Loading...'}
             </Typography>
             <Chip 
               label={`${filteredEntries.length} ${filteredEntries.length === 1 ? 'entry' : 'entries'}`} 
@@ -1320,8 +1319,7 @@ export default function ManagerDashboard() {
             <Typography variant="h6">
               Settlements - {viewMode === 'month' && selectedMonth ? format(selectedMonth, 'MMMM yyyy') : 
                              viewMode === 'day' && selectedDate ? format(selectedDate, 'MMM d, yyyy') :
-                             dateRange ? `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}` : 'Loading...'} 
-                             `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}`}
+                             dateRange ? `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}` : 'Loading...'}
             </Typography>
             <Chip 
               label={`${filteredSettlements.length} ${filteredSettlements.length === 1 ? 'settlement' : 'settlements'}`} 

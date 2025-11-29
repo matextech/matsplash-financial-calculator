@@ -45,7 +45,10 @@ router.get('/', async (req, res) => {
     let query = db('receptionist_sales').select('*').orderBy('date', 'desc');
     
     if (startDate && endDate) {
-      query = query.whereBetween('date', [startDate as string, endDate as string]);
+      // Convert dates to YYYY-MM-DD format and use inclusive range
+      const start = typeof startDate === 'string' ? startDate.split('T')[0] : String(startDate).split('T')[0];
+      const end = typeof endDate === 'string' ? endDate.split('T')[0] : String(endDate).split('T')[0];
+      query = query.whereBetween('date', [start, end]);
     }
     
     const sales = await query;

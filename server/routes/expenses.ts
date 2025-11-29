@@ -37,23 +37,31 @@ router.get('/', async (req, res) => {
   try {
     let query = db('expenses').select('*').orderBy('date', 'desc');
 
-    if (req.query.startDate) {
-      // Dates are stored as YYYY-MM-DD strings, so direct string comparison works
-      // Normalize the startDate to YYYY-MM-DD format
+    if (req.query.startDate && req.query.endDate) {
+      // Use whereBetween for inclusive range when both dates provided
+      const startDateParam = Array.isArray(req.query.startDate) ? req.query.startDate[0] : req.query.startDate;
+      const endDateParam = Array.isArray(req.query.endDate) ? req.query.endDate[0] : req.query.endDate;
+      const startDateStr = typeof startDateParam === 'string' 
+        ? startDateParam.split('T')[0] 
+        : String(startDateParam).split('T')[0];
+      const endDateStr = typeof endDateParam === 'string' 
+        ? endDateParam.split('T')[0] 
+        : String(endDateParam).split('T')[0];
+      query = query.whereBetween('date', [startDateStr, endDateStr]);
+    } else if (req.query.startDate) {
+      // Only start date provided
       const startDateParam = Array.isArray(req.query.startDate) ? req.query.startDate[0] : req.query.startDate;
       const startDateStr = typeof startDateParam === 'string' 
         ? startDateParam.split('T')[0] 
         : String(startDateParam).split('T')[0];
       query = query.where('date', '>=', startDateStr);
-    }
-    if (req.query.endDate) {
-      // Normalize the endDate to YYYY-MM-DD format
-      // Use < instead of <= since we're adding 1 day on the frontend to make it inclusive
+    } else if (req.query.endDate) {
+      // Only end date provided
       const endDateParam = Array.isArray(req.query.endDate) ? req.query.endDate[0] : req.query.endDate;
       const endDateStr = typeof endDateParam === 'string' 
         ? endDateParam.split('T')[0] 
         : String(endDateParam).split('T')[0];
-      query = query.where('date', '<', endDateStr);
+      query = query.where('date', '<=', endDateStr);
     }
 
     const expenses = await query;

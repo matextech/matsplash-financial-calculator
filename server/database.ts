@@ -137,6 +137,10 @@ export default async function setupDatabase(): Promise<void> {
         table.decimal('fixed_salary', 10, 2);
         table.decimal('commission', 10, 2);
         table.decimal('total_amount', 10, 2).notNullable();
+        table.decimal('paid_amount', 10, 2).notNullable().defaultTo(0); // Amount actually paid
+        table.decimal('remaining_amount', 10, 2).defaultTo(0); // Remaining amount
+        table.integer('is_partial_payment').defaultTo(0); // Boolean: is this a partial payment
+        table.integer('is_fully_paid').defaultTo(1); // Boolean: is salary fully paid
         table.string('period').notNullable(); // daily, weekly, monthly, first_half, second_half
         table.date('period_start').notNullable();
         table.date('period_end').notNullable();
@@ -146,6 +150,7 @@ export default async function setupDatabase(): Promise<void> {
         table.index('employee_id');
         table.index('payment_date');
         table.index('period');
+        table.index('is_fully_paid');
       });
       
       // Settings table
@@ -508,32 +513,31 @@ export default async function setupDatabase(): Promise<void> {
       }
     }
     
-    // Add material price ID columns to sales table (if they don't exist)
-    const hasSalesTable = await db.schema.hasTable('sales');
-    if (hasSalesTable) {
-      const hasSachetRollPriceId = await db.schema.hasColumn('sales', 'sachet_roll_price_id');
-      if (!hasSachetRollPriceId) {
+    // Add partial payment support columns to salary_payments table
+    const hasSalaryPaymentsTable = await db.schema.hasTable('salary_payments');
+    if (hasSalaryPaymentsTable) {
+      const hasPaidAmount = await db.schema.hasColumn('salary_payments', 'paid_amount');
+      if (!hasPaidAmount) {
         if (process.env.NODE_ENV !== 'production') {
-          console.log('Adding sachet_roll_price_id column to sales...');
+          console.log('Adding partial payment columns to salary_payments...');
         }
-        await db.schema.alterTable('sales', (table) => {
-          table.integer('sachet_roll_price_id');
+        await db.schema.alterTable('salary_payments', (table) => {
+          table.decimal('paid_amount', 10, 2).notNullable().defaultTo(0); // Amount actually paid
+          table.decimal('remaining_amount', 10, 2).defaultTo(0); // Remaining amount
+          table.integer('is_partial_payment').defaultTo(0); // Boolean: is this a partial payment
+          table.integer('is_fully_paid').defaultTo(1); // Boolean: is salary fully paid
         });
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('sachet_roll_price_id column added successfully');
-        }
-      }
-      
-      const hasPackingNylonPriceId = await db.schema.hasColumn('sales', 'packing_nylon_price_id');
-      if (!hasPackingNylonPriceId) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('Adding packing_nylon_price_id column to sales...');
-        }
-        await db.schema.alterTable('sales', (table) => {
-          table.integer('packing_nylon_price_id');
+        
+        // Update existing records to set paid_amount = total_amount and is_fully_paid = 1
+        await db('salary_payments').update({
+          paid_amount: db.raw('total_amount'),
+          remaining_amount: 0,
+          is_partial_payment: 0,
+          is_fully_paid: 1
         });
+        
         if (process.env.NODE_ENV !== 'production') {
-          console.log('packing_nylon_price_id column added successfully');
+          console.log('Partial payment columns added successfully');
         }
       }
     }
