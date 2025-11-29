@@ -513,6 +513,29 @@ export default async function setupDatabase(): Promise<void> {
       }
     }
     
+    // Add password_reset_required column to users table if it doesn't exist
+    const hasUsersTableForPasswordReset = await db.schema.hasTable('users');
+    if (hasUsersTableForPasswordReset) {
+      const hasPasswordResetRequired = await db.schema.hasColumn('users', 'password_reset_required');
+      if (!hasPasswordResetRequired) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('Adding password_reset_required column to users...');
+        }
+        await db.schema.alterTable('users', (table) => {
+          table.integer('password_reset_required').defaultTo(0); // Boolean: requires password reset
+        });
+        
+        // Set password reset required for existing director
+        await db('users').where({ role: 'director' }).update({
+          password_reset_required: 1
+        });
+        
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('password_reset_required column added successfully');
+        }
+      }
+    }
+    
     // Add partial payment support columns to salary_payments table
     const hasSalaryPaymentsTable = await db.schema.hasTable('salary_payments');
     if (hasSalaryPaymentsTable) {
@@ -627,6 +650,7 @@ async function initializeDefaultUsers(): Promise<void> {
         .update({
           email: directorEmail,
           password: directorPasswordHash,
+          password_reset_required: 1, // Force password reset on next login
           updated_at: db.fn.now()
         });
       
@@ -662,6 +686,7 @@ async function initializeDefaultUsers(): Promise<void> {
       phone: '08000000000',
       password: directorPasswordHash, // Always use hashed password
       role: 'director',
+      password_reset_required: 1, // Force password reset on first login
       two_factor_enabled: 0, // SQLite uses 0/1
       is_active: 1 // SQLite uses 0/1
     });
