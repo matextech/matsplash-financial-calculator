@@ -167,6 +167,19 @@ router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
     // Check if 2FA is enabled and if code is provided
     const twoFactorEnabled = user.two_factor_enabled === 1 || user.two_factor_enabled === true;
     const { twoFactorCode } = req.body;
+    
+    // For directors: 2FA is ALWAYS required (except during initial setup)
+    const directorPasswordResetRequired = user.role === 'director' && (user.password_reset_required === 1 || user.password_reset_required === true);
+    const isDirectorWithoutPasswordReset = user.role === 'director' && !directorPasswordResetRequired;
+    
+    // If director has completed password setup but 2FA is not enabled, require 2FA setup
+    if (isDirectorWithoutPasswordReset && !twoFactorEnabled) {
+      return res.status(200).json({
+        success: false,
+        requires2FASetup: true,
+        message: '2FA setup required for director account'
+      });
+    }
 
     if (twoFactorEnabled && !twoFactorCode) {
       // 2FA is enabled but no code provided
@@ -210,8 +223,10 @@ router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
       }
     }
 
-    // Check if PIN reset is required (SQLite stores as 0/1)
+    // Check if PIN/Password reset is required (SQLite stores as 0/1)
     const pinResetRequired = user.role !== 'director' && (user.pin_reset_required === 1 || user.pin_reset_required === true);
+    const passwordResetRequired = user.role === 'director' && (user.password_reset_required === 1 || user.password_reset_required === true);
+    const twoFactorSetupRequired = user.role === 'director' && !passwordResetRequired && !twoFactorEnabled;
 
     // Generate JWT token
     const token = jwt.sign(
@@ -233,7 +248,7 @@ router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
       });
 
     if (process.env.NODE_ENV !== 'production') {
-      console.log('Login successful for:', user.name, 'PIN reset required:', pinResetRequired);
+      console.log('Login successful for:', user.name, 'PIN reset required:', pinResetRequired, 'Password reset required:', passwordResetRequired, '2FA setup required:', twoFactorSetupRequired);
     }
 
     res.json({
@@ -249,6 +264,8 @@ router.post('/login', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
       },
       token,
       pinResetRequired,
+      passwordResetRequired,
+      twoFactorSetupRequired,
       message: 'Login successful'
     });
 
@@ -304,6 +321,65 @@ router.post('/change-pin', async (req, res) => {
 
   } catch (error) {
     console.error('Change PIN error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// Change Password endpoint (for directors)
+router.post('/change-password', async (req, res) => {
+  try {
+    const { userId, newPassword } = req.body;
+
+    if (!userId || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and new password are required'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters'
+      });
+    }
+
+    // Verify user is director
+    const user = await db('users').where('id', userId).first();
+    if (!user || user.role !== 'director') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only directors can change passwords'
+      });
+    }
+
+    // Hash the new password
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update user's password and clear reset flag
+    await db('users')
+      .where('id', userId)
+      .update({
+        password: passwordHash,
+        password_reset_required: 0, // SQLite uses 0/1
+        updated_at: new Date().toISOString()
+      });
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Password changed successfully for director:', userId);
+    }
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+
+  } catch (error) {
+    console.error('Change Password error:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error'

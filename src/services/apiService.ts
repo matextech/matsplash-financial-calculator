@@ -86,6 +86,22 @@ class ApiService {
     return data;
   }
 
+  async changePassword(userId: number, newPassword: string) {
+    const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, newPassword }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to change password');
+    }
+
+    return data;
+  }
+
   async verifyToken(): Promise<{ success: boolean; user?: any }> {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/verify`, {

@@ -57,11 +57,13 @@ class AuthService {
       const user = response.user;
       const token = response.token;
       const pinResetRequired = response.pinResetRequired || false;
+      const passwordResetRequired = response.passwordResetRequired || false;
+      const twoFactorSetupRequired = response.twoFactorSetupRequired || false;
       
       // Check if user is manager or director - require stricter security
       const isHighSecurity = this.HIGH_SECURITY_ROLES.includes(user.role as UserRole);
       
-      console.log('Login successful:', user.name, 'PIN reset required:', pinResetRequired, 'High security:', isHighSecurity);
+      console.log('Login successful:', user.name, 'PIN reset required:', pinResetRequired, 'Password reset required:', passwordResetRequired, '2FA setup required:', twoFactorSetupRequired, 'High security:', isHighSecurity);
       
       // Clear successful login attempts
       this.clearLoginAttempts(identifier);
@@ -74,6 +76,8 @@ class AuthService {
         token: token,
         expiresAt: new Date(Date.now() + sessionTimeout),
         pinResetRequired: pinResetRequired,
+        passwordResetRequired: passwordResetRequired,
+        twoFactorSetupRequired: twoFactorSetupRequired,
         lastActivity: new Date()
       };
       

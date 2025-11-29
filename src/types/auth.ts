@@ -23,6 +23,8 @@ export interface AuthSession {
   token: string;
   expiresAt: Date;
   pinResetRequired?: boolean; // True if user must change PIN
+  passwordResetRequired?: boolean; // True if director must change password
+  twoFactorSetupRequired?: boolean; // True if director must set up 2FA
   lastActivity?: Date; // Last user activity timestamp for inactivity monitoring
 }
 
