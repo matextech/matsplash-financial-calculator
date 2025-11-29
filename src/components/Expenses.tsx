@@ -82,7 +82,6 @@ export default function Expenses() {
           setDateRange({ start: today, end: today });
         }
       } catch {
-        // Fallback to local date if API fails
         const today = new Date();
         setSelectedDate(today);
         setDateRange({ start: today, end: today });
@@ -91,11 +90,11 @@ export default function Expenses() {
     initDate();
   }, []);
 
-  // Reload expenses when selectedDate or dateRange changes
+  // Reload expenses when date changes
   useEffect(() => {
     if (!selectedDate && !dateRange) return;
     loadExpenses();
-  }, [selectedDate, dateRange]);
+  }, [selectedDate, dateRange, viewMode]);
 
   const loadExpenses = async () => {
     try {
@@ -105,7 +104,6 @@ export default function Expenses() {
       } else if (viewMode === 'range' && dateRange) {
         data = await apiService.getExpenses(dateRange.start, dateRange.end);
       } else {
-        // Fallback: load all if no date is set
         data = await apiService.getExpenses();
       }
       // apiService returns array directly
@@ -198,7 +196,6 @@ export default function Expenses() {
 
   const handleDateChange = (direction: 'prev' | 'next' | 'today') => {
     if (direction === 'today') {
-      // Fetch the default report date for "today"
       apiService.getDefaultReportDate().then(result => {
         const dateStr = result?.date;
         if (dateStr) {
@@ -538,19 +535,17 @@ export default function Expenses() {
               <IconButton onClick={() => handleDateChange('prev')}>
                 <ChevronLeft />
               </IconButton>
-              {selectedDate && (
-                <TextField
-                  type="date"
-                  value={formatDateForInput(selectedDate)}
-                  onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
-                  InputLabelProps={{ shrink: true }}
-                  sx={{ minWidth: 200 }}
-                />
-              )}
+              <TextField
+                type="date"
+                value={formatDateForInput(selectedDate)}
+                onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
+                InputLabelProps={{ shrink: true }}
+                sx={{ minWidth: 200 }}
+              />
               <IconButton onClick={() => handleDateChange('next')}>
                 <ChevronRight />
               </IconButton>
-              {selectedDate && !isToday(selectedDate) && (
+              {!isToday(selectedDate) && (
                 <Button variant="outlined" size="small" onClick={() => handleDateChange('today')}>
                   Today
                 </Button>

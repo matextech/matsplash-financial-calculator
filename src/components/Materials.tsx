@@ -72,7 +72,6 @@ export default function Materials() {
           setDateRange({ start: today, end: today });
         }
       } catch {
-        // Fallback to local date if API fails
         const today = new Date();
         setSelectedDate(today);
         setDateRange({ start: today, end: today });
@@ -90,21 +89,29 @@ export default function Materials() {
     };
     window.addEventListener('settingsUpdated', handleSettingsUpdated);
     
+    // Listen for material purchase updates to reload inventory
+    const handleMaterialPurchaseUpdated = () => {
+      loadPurchases();
+      loadInventoryStatus();
+    };
+    window.addEventListener('materialPurchaseUpdated', handleMaterialPurchaseUpdated);
+    
     return () => {
       window.removeEventListener('settingsUpdated', handleSettingsUpdated);
+      window.removeEventListener('materialPurchaseUpdated', handleMaterialPurchaseUpdated);
     };
   }, []);
 
-  // Reload purchases when selectedDate or dateRange changes
+  // Reload purchases when date changes
   useEffect(() => {
     if (!selectedDate && !dateRange) return;
     loadPurchases();
-  }, [selectedDate, dateRange]);
+  }, [selectedDate, dateRange, viewMode]);
 
   // Reload inventory status when purchases change (capacity calculation needs all data)
   useEffect(() => {
     loadInventoryStatus();
-  }, [purchases.length]);
+  }, [purchases.length, settings.inventoryLowThreshold]);
 
   // Reload inventory status when settings change
   useEffect(() => {
@@ -148,7 +155,7 @@ export default function Materials() {
       } else if (viewMode === 'range' && dateRange) {
         data = await apiService.getMaterialPurchases(dateRange.start, dateRange.end);
       } else {
-        // Fallback: load all if no date is set
+        // For capacity calculation, we need ALL purchases, but for display we filter
         data = await apiService.getMaterialPurchases();
       }
       // apiService returns array directly
@@ -252,7 +259,6 @@ export default function Materials() {
 
   const handleDateChange = (direction: 'prev' | 'next' | 'today') => {
     if (direction === 'today') {
-      // Fetch the default report date for "today"
       apiService.getDefaultReportDate().then(result => {
         const dateStr = result?.date;
         if (dateStr) {
@@ -375,8 +381,9 @@ export default function Materials() {
             loadPurchases();
             loadInventoryStatus();
           }, 100);
-          // Dispatch event to refresh dashboard
+          // Dispatch event to refresh dashboard and inventory
           window.dispatchEvent(new Event('expensesUpdated'));
+          window.dispatchEvent(new Event('materialPurchaseUpdated'));
         } catch (error) {
           console.error('Error updating purchase:', error);
           alert(`Error updating purchase: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -390,8 +397,9 @@ export default function Materials() {
             loadPurchases();
             loadInventoryStatus();
           }, 100);
-          // Dispatch event to refresh dashboard
+          // Dispatch event to refresh dashboard and inventory
           window.dispatchEvent(new Event('expensesUpdated'));
+          window.dispatchEvent(new Event('materialPurchaseUpdated'));
         } catch (error) {
           console.error('Error adding purchase:', error);
           alert(`Error adding purchase: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -507,19 +515,17 @@ export default function Materials() {
               <IconButton onClick={() => handleDateChange('prev')}>
                 <ChevronLeft />
               </IconButton>
-              {selectedDate && (
-                <TextField
-                  type="date"
-                  value={formatDateForInput(selectedDate)}
-                  onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
-                  InputLabelProps={{ shrink: true }}
-                  sx={{ minWidth: 200 }}
-                />
-              )}
+              <TextField
+                type="date"
+                value={formatDateForInput(selectedDate)}
+                onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
+                InputLabelProps={{ shrink: true }}
+                sx={{ minWidth: 200 }}
+              />
               <IconButton onClick={() => handleDateChange('next')}>
                 <ChevronRight />
               </IconButton>
-              {selectedDate && !isToday(selectedDate) && (
+              {!isToday(selectedDate) && (
                 <Button variant="outlined" size="small" onClick={() => handleDateChange('today')}>
                   Today
                 </Button>

@@ -75,7 +75,6 @@ export default function Packers() {
           setDateRange({ start: today, end: today });
         }
       } catch {
-        // Fallback to local date if API fails
         const today = new Date();
         setSelectedDate(today);
         setDateRange({ start: today, end: today });
@@ -88,11 +87,11 @@ export default function Packers() {
     loadEmployees();
   }, []);
 
-  // Reload entries when selectedDate or dateRange changes
+  // Reload entries when date changes
   useEffect(() => {
     if (!selectedDate && !dateRange) return;
     loadEntries();
-  }, [selectedDate, dateRange]);
+  }, [selectedDate, dateRange, viewMode]);
 
   const loadEntries = async () => {
     try {
@@ -102,7 +101,6 @@ export default function Packers() {
       } else if (viewMode === 'range' && dateRange) {
         data = await apiService.getPackerEntries(dateRange.start, dateRange.end);
       } else {
-        // Fallback: load all if no date is set
         data = await apiService.getPackerEntries();
       }
       // Handle both array and object with data property
@@ -184,7 +182,6 @@ export default function Packers() {
 
   const handleDateChange = (direction: 'prev' | 'next' | 'today') => {
     if (direction === 'today') {
-      // Fetch the default report date for "today"
       apiService.getDefaultReportDate().then(result => {
         const dateStr = result?.date;
         if (dateStr) {
@@ -229,7 +226,7 @@ export default function Packers() {
       setFormData({
         packerName: '',
         packerEmail: '',
-        date: date || selectedDate || new Date(),
+        date: date || selectedDate,
         bagsPacked: '',
         notes: '',
       });
@@ -354,16 +351,16 @@ export default function Packers() {
             <ChevronLeft />
           </IconButton>
           <Button
-            variant={selectedDate && isToday(selectedDate) ? 'contained' : 'outlined'}
+            variant={isToday(selectedDate) ? 'contained' : 'outlined'}
             startIcon={<CalendarIcon />}
             onClick={() => handleDateChange('today')}
           >
-            {selectedDate ? (isToday(selectedDate) ? 'Today' : format(selectedDate, 'MMM d, yyyy')) : 'Loading...'}
+            {isToday(selectedDate) ? 'Today' : format(selectedDate, 'MMM d, yyyy')}
           </Button>
           <IconButton onClick={() => handleDateChange('next')}>
             <ChevronRight />
           </IconButton>
-          {selectedDate && !isToday(selectedDate) && (
+          {!isToday(selectedDate) && (
             <TextField
               type="date"
               size="small"
