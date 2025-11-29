@@ -21,15 +21,17 @@ export default function Login() {
   const navigate = useNavigate();
   const { secretPath } = useParams<{ secretPath?: string }>();
   
-  // Check if secret path is correct (environment variable or hardcoded for production)
-  const validSecretPath = (import.meta.env?.VITE_LOGIN_SECRET_PATH as string) || 'matsplash-fin-2024-secure';
+  // Log immediately when component renders
+  console.log('[Login] 🎯 Component function called!');
+  console.log('[Login] secretPath from useParams:', secretPath);
+  console.log('[Login] Current pathname:', window.location.pathname);
   
+  // REMOVED: Secret path validation - will add back after routing works
   useEffect(() => {
-    // If no secret path or wrong secret path, redirect to 404
-    if (!secretPath || secretPath !== validSecretPath) {
-      navigate('/404', { replace: true });
-    }
-  }, [secretPath, validSecretPath, navigate]);
+    console.log('[Login] ✅ useEffect ran - Component fully loaded!');
+    console.log('[Login] secretPath:', secretPath);
+    console.log('[Login] Full URL:', window.location.href);
+  }, [secretPath]);
   const [identifier, setIdentifier] = useState('');
   const [passwordOrPin, setPasswordOrPin] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('');

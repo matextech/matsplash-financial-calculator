@@ -19,6 +19,7 @@ import StorekeeperDashboard from './components/storekeeper/StorekeeperDashboard'
 import ManagerDashboard from './components/manager/ManagerDashboard';
 import DirectorDashboard from './components/director/DirectorDashboard';
 import DirectorDashboardWrapper from './components/director/DirectorDashboardWrapper';
+import NotFound from './components/NotFound';
 import { authService } from './services/authService';
 // import { initializeDefaultDirector, initializeDefaultAccounts } from './services/setupService';
 
@@ -57,7 +58,9 @@ function App() {
           return '/dashboard';
       }
     }
-    return '/login';
+    // Redirect to login with secret path if not authenticated
+    const secretPath = import.meta.env?.VITE_LOGIN_SECRET_PATH || 'matsplash-fin-2jg1wCHqcMOEhlBr';
+    return `/login/${secretPath}`;
   };
 
   return (
@@ -65,9 +68,14 @@ function App() {
       <CssBaseline />
       <BrowserRouter>
         <Routes>
-          {/* Public Routes - Custom login URL required */}
-          <Route path="/login/:secretPath?" element={<Login />} />
+          {/* Public Routes - Login requires secret path for security */}
+          {/* IMPORTANT: More specific routes must come first */}
+          <Route path="/login/:secretPath" element={<Login />} />
+          {/* Redirect plain /login to 404 for security */}
           <Route path="/login" element={<Navigate to="/404" replace />} />
+          <Route path="/404" element={<NotFound />} />
+          {/* Catch-all for unmatched routes */}
+          <Route path="*" element={<NotFound />} />
           
           {/* Protected Role-Based Routes */}
           <Route
@@ -104,6 +112,7 @@ function App() {
           />
 
           {/* Original Dashboard Routes (for director/main system) */}
+          {/* Redirect root to login with secret path */}
           <Route
             path="/"
             element={<Navigate to={getDefaultRoute()} replace />}

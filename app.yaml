@@ -7,7 +7,7 @@ env: standard
 instance_class: F1  # Lowest cost instance (free tier eligible)
 
 automatic_scaling:
-  min_instances: 0  # Scale to zero when not in use (lowest cost)
+  min_instances: 1  # Keep 1 instance running to avoid cold starts (better UX)
   max_instances: 1  # Single instance for low usage
   target_cpu_utilization: 0.6
 

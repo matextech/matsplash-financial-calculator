@@ -641,7 +641,8 @@ export default function DirectorDashboard({ hideHeader = false }: DirectorDashbo
 
   const handleLogout = () => {
     authService.logout();
-    navigate('/login');
+    const secretPath = import.meta.env?.VITE_LOGIN_SECRET_PATH || 'matsplash-fin-2jg1wCHqcMOEhlBr';
+    navigate(`/login/${secretPath}`);
   };
 
   const formatCurrency = (amount: number) => {

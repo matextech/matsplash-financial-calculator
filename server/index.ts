@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 import setupDatabase from './database';
 import { config } from './config';
 import { errorHandler } from './middleware/errorHandler';
@@ -28,6 +29,7 @@ import expensesRoutes from './routes/expenses';
 import materialPurchasesRoutes from './routes/material-purchases';
 import salaryPaymentsRoutes from './routes/salary-payments';
 import packerEntriesRoutes from './routes/packer-entries';
+import reportUtilsRoutes from './routes/report-utils';
 
 // Load environment variables
 dotenv.config();
@@ -86,6 +88,7 @@ app.use('/api/expenses', expensesRoutes);
 app.use('/api/material-purchases', materialPurchasesRoutes);
 app.use('/api/salary-payments', salaryPaymentsRoutes);
 app.use('/api/packer-entries', packerEntriesRoutes);
+app.use('/api/report-utils', reportUtilsRoutes);
 if (process.env.NODE_ENV !== 'production') {
   console.log('✅ All routes registered, including /api/audit-logs');
 }
@@ -99,31 +102,107 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Root path handling - removed redirect since WordPress will handle root
+// WordPress will serve www.matsplash.com/, financial app handles /login/* and /api/*
+// This allows both services to coexist behind a load balancer
+
 // Serve static files from dist folder (for production)
+console.log('[DEBUG] NODE_ENV:', process.env.NODE_ENV);
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../dist')));
+  console.log('[DEBUG] Entering production static file serving block');
+  const distPath = path.join(__dirname, '../dist');
+  console.log('[DEBUG] distPath:', distPath);
+  console.log('[DEBUG] distPath exists:', fs.existsSync(distPath));
   
-  // Serve index.html for all non-API routes (SPA routing)
+  // Serve static files manually to ensure we can control fallthrough behavior
   app.use((req, res, next) => {
-    // Skip API routes
-    if (req.path.startsWith('/api/')) {
+    // Only handle GET requests for static files
+    if (req.method !== 'GET') {
       return next();
     }
-    // Serve index.html for SPA routing
-    res.sendFile(path.join(__dirname, '../dist/index.html'));
+    
+    // Check if this is a static file request (has extension or is in /assets/)
+    const staticExtensions = /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|json|map|webp)$/i;
+    const isStaticFile = req.path.startsWith('/assets/') || staticExtensions.test(req.path);
+    
+    if (isStaticFile) {
+      const filePath = path.join(distPath, req.path);
+      if (fs.existsSync(filePath)) {
+        // File exists, serve it
+        const ext = path.extname(filePath).toLowerCase();
+        if (ext === '.js') {
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        } else if (ext === '.css') {
+          res.setHeader('Content-Type', 'text/css; charset=utf-8');
+        } else if (ext === '.svg') {
+          res.setHeader('Content-Type', 'image/svg+xml');
+        } else if (ext === '.ico') {
+          res.setHeader('Content-Type', 'image/x-icon');
+        }
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        return res.sendFile(filePath);
+      } else {
+        // Static file requested but doesn't exist - return 404
+        return res.status(404).send('File not found');
+      }
+    }
+    
+    // Not a static file request, continue to next middleware
+    next();
+  });
+  
+  // Serve index.html for all non-API, non-static routes (SPA routing)
+  // This MUST be the last handler before 404 handler
+  app.use((req, res, next) => {
+    console.log('[SPA Handler] Request received:', req.method, req.path);
+    
+    if (req.method !== 'GET') {
+      console.log('[SPA Handler] Not GET, calling next()');
+      return next();
+    }
+    if (req.path.startsWith('/api/')) {
+      console.log('[SPA Handler] API route, calling next()');
+      return next();
+    }
+    
+    // Check if this is a static file request
+    const staticExtensions = /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|json|map|webp)$/i;
+    const isStaticFileRequest = req.path.startsWith('/assets/') || staticExtensions.test(req.path);
+    
+    if (isStaticFileRequest) {
+      console.log('[SPA Handler] Static file request, returning 404');
+      return res.status(404).send('File not found');
+    }
+    
+    // For all other routes, serve index.html
+    console.log('[SPA Handler] Serving index.html for:', req.path);
+    const indexPath = path.join(distPath, 'index.html');
+    if (!fs.existsSync(indexPath)) {
+      console.error('[SPA Handler] ERROR: index.html not found at:', indexPath);
+      return res.status(404).send('Application not found - index.html missing');
+    }
+    
+    console.log('[SPA Handler] Sending index.html');
+    res.sendFile(indexPath);
+  });
+  
+  // 404 handler for API routes only (inside production block, after SPA handler)
+  app.use((req, res) => {
+    if (req.path.startsWith('/api/')) {
+      res.status(404).json({
+        success: false,
+        message: 'API route not found'
+      });
+    } else {
+      // This should never be reached if SPA handler works correctly
+      res.status(404).send('Route not found');
+    }
   });
 }
 
-// 404 handler for API routes only (using regex pattern for Express 5.x)
-app.use(/^\/api\/.*/, (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'API route not found'
-  });
-});
-
-// Error handler (must be last)
-app.use(errorHandler);
+// Error handler (must be last) - Express 5.x compatible
+// Error handlers must have 4 parameters: (err, req, res, next)
+app.use(errorHandler as express.ErrorRequestHandler);
 
 // Start server immediately, initialize database in background
 app.listen(PORT, () => {

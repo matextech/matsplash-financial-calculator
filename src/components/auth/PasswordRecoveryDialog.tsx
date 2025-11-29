@@ -62,14 +62,14 @@ export default function PasswordRecoveryDialog({ open, onClose, onSuccess }: Pas
       const response = await apiService.requestPasswordRecovery(identifier, twoFactorCode);
       
       if (response.success) {
-        // In development, show the token. In production, it would be sent via email/SMS
+        // Show the token - email/SMS is not configured yet
         if (response.recoveryToken) {
           setRecoveryToken(response.recoveryToken);
           setStep(1);
-          alert(`Recovery token generated!\n\nToken: ${response.recoveryToken}\n\n(In production, this would be sent to your email/phone)`);
+          alert(`⚠️ Email/SMS is not configured yet.\n\nRecovery Token: ${response.recoveryToken}\n\nPlease copy this token and use it in the next step. The token expires in 1 hour.\n\nTo enable email/SMS delivery, configure email service in the backend.`);
         } else {
-          alert('Recovery token has been sent. Please check your email/phone.');
-          setStep(1);
+          alert('⚠️ Email/SMS is not configured. Please contact administrator for recovery token.');
+          setError('Email/SMS service is not configured. Please contact administrator.');
         }
       }
     } catch (err: any) {
@@ -191,8 +191,11 @@ export default function PasswordRecoveryDialog({ open, onClose, onSuccess }: Pas
 
         {step === 1 && (
           <Box>
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Email/SMS service is not configured. The recovery token is shown in the alert above. Please copy it and paste it here.
+            </Alert>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Enter the recovery token you received. In production, this would be sent to your email/phone.
+              Enter the recovery token you received. Once email/SMS is configured, tokens will be sent automatically.
             </Typography>
             <TextField
               fullWidth

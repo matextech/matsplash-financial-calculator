@@ -61,11 +61,44 @@ export default function Reports() {
     loadReport();
   }, [period, startDate, endDate]);
 
+  // Initialize start/end dates from backend default report date
+  useEffect(() => {
+    const initDates = async () => {
+      try {
+        const result = await apiService.getDefaultReportDate();
+        const dateStr = result?.date;
+        if (dateStr) {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const ref = new Date(year, (month ?? 1) - 1, day ?? 1);
+          setStartDate(ref);
+          setEndDate(ref);
+        }
+      } catch {
+        // Ignore and keep local defaults
+      }
+    };
+    initDates();
+  }, []);
+
   const loadReport = async () => {
     try {
       setLoading(true);
-      const start = startOfDay(startDate);
-      const end = endOfDay(endDate);
+      // Use simple date handling - just get start/end of day
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      
+      if (import.meta.env?.DEV) {
+        console.log('Reports - Loading report:', {
+          period,
+          start: start.toISOString(),
+          end: end.toISOString(),
+          startDateStr: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`,
+          endDateStr: `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`
+        });
+      }
+      
       const reportData = await FinancialCalculator.generateReport(period, start, end);
       setReport(reportData);
       

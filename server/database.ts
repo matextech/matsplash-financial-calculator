@@ -609,7 +609,31 @@ export default async function setupDatabase(): Promise<void> {
 
 async function initializeDefaultUsers(): Promise<void> {
   try {
-    // Check if any users exist
+    // Check if director user exists
+    const director = await db('users').where({ role: 'director' }).first();
+    
+    // Update director if exists (for production password and email updates)
+    if (director) {
+      const directorPassword = process.env.DIRECTOR_PASSWORD || 'admin123';
+      const directorPasswordHash = await bcrypt.hash(directorPassword, 10);
+      const directorEmail = process.env.NODE_ENV === 'production' ? 'md@matsplash.com' : 'director@matsplash.com';
+      
+      await db('users')
+        .where({ role: 'director' })
+        .update({
+          email: directorEmail,
+          password: directorPasswordHash,
+          updated_at: db.fn.now()
+        });
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Director user updated with new email and password');
+      } else {
+        console.log('Director user updated for production');
+      }
+    }
+    
+    // Check if any users exist (for other roles)
     const userCount = await db('users').count('id as count').first();
     if (userCount && Number(userCount.count) > 0) {
       if (process.env.NODE_ENV !== 'production') {
@@ -623,12 +647,16 @@ async function initializeDefaultUsers(): Promise<void> {
     }
     
     // Director
-    const directorPinHash = await bcrypt.hash('admin123', 10);
+    // Hash the production password (use environment variable or default)
+    const directorPassword = process.env.DIRECTOR_PASSWORD || 'admin123';
+    const directorPasswordHash = await bcrypt.hash(directorPassword, 10);
+    const directorEmail = process.env.NODE_ENV === 'production' ? 'md@matsplash.com' : 'director@matsplash.com';
+    
     await db('users').insert({
       name: 'Director',
-      email: 'director@matsplash.com',
+      email: directorEmail,
       phone: '08000000000',
-      password: process.env.NODE_ENV === 'production' ? '' : 'admin123', // In production, must be set via environment
+      password: directorPasswordHash, // Always use hashed password
       role: 'director',
       two_factor_enabled: 0, // SQLite uses 0/1
       is_active: 1 // SQLite uses 0/1

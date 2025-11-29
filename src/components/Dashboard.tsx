@@ -20,6 +20,7 @@ import { FinancialCalculator } from '../services/financialCalculator';
 import { FinancialReport } from '../types';
 import { InventoryService, InventoryStatus } from '../services/inventoryService';
 import { apiService } from '../services/apiService';
+import { getNigerianDate, getStartOfDayNigerian, getEndOfDayNigerian } from '../utils/dateUtils';
 
 interface CommissionSummary {
   employeeId: number;
@@ -45,9 +46,34 @@ export default function Dashboard() {
   const [salarySummary, setSalarySummary] = useState<SalarySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [speedDialOpen, setSpeedDialOpen] = useState(false);
+  const [referenceDate, setReferenceDate] = useState<Date | null>(null);
 
   useEffect(() => {
-    loadDashboardData();
+    // First, fetch the default report date from the backend so that
+    // all users (US, Nigeria, etc.) see the same \"today\" based on data.
+    const init = async () => {
+      try {
+        const result = await apiService.getDefaultReportDate();
+        const dateStr = result?.date;
+        if (dateStr) {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const ref = new Date(year, (month ?? 1) - 1, day ?? 1);
+          setReferenceDate(ref);
+        } else {
+          setReferenceDate(new Date());
+        }
+      } catch {
+        // Fallback to local date if API fails
+        setReferenceDate(new Date());
+      }
+    };
+
+    init();
+  }, []);
+
+  useEffect(() => {
+    if (!referenceDate) return;
+    loadDashboardData(referenceDate);
     // Reload inventory when component mounts or when navigating back
     const interval = setInterval(() => {
       loadInventoryStatus();
@@ -91,16 +117,28 @@ export default function Dashboard() {
     return () => window.removeEventListener('error', handleError);
   }, []);
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (baseDate: Date) => {
     try {
       setLoading(true);
-      const today = new Date();
+      // Use reference date from backend (latest data date)
+      const today = baseDate;
       const yesterday = subDays(today, 1);
 
-      const todayStart = startOfDay(today);
-      const todayEnd = endOfDay(today);
-      const yesterdayStart = startOfDay(yesterday);
-      const yesterdayEnd = endOfDay(yesterday);
+      // Use simple start/end of day - system timezone will handle it
+      const todayStart = getStartOfDayNigerian(today);
+      const todayEnd = getEndOfDayNigerian(today);
+      const yesterdayStart = getStartOfDayNigerian(yesterday);
+      const yesterdayEnd = getEndOfDayNigerian(yesterday);
+
+      if (import.meta.env?.DEV) {
+        console.log('Dashboard - Loading data for:', {
+          today: today.toLocaleString('en-NG', { timeZone: 'Africa/Lagos' }),
+          todayStart: todayStart.toISOString(),
+          todayEnd: todayEnd.toISOString(),
+          yesterdayStart: yesterdayStart.toISOString(),
+          yesterdayEnd: yesterdayEnd.toISOString()
+        });
+      }
 
       const [todayData, yesterdayData] = await Promise.all([
         FinancialCalculator.generateReport('daily', todayStart, todayEnd),

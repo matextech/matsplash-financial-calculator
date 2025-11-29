@@ -456,11 +456,15 @@ class ApiService {
   async getSales(startDate?: Date, endDate?: Date) {
     const params = new URLSearchParams();
     if (startDate) {
-      // Format date as YYYY-MM-DD to avoid timezone issues
+      // Format date as YYYY-MM-DD using local date components
       const year = startDate.getFullYear();
       const month = String(startDate.getMonth() + 1).padStart(2, '0');
       const day = String(startDate.getDate()).padStart(2, '0');
       params.append('startDate', `${year}-${month}-${day}`);
+      
+      if (import.meta.env?.DEV) {
+        console.log('getSales - startDate:', `${year}-${month}-${day}`, 'from:', startDate.toISOString());
+      }
     }
     if (endDate) {
       // Format end date and add 1 day to make range inclusive
@@ -470,10 +474,20 @@ class ApiService {
       const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
       const day = String(endDateObj.getDate()).padStart(2, '0');
       params.append('endDate', `${year}-${month}-${day}`);
+      
+      if (import.meta.env?.DEV) {
+        console.log('getSales - endDate:', `${year}-${month}-${day}`, 'from:', endDate.toISOString());
+      }
     }
     
     const queryString = params.toString();
-    return this.request<any[]>(`/sales${queryString ? '?' + queryString : ''}`);
+    const url = `/sales${queryString ? '?' + queryString : ''}`;
+    
+    if (import.meta.env?.DEV) {
+      console.log('getSales - API URL:', url);
+    }
+    
+    return this.request<any[]>(url);
   }
 
   async createSale(saleData: any) {
@@ -506,6 +520,10 @@ class ApiService {
       const month = String(startDate.getMonth() + 1).padStart(2, '0');
       const day = String(startDate.getDate()).padStart(2, '0');
       params.append('startDate', `${year}-${month}-${day}`);
+      
+      if (import.meta.env?.DEV) {
+        console.log('getExpenses - startDate:', `${year}-${month}-${day}`, 'from:', startDate.toISOString());
+      }
     }
     if (endDate) {
       const endDateObj = new Date(endDate);
@@ -514,10 +532,20 @@ class ApiService {
       const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
       const day = String(endDateObj.getDate()).padStart(2, '0');
       params.append('endDate', `${year}-${month}-${day}`);
+      
+      if (import.meta.env?.DEV) {
+        console.log('getExpenses - endDate:', `${year}-${month}-${day}`, 'from:', endDate.toISOString());
+      }
     }
     
     const queryString = params.toString();
-    return this.request<any[]>(`/expenses${queryString ? '?' + queryString : ''}`);
+    const url = `/expenses${queryString ? '?' + queryString : ''}`;
+    
+    if (import.meta.env?.DEV) {
+      console.log('getExpenses - API URL:', url);
+    }
+    
+    return this.request<any[]>(url);
   }
 
   async createExpense(expenseData: any) {
@@ -546,17 +574,19 @@ class ApiService {
   async getMaterialPurchases(startDate?: Date, endDate?: Date) {
     const params = new URLSearchParams();
     if (startDate) {
+      // Use local date (Nigerian time) - simple approach
       const year = startDate.getFullYear();
       const month = String(startDate.getMonth() + 1).padStart(2, '0');
       const day = String(startDate.getDate()).padStart(2, '0');
       params.append('startDate', `${year}-${month}-${day}`);
     }
     if (endDate) {
-      const endDateObj = new Date(endDate);
-      endDateObj.setDate(endDateObj.getDate() + 1);
-      const year = endDateObj.getFullYear();
-      const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
-      const day = String(endDateObj.getDate()).padStart(2, '0');
+      // Add 1 day to make endDate inclusive
+      const endDatePlusOne = new Date(endDate);
+      endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
+      const year = endDatePlusOne.getFullYear();
+      const month = String(endDatePlusOne.getMonth() + 1).padStart(2, '0');
+      const day = String(endDatePlusOne.getDate()).padStart(2, '0');
       params.append('endDate', `${year}-${month}-${day}`);
     }
     
@@ -590,17 +620,19 @@ class ApiService {
   async getSalaryPayments(startDate?: Date, endDate?: Date) {
     const params = new URLSearchParams();
     if (startDate) {
+      // Use local date (Nigerian time) - simple approach
       const year = startDate.getFullYear();
       const month = String(startDate.getMonth() + 1).padStart(2, '0');
       const day = String(startDate.getDate()).padStart(2, '0');
       params.append('startDate', `${year}-${month}-${day}`);
     }
     if (endDate) {
-      const endDateObj = new Date(endDate);
-      endDateObj.setDate(endDateObj.getDate() + 1);
-      const year = endDateObj.getFullYear();
-      const month = String(endDateObj.getMonth() + 1).padStart(2, '0');
-      const day = String(endDateObj.getDate()).padStart(2, '0');
+      // Add 1 day to make endDate inclusive
+      const endDatePlusOne = new Date(endDate);
+      endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
+      const year = endDatePlusOne.getFullYear();
+      const month = String(endDatePlusOne.getMonth() + 1).padStart(2, '0');
+      const day = String(endDatePlusOne.getDate()).padStart(2, '0');
       params.append('endDate', `${year}-${month}-${day}`);
     }
     
@@ -703,6 +735,11 @@ class ApiService {
     return this.request(`/bag-prices/${id}`, {
       method: 'DELETE',
     });
+  }
+
+  // Report utilities
+  async getDefaultReportDate(): Promise<{ success: boolean; date: string }> {
+    return this.request<{ success: boolean; date: string }>('/report-utils/default-date');
   }
 
   // Audit log endpoints

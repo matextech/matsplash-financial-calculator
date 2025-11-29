@@ -973,16 +973,15 @@ router.post('/request-password-recovery', async (req, res) => {
       console.log('✅ Password recovery token generated for director:', { id: director.id, name: director.name });
     }
 
-    // In production, send token via email/SMS
-    if (process.env.NODE_ENV === 'production') {
-      console.warn('⚠️ PRODUCTION: Password recovery token should be sent via email/SMS, not returned in response');
-    }
+    // Email/SMS service is not configured - return token in response
+    // TODO: Configure email service (e.g., nodemailer with SMTP) or SMS service (e.g., Twilio)
+    // For now, token is returned in response - user must copy it manually
+    console.warn('⚠️ Email/SMS service is not configured. Recovery token is returned in response.');
 
     res.json({
       success: true,
-      message: 'Recovery token generated. Use this token to reset your password.',
-      // In production, remove this and send token via email/SMS
-      recoveryToken: process.env.NODE_ENV !== 'production' ? token : undefined,
+      message: 'Recovery token generated. Email/SMS service is not configured - please copy the token from the response.',
+      recoveryToken: token, // Return token since email/SMS is not configured
       expiresAt: expiresAt.toISOString()
     });
 

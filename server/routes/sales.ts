@@ -21,20 +21,57 @@ function transformSale(sale: any) {
   };
 }
 
+// Normalize any incoming date value to YYYY-MM-DD (date-only, no time)
+function normalizeDate(input: any): string {
+  if (!input) return input;
+  // If it's already in YYYY-MM-DD format, keep it
+  if (typeof input === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input)) {
+    return input;
+  }
+  const d = input instanceof Date ? input : new Date(input);
+  if (isNaN(d.getTime())) {
+    return input;
+  }
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // Get sales with optional date filtering
 router.get('/', async (req, res) => {
   try {
     let query = db('sales').select('*').orderBy('date', 'desc');
 
     if (req.query.startDate) {
-      query = query.where('date', '>=', req.query.startDate);
+      // Dates are stored as YYYY-MM-DD strings, so direct string comparison works
+      // Normalize the startDate to YYYY-MM-DD format
+      const startDateParam = Array.isArray(req.query.startDate) ? req.query.startDate[0] : req.query.startDate;
+      const startDateStr = typeof startDateParam === 'string' 
+        ? startDateParam.split('T')[0] 
+        : String(startDateParam).split('T')[0];
+      query = query.where('date', '>=', startDateStr);
     }
     if (req.query.endDate) {
+      // Normalize the endDate to YYYY-MM-DD format
       // Use < instead of <= since we're adding 1 day on the frontend to make it inclusive
-      query = query.where('date', '<', req.query.endDate);
+      const endDateParam = Array.isArray(req.query.endDate) ? req.query.endDate[0] : req.query.endDate;
+      const endDateStr = typeof endDateParam === 'string' 
+        ? endDateParam.split('T')[0] 
+        : String(endDateParam).split('T')[0];
+      query = query.where('date', '<', endDateStr);
     }
 
     const sales = await query;
+    
+    // Debug logging
+    console.log('Sales query:', {
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+      count: sales.length,
+      sample: sales.slice(0, 2).map(s => ({ id: s.id, date: s.date, amount: s.total_amount }))
+    });
+    
     const transformedSales = sales.map(transformSale);
     res.json(transformedSales);
   } catch (error) {
@@ -58,6 +95,8 @@ router.post('/', async (req, res) => {
       });
     }
 
+    const normalizedDate = normalizeDate(date);
+
     const [id] = await db('sales').insert({
       driver_name: driverName,
       driver_email: driverEmail || null,
@@ -65,7 +104,7 @@ router.post('/', async (req, res) => {
       bags_sold: bagsSold,
       price_per_bag: pricePerBag,
       total_amount: totalAmount || (bagsSold * pricePerBag),
-      date: date,
+      date: normalizedDate,
       notes: notes || null,
       sachet_roll_price_id: sachetRollPriceId || null,
       packing_nylon_price_id: packingNylonPriceId || null,
@@ -110,7 +149,7 @@ router.put('/:id', async (req, res) => {
     if (bagsSold !== undefined) updateData.bags_sold = bagsSold;
     if (pricePerBag !== undefined) updateData.price_per_bag = pricePerBag;
     if (totalAmount !== undefined) updateData.total_amount = totalAmount;
-    if (date !== undefined) updateData.date = date;
+    if (date !== undefined) updateData.date = normalizeDate(date);
     if (notes !== undefined) updateData.notes = notes;
     if (sachetRollPriceId !== undefined) updateData.sachet_roll_price_id = sachetRollPriceId;
     if (packingNylonPriceId !== undefined) updateData.packing_nylon_price_id = packingNylonPriceId;

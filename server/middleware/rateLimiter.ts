@@ -19,7 +19,15 @@ setInterval(() => {
 
 export const rateLimiter = (maxRequests: number = 5, windowMs: number = 15 * 60 * 1000) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const key = req.ip || 'unknown';
+    // Use a more specific key so that one user doesn't block everyone.
+    // Prefer identifier/email/phone from body when available, otherwise fall back to IP.
+    const identifier =
+      (req.body && (req.body.identifier || req.body.email || req.body.phone)) ||
+      (req.query && (req.query.identifier as string)) ||
+      'unknown-user';
+
+    const ip = req.ip || 'unknown-ip';
+    const key = `${ip}:${identifier}`;
     const now = Date.now();
     
     // Get or create rate limit entry

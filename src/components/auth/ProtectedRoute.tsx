@@ -95,7 +95,8 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
   }
 
   if (!isAuthorized) {
-    return <Navigate to="/login" replace />;
+    const secretPath = import.meta.env?.VITE_LOGIN_SECRET_PATH || 'matsplash-fin-2jg1wCHqcMOEhlBr';
+    return <Navigate to={`/login/${secretPath}`} replace />;
   }
 
   return <>{children}</>;

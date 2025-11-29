@@ -17,23 +17,58 @@ function transformPackerEntry(entry: any) {
   };
 }
 
+// Normalize any incoming date value to YYYY-MM-DD (date-only, no time)
+function normalizeDate(input: any): string {
+  if (!input) return input;
+  if (typeof input === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input)) {
+    return input;
+  }
+  const d = input instanceof Date ? input : new Date(input);
+  if (isNaN(d.getTime())) {
+    return input;
+  }
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // Get packer entries with optional date filtering
 router.get('/', async (req, res) => {
   try {
     let query = db('packer_entries').select('*').orderBy('date', 'desc');
 
     if (req.query.startDate) {
-      query = query.where('date', '>=', req.query.startDate);
+      // Dates are stored as YYYY-MM-DD strings, so direct string comparison works
+      // Normalize the startDate to YYYY-MM-DD format
+      const startDateParam = Array.isArray(req.query.startDate) ? req.query.startDate[0] : req.query.startDate;
+      const startDateStr = typeof startDateParam === 'string' 
+        ? startDateParam.split('T')[0] 
+        : String(startDateParam).split('T')[0];
+      query = query.where('date', '>=', startDateStr);
     }
     if (req.query.endDate) {
-      // Use <= comparison with endDate to include the entire end date
-      // Since dates are stored as DATE type, this will include all entries on that date
-      query = query.where('date', '<=', req.query.endDate);
+      // Normalize the endDate to YYYY-MM-DD format
+      // Use < instead of <= since we're adding 1 day on the frontend to make it inclusive
+      const endDateParam = Array.isArray(req.query.endDate) ? req.query.endDate[0] : req.query.endDate;
+      const endDateStr = typeof endDateParam === 'string' 
+        ? endDateParam.split('T')[0] 
+        : String(endDateParam).split('T')[0];
+      query = query.where('date', '<', endDateStr);
     }
     
     // Fetching packer entries
 
     const entries = await query;
+    
+    // Debug logging
+    console.log('Packer entries query:', {
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+      count: entries.length,
+      sample: entries.slice(0, 2).map(e => ({ id: e.id, date: e.date, bags: e.bags_packed }))
+    });
+    
     const transformedEntries = entries.map(transformPackerEntry);
     res.json(transformedEntries);
   } catch (error) {
@@ -77,12 +112,14 @@ router.post('/', async (req, res) => {
       });
     }
 
+    const normalizedDate = normalizeDate(date);
+
     const [id] = await db('packer_entries').insert({
       packer_name: packerName,
       packer_email: packerEmail || null,
       employee_id: employeeId || null,
       bags_packed: bagsPacked,
-      date: date,
+      date: normalizedDate,
       notes: notes || null,
       created_at: new Date().toISOString()
     });
@@ -123,7 +160,7 @@ router.put('/:id', async (req, res) => {
     if (packerEmail !== undefined) updateData.packer_email = packerEmail;
     if (employeeId !== undefined) updateData.employee_id = employeeId;
     if (bagsPacked !== undefined) updateData.bags_packed = bagsPacked;
-    if (date !== undefined) updateData.date = date;
+    if (date !== undefined) updateData.date = normalizeDate(date);
     if (notes !== undefined) updateData.notes = notes;
 
     await db('packer_entries').where('id', id).update(updateData);

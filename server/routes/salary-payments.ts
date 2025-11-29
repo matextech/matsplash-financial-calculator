@@ -28,15 +28,33 @@ router.get('/', async (req, res) => {
     let query = db('salary_payments').select('*').orderBy('payment_date', 'desc');
 
     if (req.query.startDate) {
-      query = query.where('payment_date', '>=', req.query.startDate);
+      // Dates are stored as YYYY-MM-DD strings, so direct string comparison works
+      // Normalize the startDate to YYYY-MM-DD format
+      const startDateParam = Array.isArray(req.query.startDate) ? req.query.startDate[0] : req.query.startDate;
+      const startDateStr = typeof startDateParam === 'string' 
+        ? startDateParam.split('T')[0] 
+        : String(startDateParam).split('T')[0];
+      query = query.where('payment_date', '>=', startDateStr);
     }
     if (req.query.endDate) {
+      // Normalize the endDate to YYYY-MM-DD format
       // Use < instead of <= since we're adding 1 day on the frontend to make it inclusive
-      query = query.where('payment_date', '<', req.query.endDate);
+      const endDateParam = Array.isArray(req.query.endDate) ? req.query.endDate[0] : req.query.endDate;
+      const endDateStr = typeof endDateParam === 'string' 
+        ? endDateParam.split('T')[0] 
+        : String(endDateParam).split('T')[0];
+      query = query.where('payment_date', '<', endDateStr);
     }
 
     const payments = await query;
-    // Fetching salary payments
+    
+    // Debug logging
+    console.log('Salary payments query:', {
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+      count: payments.length,
+      sample: payments.slice(0, 2).map(p => ({ id: p.id, payment_date: p.payment_date, amount: p.total_amount }))
+    });
     
     const transformedPayments = payments.map(transformSalaryPayment);
     res.json(transformedPayments);

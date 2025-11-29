@@ -6,6 +6,8 @@ class AuthService {
   private inactivityTimer: ReturnType<typeof setTimeout> | null = null;
   private sessionCheckInterval: ReturnType<typeof setInterval> | null = null;
   private lastActivityTime: number = Date.now();
+  private activityListeners: Array<{ event: string; handler: () => void; options?: any }> = [];
+  private originalFetch: typeof window.fetch | null = null;
 
   // Security settings for managers and directors
   private readonly HIGH_SECURITY_ROLES: UserRole[] = ['manager', 'director'];
@@ -101,6 +103,9 @@ class AuthService {
   }
 
   private setupInactivityMonitoring(): void {
+    // Clear any existing listeners first
+    this.clearActivityListeners();
+    
     // Reset activity on user interaction
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click', 'input', 'change', 'focus', 'keydown'];
     const resetActivity = () => {
@@ -114,15 +119,20 @@ class AuthService {
 
     // Use passive listeners for better performance
     events.forEach(event => {
-      document.addEventListener(event, resetActivity, { passive: true, capture: true });
+      const options = { passive: true, capture: true };
+      document.addEventListener(event, resetActivity, options);
+      // Store listener info so we can remove it later
+      this.activityListeners.push({ event, handler: resetActivity, options });
     });
 
-    // Also track API calls as activity
-    const originalFetch = window.fetch;
-    window.fetch = async (...args) => {
-      resetActivity();
-      return originalFetch(...args);
-    };
+    // Also track API calls as activity (only override once)
+    if (!this.originalFetch) {
+      this.originalFetch = window.fetch;
+      window.fetch = async (...args) => {
+        resetActivity();
+        return this.originalFetch!.apply(window, args);
+      };
+    }
 
     // Check for inactivity more frequently - but only logout if truly inactive
     this.inactivityTimer = setInterval(() => {
@@ -153,9 +163,24 @@ class AuthService {
       if (timeSinceActivity >= this.INACTIVITY_TIMEOUT) {
         console.warn('Inactivity timeout - logging out after', Math.round(timeSinceActivity / 1000), 'seconds of inactivity');
         this.logout();
-        window.location.href = '/login?reason=inactivity';
+        const loginPath = `/login/${import.meta.env?.VITE_LOGIN_SECRET_PATH || 'matsplash-fin-2jg1wCHqcMOEhlBr'}?reason=inactivity`;
+        window.location.href = loginPath;
       }
     }, this.SESSION_CHECK_INTERVAL); // Check every 30 seconds
+  }
+
+  private clearActivityListeners(): void {
+    // Remove all event listeners
+    this.activityListeners.forEach(({ event, handler, options }) => {
+      document.removeEventListener(event, handler, options);
+    });
+    this.activityListeners = [];
+    
+    // Restore original fetch if it was overridden
+    if (this.originalFetch) {
+      window.fetch = this.originalFetch;
+      this.originalFetch = null;
+    }
   }
 
   private setupSessionValidation(): void {
@@ -172,7 +197,8 @@ class AuthService {
         if (!isValid || !isValid.success) {
           console.warn('Session validation failed - logging out');
           this.logout();
-          window.location.href = '/login?reason=session_expired';
+          const loginPath = `/login/${import.meta.env?.VITE_LOGIN_SECRET_PATH || 'matsplash-fin-2jg1wCHqcMOEhlBr'}?reason=session_expired`;
+          window.location.href = loginPath;
         } else {
           // Update last activity
           this.lastActivityTime = Date.now();
@@ -184,7 +210,8 @@ class AuthService {
       } catch (error) {
         console.error('Session validation error:', error);
         this.logout();
-        window.location.href = '/login?reason=session_error';
+        const loginPath = `/login/${import.meta.env?.VITE_LOGIN_SECRET_PATH || 'matsplash-fin-2jg1wCHqcMOEhlBr'}?reason=session_error`;
+        window.location.href = loginPath;
       }
     }, this.SESSION_CHECK_INTERVAL);
   }
@@ -198,6 +225,8 @@ class AuthService {
       clearInterval(this.sessionCheckInterval);
       this.sessionCheckInterval = null;
     }
+    // Clear activity listeners
+    this.clearActivityListeners();
   }
 
   private getLoginAttempts(identifier: string): { count: number; firstAttempt: number } {

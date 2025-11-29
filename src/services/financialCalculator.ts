@@ -39,6 +39,19 @@ export class FinancialCalculator {
     const safeMaterialPurchases = Array.isArray(materialPurchases) ? materialPurchases : [];
     const safeSalaryPayments = Array.isArray(salaryPayments) ? salaryPayments : [];
 
+    // Debug logging in development
+    if (import.meta.env?.DEV) {
+      console.log('FinancialCalculator - Data fetched:', {
+        sales: safeSales.length,
+        expenses: safeExpenses.length,
+        materialPurchases: safeMaterialPurchases.length,
+        salaryPayments: safeSalaryPayments.length,
+        dateRange: { start: startDate.toISOString().split('T')[0], end: endDate.toISOString().split('T')[0] },
+        materialPurchasesData: safeMaterialPurchases.slice(0, 3),
+        salaryPaymentsData: safeSalaryPayments.slice(0, 3)
+      });
+    }
+
     // Calculate revenue
     const totalRevenue = safeSales.reduce((sum, sale) => {
       const amount = sale.totalAmount || sale.total_amount || 0;
@@ -100,11 +113,9 @@ export class FinancialCalculator {
     let materialCosts = 0;
     for (const purchase of safeMaterialPurchases) {
       const cost = purchase.cost || 0;
-      if (purchase.type === 'sachet_roll') {
-        materialCosts += (typeof cost === 'number' ? cost : parseFloat(cost) || 0);
-      } else if (purchase.type === 'packing_nylon') {
-        materialCosts += (typeof cost === 'number' ? cost : parseFloat(cost) || 0);
-      }
+      // Include all material purchase types (sachet_roll, packing_nylon, and any others)
+      const purchaseCost = typeof cost === 'number' ? cost : parseFloat(String(cost)) || 0;
+      materialCosts += purchaseCost;
     }
 
     // Calculate total material cost per bag sold (for profit calculation)
@@ -194,10 +205,11 @@ export class FinancialCalculator {
       totalMaterialCostAllocated += (sale.bagsSold || 0) * (sachetCostPerBag + nylonCostPerBag);
     }
 
-    // Calculate salaries
+    // Calculate salaries - include all salary payments in the period
     const totalSalaries = safeSalaryPayments.reduce((sum, payment) => {
       const amount = payment.totalAmount || payment.total_amount || 0;
-      return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
+      const paymentAmount = typeof amount === 'number' ? amount : parseFloat(String(amount)) || 0;
+      return sum + paymentAmount;
     }, 0);
     
 
