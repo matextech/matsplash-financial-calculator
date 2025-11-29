@@ -177,7 +177,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { employeeId, employeeName, fixedAmount, commissionAmount, totalAmount, period, periodStart, periodEnd, paidDate, notes, totalBags } = req.body;
+    const { employeeId, employeeName, fixedAmount, commissionAmount, totalAmount, period, periodStart, periodEnd, paidDate, notes, totalBags, paidAmount, remainingAmount, isPartialPayment, isFullyPaid } = req.body;
 
     const updateData: any = {};
     if (employeeId !== undefined) updateData.employee_id = employeeId;
@@ -190,6 +190,11 @@ router.put('/:id', async (req, res) => {
     if (periodEnd !== undefined) updateData.period_end = periodEnd;
     if (paidDate !== undefined) updateData.payment_date = paidDate;
     if (notes !== undefined) updateData.notes = notes;
+    // Handle partial payment fields
+    if (paidAmount !== undefined) updateData.paid_amount = paidAmount;
+    if (remainingAmount !== undefined) updateData.remaining_amount = remainingAmount;
+    if (isPartialPayment !== undefined) updateData.is_partial_payment = isPartialPayment ? 1 : 0;
+    if (isFullyPaid !== undefined) updateData.is_fully_paid = isFullyPaid ? 1 : 0;
     // Note: total_bags is not in the schema, so we don't update it
 
     await db('salary_payments').where('id', id).update(updateData);

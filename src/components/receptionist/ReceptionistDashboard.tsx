@@ -291,7 +291,8 @@ export default function ReceptionistDashboard() {
 
   const handleLogout = () => {
     authService.logout();
-    navigate('/login');
+    const secretPath = import.meta.env?.VITE_LOGIN_SECRET_PATH || 'matsplash-fin-2jg1wCHqcMOEhlBr';
+    navigate(`/login/${secretPath}`);
   };
 
   const formatDateForInput = (date: Date): string => {
