@@ -104,6 +104,7 @@ export default function Expenses() {
       } else if (viewMode === 'range' && dateRange) {
         data = await apiService.getExpenses(dateRange.start, dateRange.end);
       } else {
+        // Fallback: load all if no date is set
         data = await apiService.getExpenses();
       }
       // apiService returns array directly
@@ -535,17 +536,19 @@ export default function Expenses() {
               <IconButton onClick={() => handleDateChange('prev')}>
                 <ChevronLeft />
               </IconButton>
-              <TextField
-                type="date"
-                value={formatDateForInput(selectedDate)}
-                onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
-                InputLabelProps={{ shrink: true }}
-                sx={{ minWidth: 200 }}
-              />
+              {selectedDate && (
+                <TextField
+                  type="date"
+                  value={formatDateForInput(selectedDate)}
+                  onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ minWidth: 200 }}
+                />
+              )}
               <IconButton onClick={() => handleDateChange('next')}>
                 <ChevronRight />
               </IconButton>
-              {!isToday(selectedDate) && (
+              {selectedDate && !isToday(selectedDate) && (
                 <Button variant="outlined" size="small" onClick={() => handleDateChange('today')}>
                   Today
                 </Button>

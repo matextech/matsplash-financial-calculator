@@ -108,10 +108,10 @@ export default function Materials() {
     loadPurchases();
   }, [selectedDate, dateRange, viewMode]);
 
-  // Reload inventory status when purchases change (capacity calculation needs all data)
+  // Reload inventory status when purchases change (for capacity calculation)
   useEffect(() => {
     loadInventoryStatus();
-  }, [purchases.length, settings.inventoryLowThreshold]);
+  }, [purchases.length]);
 
   // Reload inventory status when settings change
   useEffect(() => {
@@ -124,10 +124,29 @@ export default function Materials() {
     try {
       // Use threshold from settings, fallback to default if not available
       const threshold = settings.inventoryLowThreshold || DEFAULT_SETTINGS.inventoryLowThreshold || 4000;
+      // InventoryService.getInventoryStatus() fetches ALL purchases and sales from API
+      // (not date-filtered) which is correct for capacity calculations
       const status = await InventoryService.getInventoryStatus(threshold);
+      console.log('Inventory status calculated:', {
+        sachetRolls: status.sachetRolls.totalRolls,
+        packingNylon: status.packingNylon.totalPackages,
+        totalCapacity: status.totalRemainingBags + status.totalUsedBags,
+        totalUsed: status.totalUsedBags,
+        totalRemaining: status.totalRemainingBags
+      });
       setInventoryStatus(status);
     } catch (error) {
       console.error('Error loading inventory status:', error);
+      // Set empty status on error
+      const threshold = settings.inventoryLowThreshold || DEFAULT_SETTINGS.inventoryLowThreshold || 4000;
+      setInventoryStatus({
+        sachetRolls: { totalRolls: 0, totalBagsCapacity: 0, remainingBags: 0, usedBags: 0 },
+        packingNylon: { totalPackages: 0, totalBagsCapacity: 0, remainingBags: 0, usedBags: 0 },
+        totalRemainingBags: 0,
+        totalUsedBags: 0,
+        needsRestock: true,
+        restockThreshold: threshold,
+      });
     }
   };
 
@@ -155,7 +174,7 @@ export default function Materials() {
       } else if (viewMode === 'range' && dateRange) {
         data = await apiService.getMaterialPurchases(dateRange.start, dateRange.end);
       } else {
-        // For capacity calculation, we need ALL purchases, but for display we filter
+        // Fallback: load all if no date is set (needed for capacity calculation)
         data = await apiService.getMaterialPurchases();
       }
       // apiService returns array directly
@@ -381,9 +400,8 @@ export default function Materials() {
             loadPurchases();
             loadInventoryStatus();
           }, 100);
-          // Dispatch event to refresh dashboard and inventory
+          // Dispatch event to refresh dashboard
           window.dispatchEvent(new Event('expensesUpdated'));
-          window.dispatchEvent(new Event('materialPurchaseUpdated'));
         } catch (error) {
           console.error('Error updating purchase:', error);
           alert(`Error updating purchase: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -397,9 +415,8 @@ export default function Materials() {
             loadPurchases();
             loadInventoryStatus();
           }, 100);
-          // Dispatch event to refresh dashboard and inventory
+          // Dispatch event to refresh dashboard
           window.dispatchEvent(new Event('expensesUpdated'));
-          window.dispatchEvent(new Event('materialPurchaseUpdated'));
         } catch (error) {
           console.error('Error adding purchase:', error);
           alert(`Error adding purchase: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -515,17 +532,19 @@ export default function Materials() {
               <IconButton onClick={() => handleDateChange('prev')}>
                 <ChevronLeft />
               </IconButton>
-              <TextField
-                type="date"
-                value={formatDateForInput(selectedDate)}
-                onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
-                InputLabelProps={{ shrink: true }}
-                sx={{ minWidth: 200 }}
-              />
+              {selectedDate && (
+                <TextField
+                  type="date"
+                  value={formatDateForInput(selectedDate)}
+                  onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ minWidth: 200 }}
+                />
+              )}
               <IconButton onClick={() => handleDateChange('next')}>
                 <ChevronRight />
               </IconButton>
-              {!isToday(selectedDate) && (
+              {selectedDate && !isToday(selectedDate) && (
                 <Button variant="outlined" size="small" onClick={() => handleDateChange('today')}>
                   Today
                 </Button>

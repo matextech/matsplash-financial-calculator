@@ -101,6 +101,7 @@ export default function Packers() {
       } else if (viewMode === 'range' && dateRange) {
         data = await apiService.getPackerEntries(dateRange.start, dateRange.end);
       } else {
+        // Fallback: load all if no date is set
         data = await apiService.getPackerEntries();
       }
       // Handle both array and object with data property
@@ -351,16 +352,16 @@ export default function Packers() {
             <ChevronLeft />
           </IconButton>
           <Button
-            variant={isToday(selectedDate) ? 'contained' : 'outlined'}
+            variant={selectedDate && isToday(selectedDate) ? 'contained' : 'outlined'}
             startIcon={<CalendarIcon />}
             onClick={() => handleDateChange('today')}
           >
-            {isToday(selectedDate) ? 'Today' : format(selectedDate, 'MMM d, yyyy')}
+            {selectedDate ? (isToday(selectedDate) ? 'Today' : format(selectedDate, 'MMM d, yyyy')) : 'Loading...'}
           </Button>
           <IconButton onClick={() => handleDateChange('next')}>
             <ChevronRight />
           </IconButton>
-          {!isToday(selectedDate) && (
+          {selectedDate && !isToday(selectedDate) && (
             <TextField
               type="date"
               size="small"

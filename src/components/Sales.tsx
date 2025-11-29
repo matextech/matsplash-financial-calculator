@@ -163,6 +163,7 @@ export default function Sales() {
       } else if (viewMode === 'range' && dateRange) {
         data = await apiService.getSales(dateRange.start, dateRange.end);
       } else {
+        // Fallback: load all if no date is set
         data = await apiService.getSales();
       }
       // apiService returns array directly
@@ -624,17 +625,19 @@ export default function Sales() {
               <IconButton onClick={() => handleDateChange('prev')}>
                 <ChevronLeft />
               </IconButton>
-              <TextField
-                type="date"
-                value={formatDateForInput(selectedDate)}
-                onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
-                InputLabelProps={{ shrink: true }}
-                sx={{ minWidth: 200 }}
-              />
+              {selectedDate && (
+                <TextField
+                  type="date"
+                  value={formatDateForInput(selectedDate)}
+                  onChange={(e) => setSelectedDate(parseDateFromInput(e.target.value))}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ minWidth: 200 }}
+                />
+              )}
               <IconButton onClick={() => handleDateChange('next')}>
                 <ChevronRight />
               </IconButton>
-              {!isToday(selectedDate) && (
+              {selectedDate && !isToday(selectedDate) && (
                 <Button variant="outlined" size="small" onClick={() => handleDateChange('today')}>
                   Today
                 </Button>
