@@ -29,18 +29,23 @@ router.get('/default-date', async (req, res) => {
     if (packersMax) dateCandidates.push(packersMax);
     if (salaryMax) dateCandidates.push(salaryMax);
 
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+
     let defaultDate: string;
 
     if (dateCandidates.length > 0) {
       // Dates are in YYYY-MM-DD, so lexicographical max is the latest date
-      defaultDate = dateCandidates.sort().at(-1)!;
+      const maxDate = dateCandidates.sort().at(-1)!;
+      // NEVER return a future date - cap at today
+      defaultDate = maxDate > todayStr ? todayStr : maxDate;
     } else {
-      // Fallback: use today's date based on server time
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
-      defaultDate = `${year}-${month}-${day}`;
+      // Fallback: use today's date
+      defaultDate = todayStr;
     }
 
     res.json({
