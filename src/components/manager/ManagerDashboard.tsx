@@ -64,13 +64,10 @@ export default function ManagerDashboard() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [bagPrices, setBagPrices] = useState<BagPrice[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [selectedMonth, setSelectedMonth] = useState<Date | null>(null);
   const [viewMode, setViewMode] = useState<'month' | 'day' | 'range'>('month');
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
-    start: new Date(),
-    end: new Date(),
-  });
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [dateRange, setDateRange] = useState<{ start: Date; end: Date } | null>(null);
   
   // Filters
   const [filterDriver, setFilterDriver] = useState<string>('all');
@@ -94,17 +91,45 @@ export default function ManagerDashboard() {
   const [twoFactorSetupOpen, setTwoFactorSetupOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
+  // Initialize date from backend default report date
   useEffect(() => {
-    loadData();
-    loadNotifications();
-    loadEmployees();
-    loadCurrentUser();
-  }, [selectedMonth, viewMode, selectedDate, dateRange]);
+    const initDate = async () => {
+      try {
+        const result = await apiService.getDefaultReportDate();
+        const dateStr = result?.date;
+        if (dateStr) {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const ref = new Date(year, (month ?? 1) - 1, day ?? 1);
+          setSelectedDate(ref);
+          setSelectedMonth(ref);
+          setDateRange({ start: ref, end: ref });
+        } else {
+          const today = new Date();
+          setSelectedDate(today);
+          setSelectedMonth(today);
+          setDateRange({ start: today, end: today });
+        }
+      } catch {
+        // Fallback to local date if API fails
+        const today = new Date();
+        setSelectedDate(today);
+        setSelectedMonth(today);
+        setDateRange({ start: today, end: today });
+      }
+    };
+    initDate();
+  }, []);
 
   useEffect(() => {
     loadEmployees();
     loadCurrentUser();
   }, []);
+
+  useEffect(() => {
+    if (!selectedMonth && !selectedDate && !dateRange) return;
+    loadData();
+    loadNotifications();
+  }, [selectedMonth, viewMode, selectedDate, dateRange]);
 
   const loadCurrentUser = async () => {
     try {
@@ -132,15 +157,20 @@ export default function ManagerDashboard() {
       let startDate: Date;
       let endDate: Date;
 
-      if (viewMode === 'month') {
+      if (viewMode === 'month' && selectedMonth) {
         startDate = startOfMonth(selectedMonth);
         endDate = endOfMonth(selectedMonth);
-      } else if (viewMode === 'day') {
+      } else if (viewMode === 'day' && selectedDate) {
         startDate = startOfDay(selectedDate);
         endDate = endOfDay(selectedDate);
-      } else {
+      } else if (viewMode === 'range' && dateRange) {
         startDate = startOfDay(dateRange.start);
         endDate = endOfDay(dateRange.end);
+      } else {
+        // Fallback to today if dates not initialized
+        const today = new Date();
+        startDate = startOfDay(today);
+        endDate = endOfDay(today);
       }
       
       const [salesData, entriesData, settlementsData, settingsData, bagPricesData] = await Promise.all([
@@ -197,7 +227,8 @@ export default function ManagerDashboard() {
     const session = authService.getCurrentSession();
     if (!session) {
       alert('Session expired. Please login again.');
-      navigate('/login');
+      const secretPath = import.meta.env?.VITE_LOGIN_SECRET_PATH || 'matsplash-fin-2jg1wCHqcMOEhlBr';
+      navigate(`/login/${secretPath}`);
       return;
     }
 
@@ -349,7 +380,8 @@ export default function ManagerDashboard() {
     const session = authService.getCurrentSession();
     if (!session) {
       alert('Session expired. Please login again.');
-      navigate('/login');
+      const secretPath = import.meta.env?.VITE_LOGIN_SECRET_PATH || 'matsplash-fin-2jg1wCHqcMOEhlBr';
+      navigate(`/login/${secretPath}`);
       return;
     }
 
@@ -452,7 +484,8 @@ export default function ManagerDashboard() {
 
   const handleLogout = () => {
     authService.logout();
-    navigate('/login');
+    const secretPath = import.meta.env?.VITE_LOGIN_SECRET_PATH || 'matsplash-fin-2jg1wCHqcMOEhlBr';
+    navigate(`/login/${secretPath}`);
   };
 
   const formatCurrency = (amount: number) => {
@@ -673,7 +706,7 @@ export default function ManagerDashboard() {
             </ToggleButtonGroup>
           </Box>
 
-          {viewMode === 'month' && (
+          {viewMode === 'month' && selectedMonth && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Button onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))}>
                 Previous Month
@@ -687,13 +720,24 @@ export default function ManagerDashboard() {
                 }}
                 InputLabelProps={{ shrink: true }}
               />
-              <Button onClick={() => setSelectedMonth(new Date())}>
+              <Button onClick={() => {
+                apiService.getDefaultReportDate().then(result => {
+                  const dateStr = result?.date;
+                  if (dateStr) {
+                    const [year, month, day] = dateStr.split('-').map(Number);
+                    const ref = new Date(year, (month ?? 1) - 1, day ?? 1);
+                    setSelectedMonth(ref);
+                  } else {
+                    setSelectedMonth(new Date());
+                  }
+                }).catch(() => setSelectedMonth(new Date()));
+              }}>
                 Current Month
               </Button>
             </Box>
           )}
 
-          {viewMode === 'day' && (
+          {viewMode === 'day' && selectedDate && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <IconButton onClick={() => setSelectedDate(subDays(selectedDate, 1))}>
                 <ChevronLeft />
@@ -710,7 +754,25 @@ export default function ManagerDashboard() {
               <IconButton onClick={() => setSelectedDate(addDays(selectedDate, 1))}>
                 <ChevronRight />
               </IconButton>
-              <Button onClick={() => setSelectedDate(new Date())}>
+              <Button onClick={() => {
+                apiService.getDefaultReportDate().then(result => {
+                  const dateStr = result?.date;
+                  if (dateStr) {
+                    const [year, month, day] = dateStr.split('-').map(Number);
+                    const ref = new Date(year, (month ?? 1) - 1, day ?? 1);
+                    setSelectedDate(ref);
+                    setDateRange({ start: ref, end: ref });
+                  } else {
+                    const today = new Date();
+                    setSelectedDate(today);
+                    setDateRange({ start: today, end: today });
+                  }
+                }).catch(() => {
+                  const today = new Date();
+                  setSelectedDate(today);
+                  setDateRange({ start: today, end: today });
+                });
+              }}>
                 Today
               </Button>
             </Box>
@@ -876,9 +938,9 @@ export default function ManagerDashboard() {
         <Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h6">
-              Sales by Driver - {viewMode === 'month' ? format(selectedMonth, 'MMMM yyyy') : 
-                                 viewMode === 'day' ? format(selectedDate, 'MMM d, yyyy') : 
-                                 `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}`}
+              Sales by Driver - {viewMode === 'month' && selectedMonth ? format(selectedMonth, 'MMMM yyyy') : 
+                                 viewMode === 'day' && selectedDate ? format(selectedDate, 'MMM d, yyyy') : 
+                                 dateRange ? `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}` : 'Loading...'}
             </Typography>
             <Chip 
               label={`${filteredSales.length} ${filteredSales.length === 1 ? 'entry' : 'entries'}`} 
@@ -1140,8 +1202,9 @@ export default function ManagerDashboard() {
         <Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h6">
-              Storekeeper Entries - {viewMode === 'month' ? format(selectedMonth, 'MMMM yyyy') : 
-                                      viewMode === 'day' ? format(selectedDate, 'MMM d, yyyy') : 
+              Storekeeper Entries - {viewMode === 'month' && selectedMonth ? format(selectedMonth, 'MMMM yyyy') : 
+                                      viewMode === 'day' && selectedDate ? format(selectedDate, 'MMM d, yyyy') :
+                                      dateRange ? `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}` : 'Loading...'} 
                                       `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}`}
             </Typography>
             <Chip 
@@ -1255,8 +1318,9 @@ export default function ManagerDashboard() {
         <Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h6">
-              Settlements - {viewMode === 'month' ? format(selectedMonth, 'MMMM yyyy') : 
-                             viewMode === 'day' ? format(selectedDate, 'MMM d, yyyy') : 
+              Settlements - {viewMode === 'month' && selectedMonth ? format(selectedMonth, 'MMMM yyyy') : 
+                             viewMode === 'day' && selectedDate ? format(selectedDate, 'MMM d, yyyy') :
+                             dateRange ? `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}` : 'Loading...'} 
                              `${format(dateRange.start, 'MMM d')} - ${format(dateRange.end, 'MMM d, yyyy')}`}
             </Typography>
             <Chip 

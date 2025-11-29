@@ -51,7 +51,7 @@ export default function ReceptionistDashboard() {
   const [pendingSale, setPendingSale] = useState<Omit<ReceptionistSale, 'id' | 'submittedAt' | 'submittedBy' | 'isSubmitted' | 'createdAt' | 'updatedAt'> | null>(null);
   const [filterType, setFilterType] = useState<'all' | 'driver' | 'general' | 'mini_store'>('all');
   const [dateFilter, setDateFilter] = useState<'today' | 'yesterday' | '2days' | 'custom'>('2days');
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [twoFactorSetupOpen, setTwoFactorSetupOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   
@@ -67,14 +67,42 @@ export default function ReceptionistDashboard() {
   // Dynamic price breakdown state (for new dynamic pricing system)
   const [priceBreakdown, setPriceBreakdown] = useState<{ [priceId: number]: string }>({});
 
+  // Initialize date from backend default report date
   useEffect(() => {
-    loadData();
-    loadNotifications();
+    const initDate = async () => {
+      try {
+        const result = await apiService.getDefaultReportDate();
+        const dateStr = result?.date;
+        if (dateStr) {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const ref = new Date(year, (month ?? 1) - 1, day ?? 1);
+          setSelectedDate(ref);
+          setFormData(prev => ({ ...prev, date: ref }));
+        } else {
+          const today = new Date();
+          setSelectedDate(today);
+        }
+      } catch {
+        // Fallback to local date if API fails
+        const today = new Date();
+        setSelectedDate(today);
+      }
+    };
+    initDate();
+  }, []);
+
+  useEffect(() => {
     loadCurrentUser();
     // Refresh notifications every 30 seconds
     const interval = setInterval(loadNotifications, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!selectedDate) return;
+    loadData();
+    loadNotifications();
+  }, [selectedDate, dateFilter]);
 
   const loadCurrentUser = async () => {
     try {
@@ -102,12 +130,31 @@ export default function ReceptionistDashboard() {
 
   const loadData = async () => {
     try {
-      // Calculate date range (default to last 2 days)
-      const twoDaysAgo = startOfDay(subDays(new Date(), 2));
-      const today = endOfDay(new Date());
+      if (!selectedDate) return;
+      
+      // Calculate date range based on dateFilter and selectedDate
+      let startDate: Date;
+      let endDate: Date;
+      
+      if (dateFilter === 'today') {
+        startDate = startOfDay(selectedDate);
+        endDate = endOfDay(selectedDate);
+      } else if (dateFilter === 'yesterday') {
+        const yesterday = subDays(selectedDate, 1);
+        startDate = startOfDay(yesterday);
+        endDate = endOfDay(yesterday);
+      } else if (dateFilter === '2days') {
+        const twoDaysAgo = subDays(selectedDate, 2);
+        startDate = startOfDay(twoDaysAgo);
+        endDate = endOfDay(selectedDate);
+      } else {
+        // custom - use selectedDate as reference
+        startDate = startOfDay(selectedDate);
+        endDate = endOfDay(selectedDate);
+      }
 
       const [salesData, employeesData, settingsData, bagPricesData] = await Promise.all([
-        apiService.getReceptionistSales(twoDaysAgo, today),
+        apiService.getReceptionistSales(startDate, endDate),
         apiService.getEmployees(),
         apiService.getSettings(),
         apiService.getBagPrices(),
@@ -179,7 +226,8 @@ export default function ReceptionistDashboard() {
     const session = authService.getCurrentSession();
     if (!session) {
       alert('Session expired. Please login again.');
-      navigate('/login');
+      const secretPath = import.meta.env?.VITE_LOGIN_SECRET_PATH || 'matsplash-fin-2jg1wCHqcMOEhlBr';
+      navigate(`/login/${secretPath}`);
       return;
     }
 
@@ -214,7 +262,8 @@ export default function ReceptionistDashboard() {
       const session = authService.getCurrentSession();
       if (!session) {
         alert('Session expired. Please login again.');
-        navigate('/login');
+        const secretPath = import.meta.env?.VITE_LOGIN_SECRET_PATH || 'matsplash-fin-2jg1wCHqcMOEhlBr';
+      navigate(`/login/${secretPath}`);
         return;
       }
 
@@ -274,7 +323,7 @@ export default function ReceptionistDashboard() {
 
   const todaySales = visibleSales.filter(sale => {
     const saleDate = sale.date instanceof Date ? sale.date : new Date(sale.date);
-    return isSameDay(saleDate, new Date());
+    return selectedDate ? isSameDay(saleDate, selectedDate) : false;
   });
 
   const getSaleTypeLabel = (type: string) => {
@@ -613,7 +662,7 @@ export default function ReceptionistDashboard() {
               <TextField
                 type="date"
                 size="small"
-                value={format(selectedDate, 'yyyy-MM-dd')}
+                value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
                 onChange={(e) => setSelectedDate(new Date(e.target.value))}
                 sx={{ width: 150 }}
               />
